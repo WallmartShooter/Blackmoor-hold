@@ -1,5 +1,3 @@
-GLOBAL_LIST_EMPTY(cinematics)
-
 // Use to play cinematics.
 // Watcher can be world,mob, or a list of mobs
 // Blocks until sequence is done.
@@ -18,48 +16,57 @@ GLOBAL_LIST_EMPTY(cinematics)
 		playing.is_global = TRUE
 		watcher = GLOB.mob_list
 	playing.play(watcher)
+	qdel(playing)
 
-/atom/movable/screen/cinematic
+/obj/screen/cinematic
 	icon = 'icons/effects/station_explosion.dmi'
 	icon_state = "station_intact"
 	plane = SPLASHSCREEN_PLANE
 	layer = SPLASHSCREEN_LAYER
 	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
-	screen_loc = "1,1"
+	screen_loc = "BOTTOM,LEFT+50%"
+	appearance_flags = APPEARANCE_UI | TILE_BOUND
 
 /datum/cinematic
 	var/id = CINEMATIC_DEFAULT
 	var/list/watching = list() //List of clients watching this
-	var/list/locked = list() //Who had notransform set during the cinematic
+	var/list/locked = list() //Who had mob_transforming  set during the cinematic
 	var/is_global = FALSE //Global cinematics will override mob-specific ones
-	var/atom/movable/screen/cinematic/screen
+	var/obj/screen/cinematic/screen
 	var/datum/callback/special_callback //For special effects synced with animation (explosions after the countdown etc)
 	var/cleanup_time = 300 //How long for the final screen to remain
 	var/stop_ooc = TRUE //Turns off ooc when played globally.
 
 /datum/cinematic/New()
-	GLOB.cinematics += src
 	screen = new(src)
 
 /datum/cinematic/Destroy()
-	GLOB.cinematics -= src
+	for(var/CC in watching)
+		if(!CC)
+			continue
+		var/client/C = CC
+		//C.mob.clear_fullscreen("cinematic")
+		C.screen -= screen
+	watching = null
 	QDEL_NULL(screen)
-	for(var/mob/M in locked)
-		M.notransform = FALSE
+	QDEL_NULL(special_callback)
+	for(var/MM in locked)
+		if(!MM)
+			continue
+		var/mob/M = MM
+		M.mob_transforming  = FALSE
+	locked = null
 	return ..()
 
 /datum/cinematic/proc/play(watchers)
-	//Check if you can actually play it (stop mob cinematics for global ones) and create screen objects
-	for(var/A in GLOB.cinematics)
-		var/datum/cinematic/C = A
-		if(C == src)
-			continue
-		if(C.is_global || !is_global)
-			return //Can't play two global or local cinematics at the same time
+	//Check if cinematic can actually play (stop mob cinematics for global ones)
+	if(SEND_GLOBAL_SIGNAL(COMSIG_GLOB_PLAY_CINEMATIC, src) & COMPONENT_GLOB_BLOCK_CINEMATIC)
+		return
 
-	//Close all open windows if global
-	if(is_global)
-		SStgui.close_all_uis()
+	//We are now playing this cinematic
+
+	//Handle what happens when a different cinematic tries to play over us
+	RegisterSignal(SSdcs, COMSIG_GLOB_PLAY_CINEMATIC, .proc/replacement_cinematic)
 
 	//Pause OOC
 	var/ooc_toggled = FALSE
@@ -67,20 +74,13 @@ GLOBAL_LIST_EMPTY(cinematics)
 		ooc_toggled = TRUE
 		toggle_ooc(FALSE)
 
-
-	for(var/mob/M in GLOB.mob_list)
-		if(M in watchers)
-			M.notransform = TRUE //Should this be done for non-global cinematics or even at all ?
-			locked += M
-			//Close watcher ui's
-			SStgui.close_user_uis(M)
-			if(M.client)
-				watching += M.client
-				M.client.screen += screen
-		else
-			if(is_global)
-				M.notransform = TRUE
-				locked += M
+	//Place /obj/screen/cinematic into everyone's screens, prevent them from moving
+	for(var/MM in watchers)
+		var/mob/M = MM
+		show_to(M, M.client)
+		RegisterSignal(M, COMSIG_MOB_CLIENT_LOGIN, .proc/show_to)
+		//Close watcher ui's
+		SStgui.close_user_uis(M)
 
 	//Actually play it
 	content()
@@ -92,7 +92,17 @@ GLOBAL_LIST_EMPTY(cinematics)
 	if(ooc_toggled)
 		toggle_ooc(TRUE)
 
-	qdel(src)
+/datum/cinematic/proc/show_to(mob/M, client/C)
+	//SIGNAL_HANDLER //must not wait.
+
+	if(!M.mob_transforming)
+		locked += M
+		M.mob_transforming = TRUE //Should this be done for non-global cinematics or even at all ?
+	if(!C)
+		return
+	watching += C
+	//M.overlay_fullscreen("cinematic",/obj/screen/fullscreen/cinematic_backdrop)
+	C.screen += screen
 
 //Sound helper
 /datum/cinematic/proc/cinematic_sound(s)
@@ -111,6 +121,13 @@ GLOBAL_LIST_EMPTY(cinematics)
 /datum/cinematic/proc/content()
 	sleep(50)
 
+/datum/cinematic/proc/replacement_cinematic(datum/source, datum/cinematic/other)
+	//SIGNAL_HANDLER
+
+	if(!is_global && other.is_global) //Allow it to play if we're local and it's global
+		return NONE
+	return COMPONENT_GLOB_BLOCK_CINEMATIC
+
 /datum/cinematic/nuke_win
 	id = CINEMATIC_NUKE_WIN
 
@@ -118,7 +135,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	flick("intro_nuke",screen)
 	sleep(35)
 	flick("station_explode_fade_red",screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	screen.icon_state = "summary_nukewin"
 
@@ -128,7 +145,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 /datum/cinematic/nuke_miss/content()
 	flick("intro_nuke",screen)
 	sleep(35)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	flick("station_intact_fade_red",screen)
 	screen.icon_state = "summary_nukefail"
@@ -141,7 +158,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	flick("intro_nuke",screen)
 	sleep(35)
 	flick("station_explode_fade_red", screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	screen.icon_state = "summary_selfdes"
 
@@ -151,7 +168,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 /datum/cinematic/nuke_selfdestruct_miss/content()
 	flick("intro_nuke",screen)
 	sleep(35)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	screen.icon_state = "station_intact"
 
@@ -162,7 +179,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	flick("intro_malf",screen)
 	sleep(76)
 	flick("station_explode_fade_red",screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	screen.icon_state = "summary_malf"
 
@@ -173,12 +190,12 @@ GLOBAL_LIST_EMPTY(cinematics)
 	screen.icon_state = null
 	flick("intro_cult",screen)
 	sleep(25)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/magic/enter_blood.ogg'))
 	sleep(28)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/machines/terminal_off.ogg'))
 	sleep(20)
 	flick("station_corrupted",screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/ghost.ogg'))
 	sleep(70)
 	special()
 
@@ -189,7 +206,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	flick("intro_nuke",screen)
 	sleep(35)
 	flick("station_explode_fade_red",screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	screen.icon_state = "summary_cult"
 
@@ -200,7 +217,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	flick("intro_nuke",screen)
 	sleep(35)
 	flick("station_explode_fade_red",screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 	screen.icon_state = "summary_totala"
 
@@ -211,7 +228,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 /datum/cinematic/fake/content()
 	flick("intro_nuke",screen)
 	sleep(35)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/items/bikehorn.ogg'))
 	flick("summary_selfdes",screen) //???
 	special()
 
@@ -223,7 +240,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	flick("intro_nuke",screen)
 	sleep(35)
 	flick("station_intact",screen)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/ambience/signal.ogg'))
 	sleep(100)
 
 /datum/cinematic/nuke_far
@@ -231,7 +248,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 	cleanup_time = 0
 
 /datum/cinematic/nuke_far/content()
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/effects/explosion_distant.ogg'))
 	special()
 
 /datum/cinematic/clownop
@@ -241,7 +258,7 @@ GLOBAL_LIST_EMPTY(cinematics)
 /datum/cinematic/clownop/content()
 	flick("intro_nuke",screen)
 	sleep(35)
-	cinematic_sound(sound('sound/blank.ogg'))
+	cinematic_sound(sound('sound/items/airhorn.ogg'))
 	flick("summary_selfdes",screen) //???
 	special()
 

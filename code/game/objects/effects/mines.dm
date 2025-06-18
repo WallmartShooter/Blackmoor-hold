@@ -1,94 +1,45 @@
 /obj/effect/mine
 	name = "dummy mine"
-	desc = ""
+	desc = "Better stay away from that thing."
 	density = FALSE
 	anchored = TRUE
 	icon = 'icons/obj/items_and_weapons.dmi'
 	icon_state = "uglymine"
-	var/triggered = 0
+	/// We manually check to see if we've been triggered in case multiple atoms cross us in the time between the mine being triggered and it actually deleting, to avoid a race condition with multiple detonations
+	var/triggered = FALSE
 
 /obj/effect/mine/proc/mineEffect(mob/victim)
-	to_chat(victim, span_danger("*click*"))
+	to_chat(victim, "<span class='danger'>*click*</span>")
 
-/obj/effect/mine/Crossed(AM as mob|obj)
-	if(isturf(loc))
-		if(ismob(AM))
-			var/mob/MM = AM
-			if(!(MM.movement_type & FLYING))
-				triggermine(AM)
-		else
-			triggermine(AM)
+/obj/effect/mine/Crossed(atom/movable/AM)
+	if(triggered || !isturf(loc) || isnottriggermine(AM) || isstructure(AM))
+		return
+	. = ..()
+
+	if(AM.movement_type & FLYING)
+		return
+
+	triggermine(AM)
 
 /obj/effect/mine/proc/triggermine(mob/victim)
 	if(triggered)
 		return
-	visible_message(span_danger("[victim] sets off [icon2html(src, viewers(src))] [src]!"))
+	visible_message("<span class='danger'>[victim] sets off [icon2html(src, viewers(src))] [src]!</span>")
 	var/datum/effect_system/spark_spread/s = new /datum/effect_system/spark_spread
 	s.set_up(3, 1, src)
 	s.start()
 	mineEffect(victim)
+	SEND_SIGNAL(src, COMSIG_EFFECT_MINE_TRIGGERED)
 	triggered = 1
 	qdel(src)
 
-
-/obj/effect/mine/explosive
-	name = "explosive mine"
-	var/range_devastation = 0
-	var/range_heavy = 1
-	var/range_light = 2
-	var/range_flash = 3
-
-/obj/effect/mine/explosive/mineEffect(mob/victim)
-	explosion(loc, range_devastation, range_heavy, range_light, range_flash)
-
-
-/obj/effect/mine/stun
-	name = "stun mine"
-	var/stun_time = 80
-
-/obj/effect/mine/stun/mineEffect(mob/living/victim)
-	if(isliving(victim))
-		victim.Paralyze(stun_time)
-
-/obj/effect/mine/kickmine
-	name = "kick mine"
-
-/obj/effect/mine/kickmine/mineEffect(mob/victim)
-	if(isliving(victim) && victim.client)
-		to_chat(victim, span_danger("I have been kicked FOR NO REISIN!"))
-		qdel(victim.client)
-
-
-/obj/effect/mine/gas
-	name = "oxygen mine"
-	var/gas_amount = 360
-	var/gas_type = "o2"
-
-/obj/effect/mine/gas/plasma
-	name = "plasma mine"
-	gas_type = "plasma"
-
-
-/obj/effect/mine/gas/n2o
-	name = "\improper N2O mine"
-	gas_type = "n2o"
-
-
-/obj/effect/mine/sound
-	name = "honkblaster 1000"
-	var/sound = 'sound/blank.ogg'
-
-/obj/effect/mine/sound/mineEffect(mob/victim)
-	playsound(loc, sound, 100, TRUE)
-
-
-/obj/effect/mine/sound/bwoink
-	name = "bwoink mine"
-	sound = 'sound/blank.ogg'
+/obj/effect/mine/take_damage(damage_amount, damage_type, damage_flag, sound_effect, attack_dir)
+	. = ..()
+	triggermine()
 
 /obj/effect/mine/pickup
 	name = "pickup"
-	desc = ""
+	desc = "pick me up"
 	icon = 'icons/effects/effects.dmi'
 	icon_state = "electricity2"
 	density = FALSE
@@ -101,33 +52,71 @@
 /obj/effect/mine/pickup/triggermine(mob/victim)
 	if(triggered)
 		return
-	triggered = 1
+	triggered = TRUE
 	invisibility = INVISIBILITY_ABSTRACT
 	mineEffect(victim)
 	qdel(src)
 
+
+/obj/effect/mine/pickup/bloodbath
+	name = "Red Orb"
+	desc = "You feel angry just looking at it."
+	duration = 1200 //2min
+	color = "#FF0000"
+
+/obj/effect/mine/pickup/bloodbath/mineEffect(mob/living/carbon/victim)
+	if(!victim.client || !istype(victim))
+		return
+	to_chat(victim, "<span class='reallybig redtext'>RIP AND TEAR</span>")
+	var/old_color = victim.client.color
+	var/static/list/red_splash = list(1,0,0,0.8,0.2,0, 0.8,0,0.2,0.1,0,0)
+	var/static/list/pure_red = list(0,0,0,0,0,0,0,0,0,1,0,0)
+
+	spawn(0)
+		new /datum/hallucination/delusion(victim, TRUE, "demon",duration,0)
+
+	var/obj/item/twohanded/chainsaw = new(victim.loc)
+	victim.log_message("entered a blood frenzy", LOG_ATTACK)
+
+	ADD_TRAIT(chainsaw, TRAIT_NODROP, CHAINSAW_FRENZY_TRAIT)
+	victim.drop_all_held_items()
+	victim.put_in_hands(chainsaw, forced = TRUE)
+	chainsaw.attack_self(victim)
+	victim.reagents.add_reagent(/datum/reagent/medicine/adminordrazine,25)
+	to_chat(victim, "<span class='warning'>KILL, KILL, KILL! YOU HAVE NO ALLIES ANYMORE, KILL THEM ALL!</span>")
+
+	victim.client.color = pure_red
+	animate(victim.client,color = red_splash, time = 10, easing = SINE_EASING|EASE_OUT)
+	sleep(10)
+	animate(victim.client,color = old_color, time = duration)//, easing = SINE_EASING|EASE_OUT)
+	sleep(duration)
+	to_chat(victim, "<span class='notice'>Your bloodlust seeps back into the bog of your subconscious and you regain self control.</span>")
+	qdel(chainsaw)
+	victim.log_message("exited a blood frenzy", LOG_ATTACK)
+	qdel(src)
+
 /obj/effect/mine/pickup/healing
 	name = "Blue Orb"
-	desc = ""
+	desc = "You feel better just looking at it."
 	color = "#0000FF"
 
 /obj/effect/mine/pickup/healing/mineEffect(mob/living/carbon/victim)
 	if(!victim.client || !istype(victim))
 		return
-	to_chat(victim, span_notice("I feel great!"))
-	victim.revive(full_heal = TRUE, admin_revive = TRUE)
+	to_chat(victim, "<span class='notice'>You feel great!</span>")
+	victim.revive(full_heal = 1, admin_revive = 1)
 
 /obj/effect/mine/pickup/speed
 	name = "Yellow Orb"
-	desc = ""
+	desc = "You feel faster just looking at it."
 	color = "#FFFF00"
 	duration = 300
 
 /obj/effect/mine/pickup/speed/mineEffect(mob/living/carbon/victim)
 	if(!victim.client || !istype(victim))
 		return
-	to_chat(victim, span_notice("I feel fast!"))
-	victim.add_movespeed_modifier(MOVESPEED_ID_YELLOW_ORB, update=TRUE, priority=100, multiplicative_slowdown=-2, blacklisted_movetypes=(FLYING|FLOATING))
+	to_chat(victim, "<span class='notice'>You feel fast!</span>")
+	victim.add_movespeed_modifier(/datum/movespeed_modifier/yellow_orb)
 	sleep(duration)
-	victim.remove_movespeed_modifier(MOVESPEED_ID_YELLOW_ORB)
-	to_chat(victim, span_notice("I slow down."))
+	victim.remove_movespeed_modifier(/datum/movespeed_modifier/yellow_orb)
+	to_chat(victim, "<span class='notice'>You slow down.</span>")

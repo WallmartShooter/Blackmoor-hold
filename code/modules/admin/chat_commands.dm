@@ -14,7 +14,7 @@
 	var/list/adm = get_admin_counts()
 	var/list/allmins = adm["total"]
 	var/status = "Admins: [allmins.len] (Active: [english_list(adm["present"])] AFK: [english_list(adm["afk"])] Stealth: [english_list(adm["stealth"])] Skipped: [english_list(adm["noflags"])]). "
-	status += "Players: [GLOB.clients.len] (Active: [get_active_player_count(0,1,0)]). Mode: Storytellers."
+	status += "Players: [GLOB.clients.len] (Active: [get_active_player_count(0,1,0)]). Mode: [SSticker.mode ? SSticker.mode.name : "Not started"]."
 	return status
 
 /datum/tgs_chat_command/irccheck
@@ -28,8 +28,8 @@
 		return
 	last_irc_check = rtod
 	var/server = CONFIG_GET(string/server)
-	return "[GLOB.round_id ? "Round #[GLOB.round_id]: " : ""][GLOB.clients.len] players on [SSmapping.config.map_name], Mode: [GLOB.master_mode]; Round [SSticker.HasRoundStarted() ? (SSticker.IsRoundInProgress() ? "Active" : "Finishing") : "Starting"] -- [server ? server : "[world.internet_address]:[world.port]"]"
-
+	return "[GLOB.round_id ? "Round #[GLOB.round_id]: " : ""][GLOB.clients.len] players on [SSmapping.config.map_name]; Round [SSticker.HasRoundStarted() ? (SSticker.IsRoundInProgress() ? "Active" : "Finishing") : "Starting"] -- [server ? server : "[world.internet_address]:[world.port]"]"
+	//CIT CHANGE obfuscates the gamemode for TGS bot commands on discord by removing Mode:[GLOB.master_mode]
 /datum/tgs_chat_command/ahelp
 	name = "ahelp"
 	help_text = "<ckey|ticket #> <message|ticket <close|resolve|icissue|reject|reopen <ticket #>|list>>"
@@ -75,12 +75,12 @@
 
 GLOBAL_LIST(round_end_notifiees)
 
-/datum/tgs_chat_command/endnotify
-	name = "endnotify"
+/datum/tgs_chat_command/notify
+	name = "notify"
 	help_text = "Pings the invoker when the round ends"
-	admin_only = TRUE
+	admin_only = FALSE
 
-/datum/tgs_chat_command/endnotify/Run(datum/tgs_chat_user/sender, params)
+/datum/tgs_chat_command/notify/Run(datum/tgs_chat_user/sender, params)
 	if(!SSticker.IsRoundInProgress() && SSticker.HasRoundStarted())
 		return "[sender.mention], the round has already ended!"
 	LAZYINITLIST(GLOB.round_end_notifiees)
@@ -102,8 +102,17 @@ GLOBAL_LIST(round_end_notifiees)
 		return "Query produced no output"
 	var/list/text_res = results.Copy(1, 3)
 	var/list/refs = results.len > 3 ? results.Copy(4) : null
+	if(refs)
+		var/list/L = list()
+		for(var/ref in refs)
+			var/atom/A = locate(ref)
+			if(A)
+				L += "[A]"
+			else
+				L += "[ref]"
+		refs = L
 	. = "[text_res.Join("\n")][refs ? "\nRefs: [refs.Join(" ")]" : ""]"
-	
+
 /datum/tgs_chat_command/reload_admins
 	name = "reload_admins"
 	help_text = "Forces the server to reload admins."
@@ -117,3 +126,35 @@ GLOBAL_LIST(round_end_notifiees)
 /datum/tgs_chat_command/reload_admins/proc/ReloadAsync()
 	set waitfor = FALSE
 	load_admins()
+
+// More (silly) chat commands citadel added.
+/datum/tgs_chat_command/valentine
+	name = "valentine"
+	help_text = "Get a random flirt line."
+
+/datum/tgs_chat_command/valentine/Run(datum/tgs_chat_user/sender, params)
+	return "[pick(GLOB.flirts)]"
+
+/datum/tgs_chat_command/despacito
+	name = "despacito"			//someone please high effort this sometime and make it a full on ytdl search
+	help_text = "This is so sad."
+
+/datum/tgs_chat_command/despacito/Run()
+	return "https://www.youtube.com/watch?v=kJQP7kiw5Fk"
+
+/datum/tgs_chat_command/poly
+	name = "poly"
+	help_text = "The Lewder, more applicable Poly speak for Citadel Station 13."
+	var/list/speech_buffer
+
+/datum/tgs_chat_command/poly/Run()
+	LAZYINITLIST(speech_buffer) //I figure this is just safe to do for everything at this point
+	if(length(speech_buffer))	//Let's not look up the whole json EVERY TIME, just the first time.
+		return "[pick(speech_buffer)]"
+	else
+		var/json_file = file("data/npc_saves/Poly.json")
+		if(!fexists(json_file))
+			return "**BAWWWWWK!** LEAVE THE HEADSET! ***BAWKKKKK!!***"
+		var/list/json = json_decode(file2text(json_file))
+		speech_buffer = json["phrases"]
+		return "[pick(speech_buffer)]"

@@ -19,6 +19,9 @@ GLOBAL_PROTECT(href_token)
 	var/spamcooldown = 0
 
 	var/admincaster_screen = 0	//TODO: remove all these 5 variables, they are completly unacceptable
+	var/datum/news/feed_message/admincaster_feed_message = new /datum/news/feed_message
+	var/datum/news/wanted_message/admincaster_wanted_message = new /datum/news/wanted_message
+	var/datum/news/feed_channel/admincaster_feed_channel = new /datum/news/feed_channel
 	var/admin_signature
 
 	var/href_token
@@ -50,7 +53,7 @@ GLOBAL_PROTECT(href_token)
 	//only admins with +ADMIN start admined
 	if(protected)
 		GLOB.protected_admins[target] = src
-	if (force_active || (R.rights & R_AUTOADMIN))
+	if (force_active || (R.rights & R_AUTOLOGIN))
 		activate()
 	else
 		deactivate()
@@ -88,8 +91,7 @@ GLOBAL_PROTECT(href_token)
 	var/client/C
 	if ((C = owner) || (C = GLOB.directory[target]))
 		disassociate()
-		C.verbs += /client/proc/readmin
-		C.verbs += /client/proc/adminwho
+		add_verb(C, /client/proc/readmin)
 
 /datum/admins/proc/associate(client/C)
 	if(IsAdminAdvancedProcCall())
@@ -109,8 +111,10 @@ GLOBAL_PROTECT(href_token)
 		owner = C
 		owner.holder = src
 		owner.add_admin_verbs()	//TODO <--- todo what? the proc clearly exists and works since its the backbone to our entire admin system
-		owner.verbs -= /client/proc/readmin
+		remove_verb(owner, /client/proc/readmin)
+		owner.init_verbs() //re-initialize the verb list
 		GLOB.admins |= C
+		GLOB.adminchat |= C //fortuna add
 
 /datum/admins/proc/disassociate()
 	if(IsAdminAdvancedProcCall())
@@ -120,7 +124,9 @@ GLOBAL_PROTECT(href_token)
 		return
 	if(owner)
 		GLOB.admins -= owner
+		GLOB.adminchat -= owner //fortuna add
 		owner.remove_admin_verbs()
+		owner.init_verbs()
 		owner.holder = null
 		owner = null
 
@@ -145,20 +151,7 @@ GLOBAL_PROTECT(href_token)
 /datum/admins/vv_edit_var(var_name, var_value)
 	return FALSE //nice try trialmin
 
-/*
-checks if usr is an admin with at least ONE of the flags in rights_required. (Note, they don't need all the flags)
-if rights_required == 0, then it simply checks if they are an admin.
-if it doesn't return 1 and show_msg=1 it will prints a message explaining why the check has failed
-generally it would be used like so:
 
-/proc/admin_proc()
-	if(!check_rights(R_ADMIN,0))
-		return
-	to_chat(world, "you have enough rights!")
-
-NOTE: it checks usr! not src! So if you're checking somebody's rank in a proc which they did not call
-you will have to do something like if(client.rights & R_ADMIN) myself.
-*/
 /proc/check_rights(rights_required, show_msg=1)
 	if(usr && usr.client)
 		if (check_rights_for(usr.client, rights_required))

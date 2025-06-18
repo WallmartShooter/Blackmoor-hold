@@ -1,48 +1,67 @@
 /obj/structure/fireaxecabinet
-	name = "Sword rack"
-	desc = "A fitting resting place for a sword etched and scratched by tales long past."
+	name = "fire axe cabinet"
+	desc = "There is a small label that reads \"For Emergency use only\" along with details for safe use of the axe. As if."
 	icon = 'icons/obj/wallmounts.dmi'
 	icon_state = "fireaxe"
+	plane = ABOVE_WALL_PLANE
 	anchored = TRUE
 	density = FALSE
-	armor = ARMOR_DISPLAYCASE
+	armor = list("melee" = 50, "bullet" = 20, "laser" = 0, "energy" = 100, "bomb" = 10, "bio" = 100, "rad" = 100, "fire" = 90, "acid" = 50)
 	max_integrity = 150
 	integrity_failure = 0.33
-	var/locked = FALSE
-	var/open = TRUE
-	var/obj/item/rogueweapon/sword/long/heirloom
+	var/locked = TRUE
+	var/open = FALSE
+	var/obj/item/twohanded/fireaxe/fireaxe
 
 /obj/structure/fireaxecabinet/Initialize()
 	. = ..()
-	heirloom = new /obj/item/rogueweapon/sword/long/heirloom
+	fireaxe = new
 	update_icon()
 
 /obj/structure/fireaxecabinet/Destroy()
-	if(heirloom)
-		QDEL_NULL(heirloom)
+	if(fireaxe)
+		QDEL_NULL(fireaxe)
 	return ..()
 
 /obj/structure/fireaxecabinet/attackby(obj/item/I, mob/user, params)
-	if(I.tool_behaviour == TOOL_MULTITOOL)
+	if(iscyborg(user) || istype(I, /obj/item/multitool))
 		toggle_lock(user)
-	else if(I.tool_behaviour == TOOL_WELDER && user.used_intent.type == INTENT_HELP && !obj_broken)
+	else if(istype(I, /obj/item/weldingtool) && user.a_intent == INTENT_HELP && !broken)
 		if(obj_integrity < max_integrity)
 			if(!I.tool_start_check(user, amount=2))
 				return
 
-	else if(open || obj_broken)
-		if(istype(I, /obj/item/rogueweapon/sword/long/heirloom) && !heirloom)
-			var/obj/item/rogueweapon/sword/long/heirloom/F = I
+			to_chat(user, "<span class='notice'>You begin repairing [src].</span>")
+			if(I.use_tool(src, user, 40, volume=50, amount=2))
+				obj_integrity = max_integrity
+				update_icon()
+				to_chat(user, "<span class='notice'>You repair [src].</span>")
+		else
+			to_chat(user, "<span class='warning'>[src] is already in good condition!</span>")
+		return
+	else if(istype(I, /obj/item/stack/sheet/glass) && broken)
+		var/obj/item/stack/sheet/glass/G = I
+		if(G.get_amount() < 2)
+			to_chat(user, "<span class='warning'>You need two glass sheets to fix [src]!</span>")
+			return
+		to_chat(user, "<span class='notice'>You start fixing [src]...</span>")
+		if(do_after(user, 20, target = src) && G.use(2))
+			broken = 0
+			obj_integrity = max_integrity
+			update_icon()
+	else if(open || broken)
+		if(istype(I, /obj/item/twohanded/fireaxe) && !fireaxe)
+			var/obj/item/twohanded/fireaxe/F = I
 			if(F.wielded)
 				to_chat(user, "<span class='warning'>Unwield the [F.name] first.</span>")
 				return
 			if(!user.transferItemToLoc(F, src))
 				return
-			heirloom = F
-			to_chat(user, "<span class='notice'>I place the [F.name] back in the [name].</span>")
+			fireaxe = F
+			to_chat(user, "<span class='caution'>You place the [F.name] back in the [name].</span>")
 			update_icon()
 			return
-		else if(!obj_broken)
+		else if(!broken)
 			toggle_open()
 	else
 		return ..()
@@ -50,12 +69,12 @@
 /obj/structure/fireaxecabinet/play_attack_sound(damage_amount, damage_type = BRUTE, damage_flag = 0)
 	switch(damage_type)
 		if(BRUTE)
-			if(obj_broken)
-				playsound(loc, 'sound/blank.ogg', 90, TRUE)
+			if(broken)
+				playsound(loc, 'sound/effects/hit_on_shattered_glass.ogg', 90, 1)
 			else
-				playsound(loc, 'sound/blank.ogg', 90, TRUE)
+				playsound(loc, 'sound/effects/glasshit.ogg', 90, 1)
 		if(BURN)
-			playsound(src.loc, 'sound/blank.ogg', 100, TRUE)
+			playsound(src.loc, 'sound/items/welder.ogg', 100, 1)
 
 /obj/structure/fireaxecabinet/take_damage(damage_amount, damage_type = BRUTE, damage_flag = 0, sound_effect = 1, attack_dir)
 	if(open)
@@ -65,21 +84,33 @@
 		update_icon()
 
 /obj/structure/fireaxecabinet/obj_break(damage_flag)
-	..()
-
-	if(!obj_broken && !(flags_1 & NODECONSTRUCT_1))
+	if(!broken && !(flags_1 & NODECONSTRUCT_1))
 		update_icon()
-		playsound(src, 'sound/blank.ogg', 100, TRUE)
+		broken = TRUE
+		playsound(src, 'sound/effects/glassbr3.ogg', 100, 1)
+		new /obj/item/shard(loc)
+		new /obj/item/shard(loc)
 
-/obj/structure/fireaxecabinet/attack_hand(mob/user)
-	. = ..()
-	if(.)
-		return
-	if(open || obj_broken)
-		if(heirloom)
-			user.put_in_hands(heirloom)
-			heirloom = null
-			to_chat(user, "<span class='notice'>I take the sword from the [name].</span>")
+/obj/structure/fireaxecabinet/deconstruct(disassembled = TRUE)
+	if(!(flags_1 & NODECONSTRUCT_1))
+		if(fireaxe && loc)
+			fireaxe.forceMove(loc)
+			fireaxe = null
+		new /obj/item/stack/sheet/metal(loc, 2)
+	qdel(src)
+
+/obj/structure/fireaxecabinet/blob_act(obj/structure/blob/B)
+	if(fireaxe)
+		fireaxe.forceMove(loc)
+		fireaxe = null
+	qdel(src)
+
+/obj/structure/fireaxecabinet/on_attack_hand(mob/user, act_intent = user.a_intent, unarmed_attack_flags)
+	if(open || broken)
+		if(fireaxe)
+			user.put_in_hands(fireaxe)
+			fireaxe = null
+			to_chat(user, "<span class='caution'>You take the fire axe from the [name].</span>")
 			src.add_fingerprint(user)
 			update_icon()
 			return
@@ -94,6 +125,10 @@
 /obj/structure/fireaxecabinet/attack_paw(mob/living/user)
 	return attack_hand(user)
 
+/obj/structure/fireaxecabinet/attack_ai(mob/user)
+	toggle_lock(user)
+	return
+
 /obj/structure/fireaxecabinet/attack_tk(mob/user)
 	if(locked)
 		to_chat(user, "<span class='warning'>The [name] won't budge!</span>")
@@ -103,30 +138,42 @@
 		update_icon()
 		return
 
-/obj/structure/fireaxecabinet/update_icon()
-	cut_overlays()
-	if(heirloom)
-		add_overlay("axe")
+/obj/structure/fireaxecabinet/update_overlays()
+	. = ..()
+	if(fireaxe)
+		. += "axe"
 	if(!open)
-
-		if(locked)
-			add_overlay("locked")
+		var/hp_percent = obj_integrity/max_integrity * 100
+		if(broken)
+			. += "glass4"
 		else
-			add_overlay("unlocked")
+			switch(hp_percent)
+				if(-INFINITY to 40)
+					. += "glass3"
+				if(40 to 60)
+					. += "glass2"
+				if(60 to 80)
+					. += "glass1"
+				if(80 to INFINITY)
+					. += "glass"
+		if(locked)
+			. += "locked"
+		else
+			. += "unlocked"
 	else
-		add_overlay("glass_raised")
+		. += "glass_raised"
 
 /obj/structure/fireaxecabinet/proc/toggle_lock(mob/user)
-	to_chat(user, "<span class='notice'>Resetting circuitry...</span>")
-	playsound(src, 'sound/blank.ogg', 50, TRUE)
+	to_chat(user, "<span class = 'caution'> Resetting circuitry...</span>")
+	playsound(src, 'sound/machines/locktoggle.ogg', 50, 1)
 	if(do_after(user, 20, target = src))
-		to_chat(user, "<span class='notice'>I [locked ? "disable" : "re-enable"] the locking modules.</span>")
+		to_chat(user, "<span class='caution'>You [locked ? "disable" : "re-enable"] the locking modules.</span>")
 		locked = !locked
 		update_icon()
 
 /obj/structure/fireaxecabinet/verb/toggle_open()
 	set name = "Open/Close"
-	set hidden = 1
+	set category = "Object"
 	set src in oview(1)
 
 	if(locked)
@@ -136,7 +183,3 @@
 		open = !open
 		update_icon()
 		return
-
-/obj/structure/fireaxecabinet/south
-	dir = SOUTH
-	pixel_y = 32

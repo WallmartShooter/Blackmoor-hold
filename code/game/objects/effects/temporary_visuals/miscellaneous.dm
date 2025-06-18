@@ -1,18 +1,14 @@
 //unsorted miscellaneous temporary visuals
 /obj/effect/temp_visual/dir_setting/bloodsplatter
 	icon = 'icons/effects/blood.dmi'
-	duration = 10
+	duration = 5
 	randomdir = FALSE
 	layer = BELOW_MOB_LAYER
-	plane = GAME_PLANE_FOV_HIDDEN
 	var/splatter_type = "splatter"
 
-/obj/effect/temp_visual/dir_setting/bloodsplatter/Initialize(mapload, set_dir)
-	icon_state = "[splatter_type][rand(1, 6)]"
-	. = ..()
-	animate(src, alpha = 0, time = duration)
-/*
-/obj/effect/temp_visual/dir_setting/bloodsplatter/Initialize(mapload, set_dir)
+/obj/effect/temp_visual/dir_setting/bloodsplatter/Initialize(mapload, set_dir, new_color)
+	if(new_color)
+		color = new_color
 	if(set_dir in GLOB.diagonals)
 		icon_state = "[splatter_type][pick(1, 2, 6)]"
 	else
@@ -45,9 +41,9 @@
 			target_pixel_y = -16
 			layer = ABOVE_MOB_LAYER
 	animate(src, pixel_x = target_pixel_x, pixel_y = target_pixel_y, alpha = 0, time = duration)
-*/
+
 /obj/effect/temp_visual/dir_setting/bloodsplatter/xenosplatter
-	splatter_type = "xsplatter"
+	color = BLOOD_COLOR_XENO
 
 /obj/effect/temp_visual/dir_setting/speedbike_trail
 	name = "speedbike trails"
@@ -143,13 +139,9 @@
 /obj/effect/temp_visual/dir_setting/curse/hand
 	icon_state = "cursehand"
 
-/obj/effect/temp_visual/dir_setting/curse/hand/Initialize(mapload, set_dir, handedness)
-	. = ..()
-	update_icon()
-
 /obj/effect/temp_visual/bsa_splash
 	name = "\improper Bluespace energy wave"
-	desc = ""
+	desc = "A massive, rippling wave of bluepace energy, all rapidly exhausting itself the moment it leaves the concentrated beam of light."
 	icon = 'icons/effects/beam_splash.dmi'
 	icon_state = "beam_splash_l"
 	layer = ABOVE_ALL_MOB_LAYER
@@ -198,7 +190,7 @@
 	icon_state = "phaseout"
 
 /obj/effect/temp_visual/decoy
-	desc = ""
+	desc = "It's a decoy!"
 	duration = 15
 
 /obj/effect/temp_visual/decoy/Initialize(mapload, atom/mimiced_atom)
@@ -233,7 +225,7 @@
 /obj/effect/temp_visual/fire
 	icon = 'icons/effects/fire.dmi'
 	icon_state = "3"
-	light_outer_range = LIGHT_RANGE_FIRE
+	light_range = LIGHT_RANGE_FIRE
 	light_color = LIGHT_COLOR_FIRE
 	duration = 10
 
@@ -299,8 +291,6 @@
 	name = "healing glow"
 	icon_state = "heal"
 	duration = 15
-	plane = GAME_PLANE_UPPER
-	layer = ABOVE_ALL_MOB_LAYER
 
 /obj/effect/temp_visual/heal/Initialize(mapload, set_color)
 	if(set_color)
@@ -467,3 +457,61 @@
 	else
 		return INITIALIZE_HINT_QDEL
 
+/obj/effect/temp_visual/slugboom
+	icon = 'icons/effects/96x96.dmi'
+	icon_state = "slugboom"
+	randomdir = FALSE
+	duration = 30
+	pixel_x = -24
+
+/obj/effect/constructing_effect
+	icon = 'icons/effects/effects_rcd.dmi'
+	icon_state = ""
+	layer = ABOVE_ALL_MOB_LAYER
+	anchored = TRUE
+	var/status = 0
+	var/delay = 0
+	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
+
+/obj/effect/constructing_effect/Initialize(mapload, rcd_delay, rcd_status)
+	. = ..()
+	status = rcd_status
+	delay = rcd_delay
+	if (status == RCD_DECONSTRUCT)
+		addtimer(CALLBACK(src, /atom/.proc/update_icon), 11)
+		delay -= 11
+		icon_state = "rcd_end_reverse"
+	else
+		update_icon()
+
+/obj/effect/constructing_effect/update_icon_state()
+	icon_state = "rcd"
+	if (delay < 10)
+		icon_state += "_shortest"
+	else if (delay < 20)
+		icon_state += "_shorter"
+	else if (delay < 37)
+		icon_state += "_short"
+	if (status == RCD_DECONSTRUCT)
+		icon_state += "_reverse"
+
+/obj/effect/constructing_effect/proc/end_animation()
+	if (status == RCD_DECONSTRUCT)
+		qdel(src)
+	else
+		icon_state = "rcd_end"
+		addtimer(CALLBACK(src, .proc/end), 15)
+
+/obj/effect/constructing_effect/proc/end()
+	qdel(src)
+
+/obj/effect/temp_visual/dir_setting/space_wind
+	icon = 'icons/effects/atmospherics.dmi'
+	icon_state = "space_wind"
+	layer = FLY_LAYER
+	duration = 20
+	mouse_opacity = 0
+
+/obj/effect/temp_visual/dir_setting/space_wind/Initialize(mapload, set_dir, set_alpha = 255)
+	. = ..()
+	alpha = set_alpha

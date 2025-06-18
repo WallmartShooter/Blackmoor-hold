@@ -8,8 +8,8 @@
 	color            = null //we manually set color in init instead
 	plane            = LIGHTING_PLANE
 	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
-	layer            = LIGHTING_LAYER
 	invisibility     = INVISIBILITY_LIGHTING
+	vis_flags = VIS_HIDE
 
 	var/needs_update = FALSE
 	var/turf/myturf
@@ -18,21 +18,25 @@
 	. = ..()
 	verbs.Cut()
 	//We avoid setting this in the base as if we do then the parent atom handling will add_atom_color it and that
-	//is totally unsuitable for this object, as we are always changing it's colour manually
+	//is totally unsuitable for this object, as we are always changing its colour manually
 	color = LIGHTING_BASE_MATRIX
 
 	myturf = loc
-	if(myturf.lighting_object)
+	if (myturf.lighting_object)
 		qdel(myturf.lighting_object, force = TRUE)
 	myturf.lighting_object = src
-	myturf.luminosity = 0
-
+	if (myturf.sunlight_state == NO_SUNLIGHT)
+		myturf.luminosity = 0
+	/*
+	for(var/turf/open/space/S in RANGE_TURFS(1, src)) //RANGE_TURFS is in code\__HELPERS\game.dm
+		S.update_starlight()
+	*/
 	needs_update = TRUE
-	SSlighting.objects_queue += src
+	GLOB.lighting_update_objects += src
 
 /atom/movable/lighting_object/Destroy(force)
 	if (force)
-		SSlighting.objects_queue -= src
+		GLOB.lighting_update_objects     -= src
 		if (loc != myturf)
 			var/turf/oldturf = get_turf(myturf)
 			var/turf/newturf = get_turf(loc)
@@ -52,7 +56,7 @@
 		if (loc)
 			var/turf/oldturf = get_turf(myturf)
 			var/turf/newturf = get_turf(loc)
-			warning("A lighting object realised it's loc had changed in update() ([myturf]\[[myturf ? myturf.type : "null"]]([COORD(oldturf)]) -> [loc]\[[ loc ? loc.type : "null"]]([COORD(newturf)]))!")
+			stack_trace("A lighting object realised it's loc had changed in update() ([myturf]\[[myturf ? myturf.type : "null"]]([COORD(oldturf)]) -> [loc]\[[ loc ? loc.type : "null"]]([COORD(newturf)]))!")
 
 		qdel(src, TRUE)
 		return
@@ -68,16 +72,10 @@
 	// See LIGHTING_CORNER_DIAGONAL in lighting_corner.dm for why these values are what they are.
 	var/static/datum/lighting_corner/dummy/dummy_lighting_corner = new
 
-	var/list/corners = myturf.corners
-	var/datum/lighting_corner/cr = dummy_lighting_corner
-	var/datum/lighting_corner/cg = dummy_lighting_corner
-	var/datum/lighting_corner/cb = dummy_lighting_corner
-	var/datum/lighting_corner/ca = dummy_lighting_corner
-	if (corners) //done this way for speed
-		cr = corners[3] || dummy_lighting_corner
-		cg = corners[2] || dummy_lighting_corner
-		cb = corners[4] || dummy_lighting_corner
-		ca = corners[1] || dummy_lighting_corner
+	var/datum/lighting_corner/cr = myturf.lc_bottomleft || dummy_lighting_corner
+	var/datum/lighting_corner/cg = myturf.lc_bottomright || dummy_lighting_corner
+	var/datum/lighting_corner/cb = myturf.lc_topleft || dummy_lighting_corner
+	var/datum/lighting_corner/ca = myturf.lc_topright || dummy_lighting_corner
 
 	var/max = max(cr.cache_mx, cg.cache_mx, cb.cache_mx, ca.cache_mx)
 
@@ -100,7 +98,7 @@
 	#if LIGHTING_SOFT_THRESHOLD != 0
 	var/set_luminosity = max > LIGHTING_SOFT_THRESHOLD
 	#else
-	// Because of floating points™?, it won't even be a flat 0.
+	// Because of floating points�?, it won't even be a flat 0.
 	// This number is mostly arbitrary.
 	var/set_luminosity = max > 1e-6
 	#endif
@@ -121,22 +119,22 @@
 			ar, ag, ab, 00,
 			00, 00, 00, 01
 		)
-/*		if(color)
-			animate(src, color = list(rr, rg, rb,00,gr, gg, gb, 00,br, bg, bb, 00,ar, ag, ab, 00,00, 00, 00, 01), time = 5)
-		else
-			color = list(
-				rr, rg, rb, 00,
-				gr, gg, gb, 00,
-				br, bg, bb, 00,
-				ar, ag, ab, 00,
-				00, 00, 00, 01
-			)*/
+
 	luminosity = set_luminosity
 
 // Variety of overrides so the overlays don't get affected by weird things.
 
 /atom/movable/lighting_object/ex_act(severity)
 	return 0
+
+/atom/movable/lighting_object/singularity_act()
+	return
+
+/atom/movable/lighting_object/singularity_pull()
+	return
+
+/atom/movable/lighting_object/blob_act()
+	return
 
 /atom/movable/lighting_object/onTransitZ()
 	return

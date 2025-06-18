@@ -1,3 +1,5 @@
+/datum/config_entry/flag/auto_profile // Automatically start profiler on server start
+
 /datum/config_entry/flag/autoadmin  // if autoadmin is enabled
 	protection = CONFIG_ENTRY_LOCKED
 
@@ -5,23 +7,10 @@
 	config_entry_value = "Game Master"
 	protection = CONFIG_ENTRY_LOCKED
 
-/datum/config_entry/flag/auto_deadmin_players
-	protection = CONFIG_ENTRY_LOCKED
-
-/datum/config_entry/flag/auto_deadmin_antagonists
-	protection = CONFIG_ENTRY_LOCKED
-
-/datum/config_entry/flag/auto_deadmin_heads
-	protection = CONFIG_ENTRY_LOCKED
-
-/datum/config_entry/flag/auto_deadmin_silicons
-	protection = CONFIG_ENTRY_LOCKED
-
-/datum/config_entry/flag/auto_deadmin_security
-	protection = CONFIG_ENTRY_LOCKED
-
-
 /datum/config_entry/string/servername	// server name (the name of the game window)
+
+/datum/config_entry/string/servertagline
+	config_entry_value = "We forgot to set the server's tagline in config.txt"
 
 /datum/config_entry/string/serversqlname	// short form server name used for the DB
 
@@ -29,19 +18,15 @@
 
 /datum/config_entry/number/lobby_countdown	// In between round countdown.
 	config_entry_value = 120
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/round_end_countdown	// Post round murder death kill countdown
 	config_entry_value = 25
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/flag/hub	// if the game appears on the hub or not
 
 /datum/config_entry/flag/log_ooc	// log OOC channel
-
-/datum/config_entry/flag/log_looc	// log LOOC channel
 
 /datum/config_entry/flag/log_access	// log login/logout
 
@@ -56,13 +41,11 @@
 
 /datum/config_entry/flag/log_game	// log game events
 
-/datum/config_entry/flag/log_mecha	// log mech data
-
 /datum/config_entry/flag/log_virus	// log virology data
 
-/datum/config_entry/flag/log_cloning // log cloning actions.
-
 /datum/config_entry/flag/log_vote	// log voting
+
+/datum/config_entry/flag/log_craft	// log crafting
 
 /datum/config_entry/flag/log_whisper	// log client whisper
 
@@ -72,6 +55,8 @@
 
 /datum/config_entry/flag/log_adminchat	// log admin chat messages
 	protection = CONFIG_ENTRY_LOCKED
+
+/datum/config_entry/flag/log_shuttle // log shuttle related actions, ie shuttle computers, shuttle manipulator, emergency console
 
 /datum/config_entry/flag/log_pda	// log pda messages
 
@@ -85,25 +70,46 @@
 
 /datum/config_entry/flag/log_job_debug	// log roundstart divide occupations debug information to a file
 
-/datum/config_entry/flag/allow_admin_ooccolor	// Allows admins with relevant permissions to have their own ooc colour
+/datum/config_entry/flag/log_timers_on_bucket_reset // logs all timers on bucket reset
 
-/datum/config_entry/flag/allow_admin_asaycolor //Allows admins with relevant permissions to have a personalized asay color
+/datum/config_entry/flag/allow_admin_ooccolor	// Allows admins with relevant permissions to have their own ooc colour
 
 /datum/config_entry/flag/allow_vote_restart	// allow votes to restart
 
+/datum/config_entry/flag/allow_vote_transfer	// allow votes to end the round
+
 /datum/config_entry/flag/allow_vote_mode	// allow votes to change mode
 
-/datum/config_entry/flag/allow_vote_map	// allow votes to change map
+/// Minimum time before a game-ending vote can be started by players.
+/datum/config_entry/number/min_end_vote_time
+	config_entry_value = 150 MINUTES
+	min_val = 0
 
 /datum/config_entry/number/vote_delay	// minimum time between voting sessions (deciseconds, 10 minute default)
 	config_entry_value = 6000
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/vote_period  // length of voting period (deciseconds, default 1 minute)
 	config_entry_value = 600
-	integer = FALSE
 	min_val = 0
+
+/// Length of time before the first autotransfer vote is called (deciseconds, default 2 hours)
+/// Set to 0 to disable the subsystem altogether.
+/datum/config_entry/number/vote_autotransfer_initial
+	config_entry_value = 72000
+	min_val = 0
+
+///length of time to wait before subsequent autotransfer votes (deciseconds, default 30 minutes)
+/datum/config_entry/number/vote_autotransfer_interval
+	config_entry_value = 18000
+	min_val = 0
+
+/// maximum extensions until the round autoends.
+/// Set to 0 to force automatic crew transfer after the 'vote_autotransfer_initial' elapsed.
+/// Set to -1 to disable the maximum extensions cap.
+/datum/config_entry/number/vote_autotransfer_maximum
+	config_entry_value = 4
+	min_val = -1
 
 /datum/config_entry/flag/default_no_vote	// vote does not default to nochange/norestart
 
@@ -115,7 +121,6 @@
 
 /datum/config_entry/number/fps
 	config_entry_value = 20
-	integer = FALSE
 	min_val = 1
 	max_val = 100   //byond will start crapping out at 50, so this is just ridic
 	var/sync_validate = FALSE
@@ -169,6 +174,11 @@
 /datum/config_entry/flag/load_legacy_ranks_only	//Loads admin ranks only from legacy admin_ranks.txt, while enabled ranks are mirrored to the database
 	protection = CONFIG_ENTRY_LOCKED
 
+/datum/config_entry/flag/mentors_mobname_only
+
+/datum/config_entry/flag/mentor_legacy_system	//Defines whether the server uses the legacy mentor system with mentors.txt or the SQL system
+	protection = CONFIG_ENTRY_LOCKED
+
 /datum/config_entry/string/hostedby
 
 /datum/config_entry/flag/norespawn
@@ -177,7 +187,8 @@
 
 /datum/config_entry/flag/usewhitelist
 
-/datum/config_entry/flag/useblacklist
+/datum/config_entry/flag/ban_legacy_system	//Defines whether the server uses the legacy banning system with the files in /data or the SQL system.
+	protection = CONFIG_ENTRY_LOCKED
 
 /datum/config_entry/flag/use_age_restriction_for_jobs	//Do jobs use account age restrictions? --requires database
 
@@ -189,7 +200,6 @@
 
 /datum/config_entry/number/use_exp_restrictions_heads_hours
 	config_entry_value = 0
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/flag/use_exp_restrictions_heads_department
@@ -197,6 +207,8 @@
 /datum/config_entry/flag/use_exp_restrictions_other
 
 /datum/config_entry/flag/use_exp_restrictions_admin_bypass
+
+/datum/config_entry/flag/use_role_whitelist  //Use role whitelists?
 
 /datum/config_entry/string/server
 
@@ -206,13 +218,19 @@
 	config_entry_value = ""
 
 /datum/config_entry/string/discordurl
+	config_entry_value = "https://discord.gg/xCgEwJTppx"
+
+/datum/config_entry/string/wikiurltg
 	config_entry_value = ""
+
+/datum/config_entry/string/forumurl
+	config_entry_value = null
 
 /datum/config_entry/string/rulesurl
-	config_entry_value = ""
+	config_entry_value = null
 
 /datum/config_entry/string/githuburl
-	config_entry_value = ""
+	config_entry_value = null
 
 /datum/config_entry/string/roundstatsurl
 
@@ -226,12 +244,10 @@
 
 /datum/config_entry/number/id_console_jobslot_delay
 	config_entry_value = 30
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/inactivity_period	//time in ds until a player is considered inactive
 	config_entry_value = 3000
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/inactivity_period/ValidateAndSet(str_val)
@@ -241,7 +257,6 @@
 
 /datum/config_entry/number/afk_period	//time in ds until a player is considered inactive
 	config_entry_value = 3000
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/afk_period/ValidateAndSet(str_val)
@@ -286,6 +301,11 @@
 
 /datum/config_entry/flag/maprotation
 
+/datum/config_entry/flag/tgstyle_maprotation
+
+/datum/config_entry/string/map_vote_type
+	config_entry_value = "SCORE"
+
 /datum/config_entry/number/maprotatechancedelta
 	config_entry_value = 0.75
 	min_val = 0
@@ -308,23 +328,30 @@
 	config_entry_value = "Be warned that the server is currently serving a high number of users, consider using alternative game servers."
 
 /datum/config_entry/string/hard_popcap_message
-	config_entry_value = "The server is currently serving a high number of users, You cannot currently join. You may wait for the number of living to decline, observe, or find alternative servers."
+	config_entry_value = "The server is currently serving a high number of users, You cannot currently join. You may wait for the number of living crew to decline, observe, or find alternative servers."
 
 /datum/config_entry/string/extreme_popcap_message
 	config_entry_value = "The server is currently serving a high number of users, find alternative servers."
 
-/datum/config_entry/flag/byond_member_bypass_popcap
-
 /datum/config_entry/flag/panic_bunker	// prevents people the server hasn't seen before from connecting
 
+/datum/config_entry/number/panic_bunker_living // living time in minutes that a player needs to pass the panic bunker
+
+/// Flag for requiring players who would otherwise be denied access by the panic bunker to complete a written interview
+/datum/config_entry/flag/panic_bunker_interview
+
 /datum/config_entry/string/panic_bunker_message
-	config_entry_value = "Sorry but the server is currently not accepting connections from never before seen players."
+	default = "Sorry but the server is currently not accepting connections from never before seen players."
+
 
 /datum/config_entry/number/notify_new_player_age	// how long do we notify admins of a new player
 	min_val = -1
 
 /datum/config_entry/number/notify_new_player_account_age	// how long do we notify admins of a new byond account
 	min_val = 0
+
+/datum/config_entry/flag/age_verification //are we using the automated age verification which asks users if they're 18+?
+	config_entry_value = TRUE
 
 /datum/config_entry/flag/irc_first_connection_alert	// do we notify the irc channel when somebody is connecting for the first time?
 
@@ -343,12 +370,10 @@
 
 /datum/config_entry/number/ipintel_save_good
 	config_entry_value = 12
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/ipintel_save_bad
 	config_entry_value = 1
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/string/ipintel_domain
@@ -368,12 +393,10 @@
 /datum/config_entry/flag/announce_admin_login
 
 /datum/config_entry/flag/allow_map_voting
-	deprecated_by = /datum/config_entry/flag/preference_map_voting
 
-/datum/config_entry/flag/allow_map_voting/DeprecationUpdate(value)
-	return value
-
-/datum/config_entry/flag/preference_map_voting
+/datum/config_entry/number/client_warn_version
+	config_entry_value = null
+	min_val = 500
 
 /datum/config_entry/number/client_warn_version
 	config_entry_value = null
@@ -413,7 +436,6 @@
 
 /datum/config_entry/number/error_cooldown	// The "cooldown" time for each occurrence of a unique error
 	config_entry_value = 600
-	integer = FALSE
 	min_val = 0
 
 /datum/config_entry/number/error_limit	// How many occurrences before the next will silence them
@@ -421,11 +443,9 @@
 
 /datum/config_entry/number/error_silence_time	// How long a unique error will be silenced for
 	config_entry_value = 6000
-	integer = FALSE
 
 /datum/config_entry/number/error_msg_delay	// How long to wait between messaging admins about occurrences of a unique error
 	config_entry_value = 50
-	integer = FALSE
 
 /datum/config_entry/flag/irc_announce_new_game
 	deprecated_by = /datum/config_entry/string/chat_announce_new_game
@@ -435,10 +455,6 @@
 
 /datum/config_entry/string/chat_announce_new_game
 	config_entry_value = null
-
-
-/datum/config_entry/string/channel_announce_new_game_message
-	default = null
 
 /datum/config_entry/flag/debug_admin_hrefs
 
@@ -477,7 +493,6 @@
 
 /datum/config_entry/string/default_view
 	config_entry_value = "15x15"
-
 /datum/config_entry/string/default_view_square
 	config_entry_value = "15x15"
 
@@ -485,13 +500,20 @@
 
 /datum/config_entry/flag/picture_logging_camera
 
+/datum/config_entry/number/max_bunker_days
+	config_entry_value = 7
+	min_val = 1
 
-/datum/config_entry/flag/reopen_roundstart_suicide_roles
+/datum/config_entry/flag/minimaps_enabled
+	config_entry_value = TRUE
 
-/datum/config_entry/flag/reopen_roundstart_suicide_roles_command_positions
+/datum/config_entry/string/centcom_ban_db	// URL for the CentCom Galactic Ban DB API
 
-/datum/config_entry/number/reopen_roundstart_suicide_roles_delay
-	min_val = 30
 
-/datum/config_entry/flag/reopen_roundstart_suicide_roles_command_report
+/datum/config_entry/flag/atmos_equalize_enabled
+	default = FALSE
 
+// for tgs to ping certain channels. if the channel is tagged with server_status in tgs, it will send a message to that
+// via send2chat("Hello world.", CONFIG_GET(string/discord_channel_serverstatus))
+/datum/config_entry/string/discord_channel_serverstatus
+	config_entry_value = "server_status"

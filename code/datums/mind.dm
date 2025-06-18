@@ -1,5 +1,3 @@
-GLOBAL_LIST_EMPTY(personal_objective_minds)
-
 /*	Note from Carnie:
 		The way datum/mind stuff works has been changed a lot.
 		Minds now represent IC characters rather than following a client around constantly.
@@ -21,9 +19,9 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	-	IMPORTANT NOTE 2, if you want a player to become a ghost, use mob.ghostize() It does all the hard work for you.
 
 	-	When creating a new mob which will be a new IC character (e.g. putting a shade in a construct or randomly selecting
-		a ghost to become a xeno during an event). Simply assign the key or ckey like you've always done.
+		a ghost to become a xeno during an event), use this mob proc.
 
-			new_mob.key = key
+			mob.transfer_ckey(new_mob)
 
 		The Login proc will handle making a new mind for that mobtype (including setting up stuff like mind.name). Simple!
 		However if you want that mind to have any special properties like being a traitor etc you will have to do that
@@ -31,11 +29,9 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 
 */
 
-
 /datum/mind
 	var/key
 	var/name				//replaces mob/var/original_name
-	var/ghostname			//replaces name for observers name if set
 	var/mob/living/current
 	var/active = 0
 
@@ -45,15 +41,9 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	var/special_role
 	var/list/restricted_roles = list()
 
-	var/list/spell_list = list() // Wizard mode & "Give Spell" badmin button.
+	var/hide_ckey = FALSE //hide ckey from round-end report
 
-	var/spell_points
-	var/used_spell_points
-	var/movemovemovetext = "Move!!"
-	var/takeaimtext = "Take aim!!"
-	var/holdtext = "Hold!!"
-	var/onfeettext = "On your feet!!"
-	var/focustargettext = "Focus target!!"
+	var/list/spell_list = list() // Wizard mode & "Give Spell" badmin button.
 
 	var/linglink
 	var/datum/martial_art/martial_art
@@ -72,218 +62,51 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	var/unconvertable = FALSE
 	var/late_joiner = FALSE
 
-	var/last_death = 0
-
 	var/force_escaped = FALSE  // Set by Into The Sunset command of the shuttle manipulator
-
 	var/list/learned_recipes //List of learned recipe TYPES.
 
-	///Assoc list of skills - level
-	var/list/known_skills = list()
-	///Assoc list of skills - exp
-	var/list/skill_experience = list()
+	/// Our skill holder.
+	var/datum/skill_holder/skill_holder
 
-	var/list/special_items = list()
+	///What character we spawned in as- either at roundstart or latejoin, so we know for persistent scars if we ended as the same person or not
+	var/mob/original_character
 
-	var/list/areas_entered = list()
-
-	var/list/known_people = list() //contains person, their job, and their voice color
-
-	var/list/notes = list() //RTD add notes button
-
-	var/lastrecipe
-
-	var/datum/sleep_adv/sleep_adv = null
-
-	var/mugshot_set = FALSE
-
-	var/heretic_nickname 	// Nickname used for heretic commune
-
-	var/picking = FALSE		// Variable that lets the event picker see if someones getting chosen or not
-	
-	var/job_bitflag = NONE	// the bitflag our job applied
-
-	var/list/personal_objectives = list() // List of personal objectives not tied to the antag roles
 
 /datum/mind/New(key)
+	skill_holder = new(src)
 	src.key = key
 	soulOwner = src
 	martial_art = default_martial_art
-	set_assigned_role(SSjob.GetJobType(/datum/job/unassigned))
-	sleep_adv = new /datum/sleep_adv(src)
 
 /datum/mind/Destroy()
 	SSticker.minds -= src
-	QDEL_NULL(sleep_adv)
 	if(islist(antag_datums))
-		QDEL_LIST(antag_datums)
+		for(var/i in antag_datums)
+			var/datum/antagonist/antag_datum = i
+			if(antag_datum.delete_on_mind_deletion)
+				qdel(i)
+		antag_datums = null
+	QDEL_NULL(skill_holder)
 	return ..()
-
-/proc/get_minds(role)
-	. = list()
-	for(var/datum/mind/M in SSticker.minds)
-		var/is_role = TRUE
-		if(role)
-			is_role = FALSE
-			if(M.special_role == role)
-				is_role = TRUE
-			else
-				if(M.assigned_role == role)
-					is_role = TRUE
-		if(is_role)
-			. += M
-
-/datum/mind/proc/i_know_person(person) //they are added to ours
-	if(!person)
-		return
-	if(person == src || person == src.current)
-		return
-	if(istype(person, /datum/mind))
-		var/datum/mind/M = person
-		person = M.current
-	if(ishuman(person))
-		var/mob/living/carbon/human/H = person
-		if(!known_people[H.real_name])
-			known_people[H.real_name] = list()
-		known_people[H.real_name]["VCOLOR"] = H.voice_color
-		var/used_title = H.get_role_title()
-		if(!used_title)
-			used_title = "unknown"
-		known_people[H.real_name]["FJOB"] = used_title
-		var/referred_gender
-		switch(H.pronouns)
-			if(HE_HIM)
-				referred_gender = "Male"
-			if(SHE_HER)
-				referred_gender = "Female"
-			else
-				referred_gender = "Androgynous"
-		known_people[H.real_name]["FGENDER"] = referred_gender
-		known_people[H.real_name]["FSPECIES"] = H.dna.species.name
-		known_people[H.real_name]["FAGE"] = H.age
-		if (ishuman(current))
-			var/mob/living/carbon/human/C = current
-			var/heretic_text = H.get_heretic_symbol(C)
-			if (heretic_text)
-				known_people[H.real_name]["FHERESY"] = heretic_text
-
-/datum/mind/proc/person_knows_me(person) //we are added to their lists
-	if(!person)
-		return
-	if(person == src || person == src.current)
-		return
-	if(ishuman(person))
-		var/mob/living/carbon/human/guy = person
-		person = guy.mind
-	if(istype(person, /datum/mind))
-		var/datum/mind/M = person
-		if(M.known_people)
-			if(ishuman(current))
-				var/mob/living/carbon/human/H = current
-				if(!M.known_people[H.real_name])
-					M.known_people[H.real_name] = list()
-				M.known_people[H.real_name]["VCOLOR"] = H.voice_color
-				var/used_title = H.get_role_title()
-				if(!used_title)
-					used_title = "unknown"
-				M.known_people[H.real_name]["FJOB"] = used_title
-				var/referred_gender
-				switch(H.pronouns)
-					if(HE_HIM)
-						referred_gender = "Male"
-					if(SHE_HER)
-						referred_gender = "Female"
-					else
-						referred_gender = "Androgynous"
-				M.known_people[H.real_name]["FGENDER"] = referred_gender
-				M.known_people[H.real_name]["FSPECIES"] = H.dna.species.name
-				M.known_people[H.real_name]["FAGE"] = H.age
-				if(ishuman(M.current))
-					var/mob/living/carbon/human/C = M.current
-					var/heretic_text = C.get_heretic_symbol(H)
-					if (heretic_text)
-						M.known_people[H.real_name]["FHERESY"] = heretic_text
-				
-
-/datum/mind/proc/do_i_know(datum/mind/person, name)
-	if(!person && !name)
-		return
-	if(person)
-		var/mob/living/carbon/human/H = person.current
-		if(!istype(H))
-			return
-		for(var/P in known_people)
-			if(H.real_name == P)
-				return TRUE
-	if(name)
-		for(var/P in known_people)
-			if(name == P)
-				return TRUE
-
-/datum/mind/proc/become_unknown_to(person) //we are removed from mind
-	if(!person)
-		return
-	if(person == src)
-		return
-	var/datum/mind/M = person
-	var/mob/living/carbon/human/H = current
-	if(M.known_people && istype(H))
-		M.known_people -= H.real_name
-
-
-/datum/mind/proc/unknow_all_people()
-	known_people = list()
-
-
-/datum/mind/proc/display_known_people(mob/user)
-	if(!user)
-		return
-	if(!known_people.len)
-		return
-	known_people = sortList(known_people)
-	var/contents = "<center>People that [name] knows:</center><BR>"
-	for(var/P in known_people)
-		var/fcolor = known_people[P]["VCOLOR"]
-		if(!fcolor)
-			continue
-		var/fjob = known_people[P]["FJOB"]
-		var/fgender = known_people[P]["FGENDER"]
-		var/fspecies = known_people[P]["FSPECIES"]
-		var/fage = known_people[P]["FAGE"]
-		var/fheresy = known_people[P]["FHERESY"]
-		if(fcolor && fjob)
-			if (fheresy)
-				contents +="<B><font color=#f1d669>[fheresy]</font></B> "
-			contents += "<B><font color=#[fcolor];text-shadow:0 0 10px #8d5958, 0 0 20px #8d5958, 0 0 30px #8d5958, 0 0 40px #8d5958, 0 0 50px #e60073, 0 0 60px #8d5958, 0 0 70px #8d5958;>[P]</font></B><BR>[fjob], [fspecies], [capitalize(fgender)], [fage]"
-			contents += "<BR>"
-
-	var/datum/browser/popup = new(user, "PEOPLEIKNOW", "", 260, 400)
-	popup.set_content(contents)
-	popup.open()
-
 
 /datum/mind/proc/get_language_holder()
 	if(!language_holder)
-		var/datum/language_holder/L = current.get_language_holder(shadow=FALSE)
-		language_holder = L.copy(src)
+		language_holder = new (src)
 
 	return language_holder
 
 /datum/mind/proc/transfer_to(mob/new_character, force_key_move = 0)
+	var/old_character = current
+	var/signals = SEND_SIGNAL(new_character, COMSIG_MOB_PRE_PLAYER_CHANGE, new_character, old_character) | SEND_SIGNAL(src, COMSIG_PRE_MIND_TRANSFER, new_character, old_character)
+	if(signals & COMPONENT_STOP_MIND_TRANSFER)
+		return
 	if(current)	// remove ourself from our old body's mind variable
 		current.mind = null
-		UnregisterSignal(current, COMSIG_MOB_DEATH)
 		SStgui.on_transfer(current, new_character)
-
-	if(!language_holder)
-		var/datum/language_holder/mob_holder = new_character.get_language_holder(shadow = FALSE)
-		language_holder = mob_holder.copy(src)
 
 	if(key)
 		if(new_character.key != key)					//if we're transferring into a body with a key associated which is not ours
-			if(new_character.key)
-				testing("ghostizz")
-				new_character.ghostize(1)						//we'll need to ghostize so that key isn't mobless.
+			new_character.ghostize(TRUE, TRUE)						//we'll need to ghostize so that key isn't mobless.
 	else
 		key = new_character.key
 
@@ -296,7 +119,8 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 		current.transfer_observers_to(new_character)	//transfer anyone observing the old character to the new one
 	current = new_character								//associate ourself with our new body
 	new_character.mind = src							//and associate our new body with ourself
-	for(var/datum/antagonist/A in antag_datums)	//Makes sure all antag datums effects are applied in the new body
+	for(var/a in antag_datums)	//Makes sure all antag datums effects are applied in the new body
+		var/datum/antagonist/A = a
 		A.on_body_transfer(old_current, current)
 	if(iscarbon(new_character))
 		var/mob/living/carbon/C = new_character
@@ -304,170 +128,33 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	transfer_antag_huds(hud_to_transfer)				//inherit the antag HUD
 	transfer_actions(new_character)
 	transfer_martial_arts(new_character)
-	RegisterSignal(new_character, COMSIG_MOB_DEATH, PROC_REF(set_death_time))
 	if(active || force_key_move)
-		testing("dotransfer to [new_character]")
 		new_character.key = key		//now transfer the key to link the client to our new body
-	new_character.update_fov_angles()
+	if(new_character.client)
+		LAZYCLEARLIST(new_character.client.recent_examines)
+		new_character.client.init_verbs() // re-initialize character specific verbs
+	current.update_atom_languages()
 
+//CIT CHANGE - makes arousal update when transfering bodies
+	if(isliving(new_character)) //New humans and such are by default enabled arousal. Let's always use the new mind's prefs.
+		var/mob/living/L = new_character
+		if(L.client?.prefs && L.client.prefs.auto_ooc && L.client.prefs.chat_toggles & CHAT_OOC)
+			DISABLE_BITFIELD(L.client.prefs.chat_toggles,CHAT_OOC)
 
-	///Adjust experience of a specific skill
-/datum/mind/proc/adjust_experience(skill, amt, silent = FALSE)
-	var/datum/skill/S = GetSkillRef(skill)
-	skill_experience[S] = max(0, skill_experience[S] + amt) //Prevent going below 0
-	var/old_level = known_skills[S]
-	switch(skill_experience[S])
-		if(SKILL_EXP_LEGENDARY to INFINITY)
-			known_skills[S] = SKILL_LEVEL_LEGENDARY
+	hide_ckey = current.client?.prefs?.hide_ckey
 
-		if(SKILL_EXP_MASTER to SKILL_EXP_LEGENDARY)
-			known_skills[S] = SKILL_LEVEL_MASTER
-
-		if(SKILL_EXP_EXPERT to SKILL_EXP_MASTER)
-			known_skills[S] = SKILL_LEVEL_EXPERT
-
-		if(SKILL_EXP_JOURNEYMAN to SKILL_EXP_EXPERT)
-			known_skills[S] = SKILL_LEVEL_JOURNEYMAN
-
-		if(SKILL_EXP_APPRENTICE to SKILL_EXP_JOURNEYMAN)
-			known_skills[S] = SKILL_LEVEL_APPRENTICE
-
-		if(SKILL_EXP_NOVICE to SKILL_EXP_APPRENTICE)
-			known_skills[S] = SKILL_LEVEL_NOVICE
-
-		if(0 to SKILL_EXP_NOVICE)
-			known_skills[S] = SKILL_LEVEL_NONE
-
-	if(isnull(old_level) || known_skills[S] == old_level)
-		return //same level or we just started earning xp towards the first level.
-	if(silent)
-		return
-	// ratio = round(skill_experience[S]/limit,1) * 100
-	// to_chat(current, "<span class='nicegreen'> My [S.name] is around [ratio]% of the way there.")
-	//TODO add some bar hud or something, i think i seen a request like that somewhere
-	if(known_skills[S] >= old_level)
-		if(known_skills[S] > old_level)
-			to_chat(current, span_nicegreen("My [S.name] grows to [SSskills.level_names[known_skills[S]]]!"))
-			SEND_SIGNAL(current, COMSIG_SKILL_RANK_INCREASED, S, known_skills[S], old_level)
-			GLOB.blackmoor_round_stats[STATS_SKILLS_LEARNED]++
-			S.skill_level_effect(known_skills[S], src)
-			if(istype(known_skills, /datum/skill/combat))
-				GLOB.blackmoor_round_stats[STATS_COMBAT_SKILLS]++
-			if(istype(known_skills, /datum/skill/craft))
-				GLOB.blackmoor_round_stats[STATS_CRAFT_SKILLS]++
-	else
-		to_chat(current, span_warning("My [S.name] has weakened to [SSskills.level_names[known_skills[S]]]!"))
-
-/datum/mind/proc/adjust_skillrank_up_to(skill, amt, silent = FALSE)
-	var/proper_amt = amt - get_skill_level(skill)
-	if(proper_amt <= 0)
-		return
-	adjust_skillrank(skill, proper_amt, silent)
-
-/datum/mind/proc/adjust_skillrank_down_to(skill, amt, silent = FALSE)
-	var/proper_amt = get_skill_level(skill) - amt
-	if(proper_amt <= 0)
-		return
-	adjust_skillrank(skill, -proper_amt, silent)
-
-/datum/mind/proc/adjust_skillrank(skill, amt, silent = FALSE)
-	var/datum/skill/S = GetSkillRef(skill)
-	var/amt2gain = 0
-	for(var/i in 1 to amt)
-		switch(skill_experience[S])
-			if(SKILL_EXP_MASTER to SKILL_EXP_LEGENDARY)
-				amt2gain = SKILL_EXP_LEGENDARY-skill_experience[S]
-			if(SKILL_EXP_EXPERT to SKILL_EXP_MASTER)
-				amt2gain = SKILL_EXP_MASTER-skill_experience[S]
-			if(SKILL_EXP_JOURNEYMAN to SKILL_EXP_EXPERT)
-				amt2gain = SKILL_EXP_EXPERT-skill_experience[S]
-			if(SKILL_EXP_APPRENTICE to SKILL_EXP_JOURNEYMAN)
-				amt2gain = SKILL_EXP_JOURNEYMAN-skill_experience[S]
-			if(SKILL_EXP_NOVICE to SKILL_EXP_APPRENTICE)
-				amt2gain = SKILL_EXP_APPRENTICE-skill_experience[S]
-			if(0 to SKILL_EXP_NOVICE)
-				amt2gain = SKILL_EXP_NOVICE-skill_experience[S] + 1
-		if(!skill_experience[S])
-			amt2gain = SKILL_EXP_NOVICE+1
-		skill_experience[S] = max(0, skill_experience[S] + amt2gain) //Prevent going below 0
-	var/old_level = get_skill_level(skill)
-	switch(skill_experience[S])
-		if(SKILL_EXP_LEGENDARY to INFINITY)
-			known_skills[S] = SKILL_LEVEL_LEGENDARY
-		if(SKILL_EXP_MASTER to SKILL_EXP_LEGENDARY)
-			known_skills[S] = SKILL_LEVEL_MASTER
-		if(SKILL_EXP_EXPERT to SKILL_EXP_MASTER)
-			known_skills[S] = SKILL_LEVEL_EXPERT
-		if(SKILL_EXP_JOURNEYMAN to SKILL_EXP_EXPERT)
-			known_skills[S] = SKILL_LEVEL_JOURNEYMAN
-		if(SKILL_EXP_APPRENTICE to SKILL_EXP_JOURNEYMAN)
-			known_skills[S] = SKILL_LEVEL_APPRENTICE
-		if(SKILL_EXP_NOVICE to SKILL_EXP_APPRENTICE)
-			known_skills[S] = SKILL_LEVEL_NOVICE
-		if(0 to SKILL_EXP_NOVICE)
-			known_skills[S] = SKILL_LEVEL_NONE
-	if(known_skills[S] == old_level)
-		return //same level or we just started earning xp towards the first level.
-	if(silent)
-		return
-	if(known_skills[S] >= old_level)
-		to_chat(current, span_nicegreen("I feel like I've become more proficient at [lowertext(S.name)]!"))
-		GLOB.blackmoor_round_stats[STATS_SKILLS_LEARNED]++
-		SEND_SIGNAL(current, COMSIG_SKILL_RANK_INCREASED, S, known_skills[S], old_level)
-	else
-		to_chat(current, span_warning("I feel like I've become worse at [lowertext(S.name)]!"))
-
-// adjusts the amount of available spellpoints
-/datum/mind/proc/adjust_spellpoints(points)
-	spell_points += points
-	check_learnspell() //check if we need to add or remove the learning spell
-
-///Gets the skill's singleton and returns the result of its get_skill_speed_modifier
-/datum/mind/proc/get_skill_speed_modifier(skill)
-	var/datum/skill/S = GetSkillRef(skill)
-	return S.get_skill_speed_modifier(known_skills[S] || SKILL_LEVEL_NONE)
-
-/datum/mind/proc/get_skill_level(skill)
-	var/datum/skill/S = GetSkillRef(skill)
-	if(!(S in known_skills))
-		return SKILL_LEVEL_NONE
-	return known_skills[S] || SKILL_LEVEL_NONE
-
-/datum/mind/proc/print_levels(user)
-	var/list/shown_skills = list()
-	for(var/i in known_skills)
-		if(known_skills[i]) //Do we actually have a level in this?
-			shown_skills += i
-	if(!length(shown_skills))
-		to_chat(user, span_warning("I don't have any skills."))
-		return
-	var/msg = ""
-	msg += span_info("*---------*\n")
-	for(var/datum/skill/i in shown_skills)
-		var/can_advance_post = sleep_adv.enough_sleep_xp_to_advance(i.type, 1)
-		var/capped_post = sleep_adv.enough_sleep_xp_to_advance(i.type, 2)
-		var/rankup_postfix = capped_post ? span_nicegreen(" <b>(!!)</b>") : can_advance_post ? span_nicegreen(" <b>(!)</b>") : ""
-		msg += "[i] - [SSskills.level_names[known_skills[i]]][rankup_postfix]"
-		msg += span_info(" <a href='?src=[REF(i)];skill_detail=1'>{?}</a>\n")
-	msg += "</span>"
-
-	to_chat(user, msg)
-
-
-/datum/mind/proc/set_death_time()
-	last_death = world.time
+	SEND_SIGNAL(src, COMSIG_MIND_TRANSFER, new_character, old_character)
+	SEND_SIGNAL(new_character, COMSIG_MOB_ON_NEW_MIND)
 
 /datum/mind/proc/store_memory(new_text)
-	var/newlength = length(memory) + length(new_text)
-	if (newlength > MAX_MESSAGE_LEN * 100)
-		memory = copytext(memory, -newlength-MAX_MESSAGE_LEN * 100)
-	memory += "[new_text]<BR>"
+	if((length_char(memory) + length_char(new_text)) <= MAX_MESSAGE_LEN)
+		memory += "[new_text]<BR>"
 
 /datum/mind/proc/wipe_memory()
 	memory = null
 
 // Datum antag mind procs
-/datum/mind/proc/add_antag_datum(datum_type_or_instance, team, admin_panel)
+/datum/mind/proc/add_antag_datum(datum_type_or_instance, team)
 	if(!datum_type_or_instance)
 		return
 	var/datum/antagonist/A
@@ -491,13 +178,7 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	var/datum/team/antag_team = A.get_team()
 	if(antag_team)
 		antag_team.add_member(src)
-	if(admin_panel) //Admin panelled has special behaviour with zombie
-		A.on_gain(TRUE)
-	else
-		A.on_gain()
-	log_game("[key_name(src)] has gained antag datum [A.name]([A.type])")
-	var/client/picked_client = src.current?.client
-	picked_client?.mob?.mind.picking = FALSE
+	INVOKE_ASYNC(A, /datum/antagonist.proc/on_gain)
 	return A
 
 /datum/mind/proc/remove_antag_datum(datum_type)
@@ -522,26 +203,168 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 		var/datum/antagonist/A = a
 		if(check_subtypes && istype(A, datum_type))
 			return A
-		else
-			if(istype(A))
-				if(A.type == datum_type)
-					return A
+		else if(A.type == datum_type)
+			return A
 
+/*
+	Removes antag type's references from a mind.
+	objectives, uplinks, powers etc are all handled.
+*/
+
+/datum/mind/proc/remove_changeling()
+	var/datum/antagonist/changeling/C = has_antag_datum(/datum/antagonist/changeling)
+	if(C)
+		remove_antag_datum(/datum/antagonist/changeling)
+		special_role = null
 
 /datum/mind/proc/remove_traitor()
 	remove_antag_datum(/datum/antagonist/traitor)
 
+/datum/mind/proc/remove_brother()
+	if(src in SSticker.mode.brothers)
+		remove_antag_datum(/datum/antagonist/brother)
+	SSticker.mode.update_brother_icons_removed(src)
+
+/datum/mind/proc/remove_nukeop()
+	var/datum/antagonist/nukeop/nuke = has_antag_datum(/datum/antagonist/nukeop,TRUE)
+	if(nuke)
+		remove_antag_datum(nuke.type)
+		special_role = null
+
+/datum/mind/proc/remove_wizard()
+	remove_antag_datum(/datum/antagonist/wizard)
+	special_role = null
+
+/datum/mind/proc/remove_cultist()
+	if(src in SSticker.mode.cult)
+		SSticker.mode.remove_cultist(src, 0, 0)
+	special_role = null
+	remove_antag_equip()
+
+/datum/mind/proc/remove_rev()
+	var/datum/antagonist/rev/rev = has_antag_datum(/datum/antagonist/rev)
+	if(rev)
+		remove_antag_datum(rev.type)
+		special_role = null
+
+
+/datum/mind/proc/remove_antag_equip()
+	var/list/Mob_Contents = current.get_contents()
+	for(var/obj/item/I in Mob_Contents)
+		var/datum/component/uplink/O = I.GetComponent(/datum/component/uplink)
+//Todo make this reset signal
+		if(O)
+			O.unlock_code = null
 
 /datum/mind/proc/remove_all_antag() //For the Lazy amongst us.
+	remove_changeling()
 	remove_traitor()
+	remove_nukeop()
+	remove_wizard()
+	remove_cultist()
+	remove_rev()
+	SSticker.mode.update_cult_icons_removed(src)
 
-/datum/mind/proc/equip_traitor(employer = "The Syndicate", silent = FALSE, datum/antagonist/uplink_owner)
-	return
+/datum/mind/proc/equip_traitor(datum/traitor_class/traitor_class, silent = FALSE, datum/antagonist/uplink_owner)
+	if(!current)
+		return
+	if(!traitor_class)
+		traitor_class = GLOB.traitor_classes[TRAITOR_HUMAN]
+	var/mob/living/carbon/human/traitor_mob = current
+	if (!istype(traitor_mob))
+		return
 
+	var/list/all_contents = traitor_mob.GetAllContents()
+	var/obj/item/pda/PDA = locate() in all_contents
+	var/obj/item/radio/R = locate() in all_contents
+	var/obj/item/pen/P
+
+	if (PDA) // Prioritize PDA pen, otherwise the pocket protector pens will be chosen, which causes numerous ahelps about missing uplink
+		P = locate() in PDA
+	if (!P) // If we couldn't find a pen in the PDA, or we didn't even have a PDA, do it the old way
+		P = locate() in all_contents
+		if(!P) // I do not have a pen.
+			var/obj/item/pen/inowhaveapen
+			if(istype(traitor_mob.back,/obj/item/storage)) //ok buddy you better have a backpack!
+				inowhaveapen = new /obj/item/pen(traitor_mob.back)
+			else
+				inowhaveapen = new /obj/item/pen(traitor_mob.loc)
+				traitor_mob.put_in_hands(inowhaveapen) // I hope you don't have arms and your traitor pen gets stolen for all this trouble you've caused.
+			P = inowhaveapen
+
+	var/obj/item/uplink_loc
+
+	if(traitor_mob.client && traitor_mob.client.prefs)
+		switch(traitor_mob.client.prefs.uplink_spawn_loc)
+			if(UPLINK_PDA)
+				uplink_loc = PDA
+				if(!uplink_loc)
+					uplink_loc = R
+				if(!uplink_loc)
+					uplink_loc = P
+			if(UPLINK_RADIO)
+				uplink_loc = R
+				if(!uplink_loc)
+					uplink_loc = PDA
+				if(!uplink_loc)
+					uplink_loc = P
+			if(UPLINK_PEN)
+				uplink_loc = P
+				if(!uplink_loc)
+					uplink_loc = PDA
+				if(!uplink_loc)
+					uplink_loc = R
+
+	if (!uplink_loc)
+		if(!silent)
+			to_chat(traitor_mob, "Unfortunately, [traitor_class.employer] wasn't able to get you an Uplink.")
+		. = 0
+	else
+		. = uplink_loc
+		var/datum/component/uplink/U = uplink_loc.AddComponent(/datum/component/uplink, traitor_mob.key,traitor_class)
+		if(!U)
+			CRASH("Uplink creation failed.")
+		U.setup_unlock_code()
+		if(!silent)
+			if(uplink_loc == R)
+				to_chat(traitor_mob, "[traitor_class.employer] has cunningly disguised a Syndicate Uplink as your [R.name]. Simply dial the frequency [format_frequency(U.unlock_code)] to unlock its hidden features.")
+			else if(uplink_loc == PDA)
+				to_chat(traitor_mob, "[traitor_class.employer] has cunningly disguised a Syndicate Uplink as your [PDA.name]. Simply enter the code \"[U.unlock_code]\" into the ringtone select to unlock its hidden features.")
+			else if(uplink_loc == P)
+				to_chat(traitor_mob, "[traitor_class.employer] has cunningly disguised a Syndicate Uplink as your [P.name]. Simply twist the top of the pen [U.unlock_code] from its starting position to unlock its hidden features.")
+
+		if(uplink_owner)
+			uplink_owner.antag_memory += U.unlock_note + "<br>"
+		else
+			traitor_mob.mind.store_memory(U.unlock_note)
 
 //Link a new mobs mind to the creator of said mob. They will join any team they are currently on, and will only switch teams when their creator does.
 
 /datum/mind/proc/enslave_mind_to_creator(mob/living/creator)
+	if(iscultist(creator))
+		if(iscultist(creator, TRUE))
+			SSticker.mode.add_cultist(src)
+		else
+			src.add_antag_datum(/datum/antagonist/cult/neutered/traitor)
+
+	else if(is_revolutionary(creator))
+		var/datum/antagonist/rev/converter = creator.mind.has_antag_datum(/datum/antagonist/rev,TRUE)
+		converter.add_revolutionary(src,FALSE)
+
+	else if(is_servant_of_ratvar(creator))
+		if(is_servant_of_ratvar(creator, TRUE))
+			add_servant_of_ratvar(current)
+		else
+			add_servant_of_ratvar(current, FALSE, FALSE, /datum/antagonist/clockcult/neutered/traitor)
+
+	else if(is_nuclear_operative(creator))
+		var/datum/antagonist/nukeop/converter = creator.mind.has_antag_datum(/datum/antagonist/nukeop,TRUE)
+		var/datum/antagonist/nukeop/N = new()
+		N.send_to_spawnpoint = FALSE
+		N.nukeop_outfit = null
+		add_antag_datum(N,converter.nuke_team)
+
+
 	enslaved_to = creator
 
 	current.faction |= creator.faction
@@ -549,7 +372,7 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 
 	if(creator.mind.special_role)
 		message_admins("[ADMIN_LOOKUPFLW(current)] has been created by [ADMIN_LOOKUPFLW(creator)], an antagonist.")
-		to_chat(current, span_danger("Despite my creators current allegiances, my true master remains [creator.real_name]. If their loyalties change, so do yours. This will never change unless my creator's body is destroyed."))
+		to_chat(current, "<span class='userdanger'>Despite your creators current allegiances, your true master remains [creator.real_name]. If their loyalties change, so do yours. This will never change unless your creator's body is destroyed.</span>")
 
 /datum/mind/proc/show_memory(mob/recipient, window=1)
 	if(!recipient)
@@ -557,13 +380,6 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	var/output = "<B>[current.real_name]'s Memories:</B><br>"
 	output += memory
 
-	if(personal_objectives.len)
-		output += "<B>Personal Objectives:</B>"
-		var/personal_count = 1
-		for(var/datum/objective/objective in personal_objectives)
-			output += "<br><B>Personal Goal #[personal_count]</B>: [objective.explanation_text][objective.completed ? " (COMPLETED)" : ""]"
-			personal_count++
-		output += "<br>"
 
 	var/list/all_objectives = list()
 	for(var/datum/antagonist/A in antag_datums)
@@ -572,80 +388,25 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 
 	if(all_objectives.len)
 		output += "<B>Objectives:</B>"
-		var/antag_obj_count = 1
+		var/obj_count = 1
 		for(var/datum/objective/objective in all_objectives)
-			output += "<br><B>[objective.flavor] #[antag_obj_count]</B>: [objective.explanation_text][objective.completed ? " (COMPLETED)" : ""]"
-			antag_obj_count++
+			output += "<br><B>Objective #[obj_count++]</B>: [objective.explanation_text]"
+			var/list/datum/mind/other_owners = objective.get_owners() - src
+			if(other_owners.len)
+				output += "<ul>"
+				for(var/datum/mind/M in other_owners)
+					output += "<li>Conspirator: [M.name]</li>"
+				output += "</ul>"
 
 	if(window)
 		recipient << browse(output,"window=memory")
-	else if(all_objectives.len || memory || personal_objectives.len)
+	else if(all_objectives.len || memory)
 		to_chat(recipient, "<i>[output]</i>")
-
-// Graggar culling event - tells people where the other is.
-/datum/mind/proc/recall_culling(mob/recipient, window=1)
-	var/output = "<B>[recipient.real_name]'s Rival:</B><br>"
-	for(var/datum/culling_duel/D in GLOB.graggar_cullings)
-		var/mob/living/carbon/human/challenger = D.challenger.resolve()
-		var/mob/living/carbon/human/target = D.target.resolve()
-		var/obj/item/organ/heart/target_heart = D.target_heart.resolve()
-		var/obj/item/organ/heart/challenger_heart = D.challenger_heart.resolve()
-		var/target_heart_location
-		var/challenger_heart_location
-
-		if(target_heart)
-			target_heart_location = target_heart.owner ? target_heart.owner.prepare_deathsight_message() : lowertext(get_area_name(target_heart))
-
-		if(challenger_heart)
-			challenger_heart_location = challenger_heart.owner ? challenger_heart.owner.prepare_deathsight_message() : lowertext(get_area_name(challenger_heart))
-
-		if(recipient == challenger)
-			if(target)
-				if(target_heart && target_heart.owner && target_heart.owner != target) // Rival is not gone but their heart is in someone else
-					output += "<br>[target.real_name], the [target.job]"
-					output += "<br>Your rival's heart beats in [target_heart.owner.real_name]'s chest in [target_heart_location]"
-					output += "<br>Retrieve and consume it to claim victory! Graggar will not forgive failure."
-				else
-					output += "<br>[target.real_name], the [target.job]"
-					output += "<br>Eat your rival's heart before they eat YOURS! Graggar will not forgive failure."
-			else if(target_heart)
-				if(target_heart.owner && target_heart.owner != recipient)
-					output += "<br>Rival's Heart"
-					output += "<br>It's currently inside [target_heart.owner.real_name]'s chest in [target_heart_location]"
-					output += "<br>Your rival's heart beats in another's chest. Retrieve and consume it to claim victory!"
-				else
-					output += "<br>Rival's Heart"
-					output += "<br>It's somewhere in the [target_heart_location]"
-					output += "<br>Your rival's heart is exposed bare! Consume it to claim victory!"
-			else
-				continue
-
-		else if(recipient == target)
-			if(challenger)
-				if(challenger_heart && challenger_heart.owner && challenger_heart.owner != challenger) // Rival is not gone but their heart is in someone else
-					output += "<br>[challenger.real_name], the [challenger.job]"
-					output += "<br>Your rival's heart beats in [challenger_heart.owner.real_name]'s chest in [challenger_heart_location]"
-					output += "<br>Retrieve and consume it to claim victory! Graggar will not forgive failure."
-				else
-					output += "<br>[challenger.real_name], the [challenger.job]"
-					output += "<br>Eat your rival's heart before he eat YOURS! Graggar will not forgive failure."
-			else if(challenger_heart)
-				if(challenger_heart.owner && challenger_heart.owner != recipient)
-					output += "<br>Rival's Heart"
-					output += "<br>It's currently inside [challenger_heart.owner.real_name]'s chest in [challenger_heart_location]"
-					output += "<br>Your rival's heart beats in another's chest. Retrieve and consume it to claim victory!"
-				else
-					output += "<br>Rival's Heart"
-					output += "<br>It's somewhere in the [challenger_heart_location]"
-					output += "<br>Your rival's heart is exposed bare! Consume it to claim victory!"
-			else
-				continue
-
-	if(window)
-		recipient << browse(output,"window=memory")
 
 /datum/mind/Topic(href, href_list)
 	if(!check_rights(R_ADMIN))
+		message_admins("[ADMIN_TPMONTY(usr)] tried to use /datum/mind/Topic() without admin perms.")
+		log_admin("INVALID ADMIN PROC ACCESS: [key_name(usr)] tried to use /datum/mind/Topic() without admin perms.")
 		return
 
 	var/self_antagging = usr == current
@@ -655,18 +416,18 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	if(href_list["remove_antag"])
 		var/datum/antagonist/A = locate(href_list["remove_antag"]) in antag_datums
 		if(!istype(A))
-			to_chat(usr,span_warning("Invalid antagonist ref to be removed."))
+			to_chat(usr,"<span class='warning'>Invalid antagonist ref to be removed.</span>")
 			return
 		A.admin_remove(usr)
 
 	if (href_list["role_edit"])
-		var/new_role = input("Select new role", "Assigned role", assigned_role) as null|anything in sortList(get_all_jobs())
+		var/new_role = input("Select new role", "Assigned role", assigned_role) as null|anything in get_all_jobs()
 		if (!new_role)
 			return
 		assigned_role = new_role
 
 	else if (href_list["memory_edit"])
-		var/new_memo = copytext(sanitize(input("Write new memory", "Memory", memory) as null|message),1,MAX_MESSAGE_LEN)
+		var/new_memo = stripped_multiline_input(usr, "Write new memory", "Memory", memory, MAX_MESSAGE_LEN)
 		if (isnull(new_memo))
 			return
 		memory = new_memo
@@ -688,6 +449,7 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 			if(!old_objective)
 				to_chat(usr,"Invalid objective.")
 				return
+
 		else
 			if(href_list["target_antag"])
 				var/datum/antagonist/X = locate(href_list["target_antag"]) in antag_datums
@@ -700,7 +462,7 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 					if(1)
 						target_antag = antag_datums[1]
 					else
-						var/datum/antagonist/target = input("Which antagonist gets the objective:", "Antagonist", "(new custom antag)") as null|anything in sortList(antag_datums) + "(new custom antag)"
+						var/datum/antagonist/target = input("Which antagonist gets the objective:", "Antagonist", "(new custom antag)") as null|anything in antag_datums + "(new custom antag)"
 						if (QDELETED(target))
 							return
 						else if(target == "(new custom antag)")
@@ -708,15 +470,38 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 						else
 							target_antag = target
 
-		if(!GLOB.admin_objective_list)
-			generate_admin_objective_list()
+		var/static/list/choices
+		if(!choices)
+			choices = list()
+
+			var/list/allowed_types = list(
+				/datum/objective/assassinate,
+				/datum/objective/assassinate/once,
+				/datum/objective/maroon,
+				/datum/objective/debrain,
+				/datum/objective/protect,
+				/datum/objective/destroy,
+				/datum/objective/hijack,
+				/datum/objective/escape,
+				/datum/objective/survive,
+				/datum/objective/martyr,
+				/datum/objective/steal,
+				/datum/objective/download,
+				/datum/objective/nuclear,
+				/datum/objective/absorb,
+				/datum/objective/custom
+			)
+
+			for(var/T in allowed_types)
+				var/datum/objective/X = T
+				choices[initial(X.name)] = T
 
 		if(old_objective)
-			if(old_objective.name in GLOB.admin_objective_list)
+			if(old_objective.name in choices)
 				def_value = old_objective.name
 
-		var/selected_type = input("Select objective type:", "Objective type", def_value) as null|anything in GLOB.admin_objective_list
-		selected_type = GLOB.admin_objective_list[selected_type]
+		var/selected_type = input("Select objective type:", "Objective type", def_value) as null|anything in choices
+		selected_type = choices[selected_type]
 		if (!selected_type)
 			return
 
@@ -726,6 +511,7 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 			new_objective.owner = src
 			new_objective.admin_edit(usr)
 			target_antag.objectives += new_objective
+
 			message_admins("[key_name_admin(usr)] added a new objective for [current]: [new_objective.explanation_text]")
 			log_admin("[key_name(usr)] added a new objective for [current]: [new_objective.explanation_text]")
 		else
@@ -743,17 +529,30 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 			message_admins("[key_name_admin(usr)] edited [current]'s objective to [new_objective.explanation_text]")
 			log_admin("[key_name(usr)] edited [current]'s objective to [new_objective.explanation_text]")
 
+	else if(href_list["traitor_class"])
+		var/static/list/choices
+		if(!choices)
+			choices = list()
+			for(var/C in GLOB.traitor_classes)
+				var/datum/traitor_class/t = C
+				choices[initial(t.employer)] = C
+		var/datum/antagonist/traitor/T = locate(href_list["target_antag"]) in antag_datums
+		if(T)
+			var/selected_type = input("Select traitor class:", "Traitor class", T.traitor_kind.employer) as null|anything in choices
+			selected_type = choices[selected_type]
+			T.set_traitor_kind(selected_type)
+
 	else if (href_list["obj_delete"])
 		var/datum/objective/objective
+
 		for(var/datum/antagonist/A in antag_datums)
 			objective = locate(href_list["obj_delete"]) in A.objectives
 			if(istype(objective))
-				A.objectives -= objective
 				break
 		if(!objective)
 			to_chat(usr,"Invalid objective.")
 			return
-		//qdel(objective) Needs cleaning objective destroys
+		qdel(objective) //TODO: Needs cleaning objective destroys (whatever that means)
 		message_admins("[key_name_admin(usr)] removed an objective for [current]: [objective.explanation_text]")
 		log_admin("[key_name(usr)] removed an objective for [current]: [objective.explanation_text]")
 
@@ -769,90 +568,121 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 			return
 		objective.completed = !objective.completed
 		log_admin("[key_name(usr)] toggled the win state for [current]'s objective: [objective.explanation_text]")
+
+	else if (href_list["silicon"])
+		switch(href_list["silicon"])
+			if("unemag")
+				var/mob/living/silicon/robot/R = current
+				if (istype(R))
+					R.SetEmagged(0)
+					message_admins("[key_name_admin(usr)] has unemag'ed [R].")
+					log_admin("[key_name(usr)] has unemag'ed [R].")
+
+			if("unemagcyborgs")
+				if(isAI(current))
+					var/mob/living/silicon/ai/ai = current
+					for (var/mob/living/silicon/robot/R in ai.connected_robots)
+						R.SetEmagged(0)
+					message_admins("[key_name_admin(usr)] has unemag'ed [ai]'s Cyborgs.")
+					log_admin("[key_name(usr)] has unemag'ed [ai]'s Cyborgs.")
+
 	else if (href_list["common"])
 		switch(href_list["common"])
 			if("undress")
 				for(var/obj/item/W in current)
 					current.dropItemToGround(W, TRUE) //The 1 forces all items to drop, since this is an admin undress.
+			if("takeuplink")
+				take_uplink()
+				memory = null//Remove any memory they may have had.
+				log_admin("[key_name(usr)] removed [current]'s uplink.")
+			if("crystals")
+				if(check_rights(R_FUN, 0))
+					var/datum/component/uplink/U = find_syndicate_uplink()
+					if(U)
+						var/crystals = input("Amount of telecrystals for [key]","Syndicate uplink", U.telecrystals) as null | num
+						if(!isnull(crystals))
+							U.telecrystals = crystals
+							message_admins("[key_name_admin(usr)] changed [current]'s telecrystal count to [crystals].")
+							log_admin("[key_name(usr)] changed [current]'s telecrystal count to [crystals].")
+			if("uplink")
+				if(!equip_traitor())
+					to_chat(usr, "<span class='danger'>Equipping a syndicate failed!</span>")
+					log_admin("[key_name(usr)] tried and failed to give [current] an uplink.")
+				else
+					log_admin("[key_name(usr)] gave [current] an uplink.")
+
 	else if (href_list["obj_announce"])
 		announce_objectives()
 
-	//Something in here might have changed my mob
+	//Something in here might have changed your mob
 	if(self_antagging && (!usr || !usr.client) && current.client)
 		usr = current
 	traitor_panel()
 
-
-/// Gets only antagonist objectives
-/datum/mind/proc/get_antag_objectives()
-	var/list/antag_objectives = list()
-	for(var/datum/antagonist/antag_datum_ref in antag_datums)
-		antag_objectives |= antag_datum_ref.objectives
-	return antag_objectives
-
-/// Gets only personal objectives
-/datum/mind/proc/get_personal_objectives()
-	return personal_objectives?.Copy() || list()
-
-/// Gets all objectives (both types)
 /datum/mind/proc/get_all_objectives()
-	return get_personal_objectives() + get_antag_objectives()
+	var/list/all_objectives = list()
+	for(var/datum/antagonist/A in antag_datums)
+		all_objectives |= A.objectives
+	return all_objectives
 
-/// Announces only antagonist objectives
-/datum/mind/proc/announce_antagonist_objectives()
-	var/obj_count = 1
-	for(var/datum/antagonist/antag_datum_ref in antag_datums)
-		if(length(antag_datum_ref.objectives))
-			to_chat(current, span_notice("Your [antag_datum_ref.name] objectives:"))
-			for(var/datum/objective/O in antag_datum_ref.objectives)
-				O.update_explanation_text()
-				to_chat(current, "<B>[O.flavor] #[obj_count]</B>: [O.explanation_text]")
-				obj_count++
-
-/// Announces only personal objectives
-/datum/mind/proc/announce_personal_objectives()
-	if(length(personal_objectives))
-		var/personal_count = 1
-		for(var/datum/objective/O in personal_objectives)
-			O.update_explanation_text()
-			to_chat(current, "<B>Personal Goal #[personal_count]</B>: [O.explanation_text]")
-			personal_count++
-
-/// Announce all objectives (both types)
 /datum/mind/proc/announce_objectives()
-	announce_personal_objectives()
-	announce_antagonist_objectives()
+	var/obj_count = 1
+	to_chat(current, "<span class='notice'>Your current objectives:</span>")
+	for(var/objective in get_all_objectives())
+		var/datum/objective/O = objective
+		to_chat(current, "<B>Objective #[obj_count]</B>: [O.explanation_text]")
+		obj_count++
+
+/datum/mind/proc/find_syndicate_uplink()
+	var/list/L = current.GetAllContents()
+	for (var/i in L)
+		var/atom/movable/I = i
+		. = I.GetComponent(/datum/component/uplink)
+		if(.)
+			break
+
+/datum/mind/proc/take_uplink()
+	qdel(find_syndicate_uplink())
 
 /datum/mind/proc/make_Traitor()
 	if(!(has_antag_datum(/datum/antagonist/traitor)))
 		add_antag_datum(/datum/antagonist/traitor)
 
+/datum/mind/proc/make_Contractor_Support()
+	if(!(has_antag_datum(/datum/antagonist/traitor/contractor_support)))
+		add_antag_datum(/datum/antagonist/traitor/contractor_support)
+
+/datum/mind/proc/make_Changeling()
+	var/datum/antagonist/changeling/C = has_antag_datum(/datum/antagonist/changeling)
+	if(!C)
+		C = add_antag_datum(/datum/antagonist/changeling)
+		special_role = ROLE_CHANGELING
+	return C
+
+/datum/mind/proc/make_Wizard()
+	if(!has_antag_datum(/datum/antagonist/wizard))
+		special_role = ROLE_WIZARD
+		assigned_role = ROLE_WIZARD
+		add_antag_datum(/datum/antagonist/wizard)
+
+
+/datum/mind/proc/make_Cultist()
+	if(!has_antag_datum(/datum/antagonist/cult,TRUE))
+		SSticker.mode.add_cultist(src,FALSE,equip=TRUE)
+		special_role = ROLE_CULTIST
+		to_chat(current, "<font color=\"purple\"><b><i>You catch a glimpse of the Realm of Nar'Sie, The Geometer of Blood. You now see how flimsy your world is, you see that it should be open to the knowledge of Nar'Sie.</b></i></font>")
+		to_chat(current, "<font color=\"purple\"><b><i>Assist your new brethren in their dark dealings. Their goal is yours, and yours is theirs. You serve the Dark One above all else. Bring It back.</b></i></font>")
+
+/datum/mind/proc/make_Rev()
+	var/datum/antagonist/rev/head/head = new()
+	head.give_flash = TRUE
+	head.give_hud = TRUE
+	add_antag_datum(head)
+	special_role = ROLE_REV_HEAD
 
 /datum/mind/proc/AddSpell(obj/effect/proc_holder/spell/S)
-	if(!S)
-		return
 	spell_list += S
 	S.action.Grant(current)
-
-/datum/mind/proc/check_learnspell()
-	if(!has_spell(/obj/effect/proc_holder/spell/self/learnspell)) //are we missing the learning spell?
-		if((spell_points - used_spell_points) > 0) //do we have points?
-			AddSpell(new /obj/effect/proc_holder/spell/self/learnspell(null)) //put it in
-			return
-
-	if((spell_points - used_spell_points) <= 0) //are we out of points?
-		RemoveSpell(/obj/effect/proc_holder/spell/self/learnspell) //bye bye spell
-		return
-	return
-
-/datum/mind/proc/has_spell(spell_type, specific = FALSE)
-	if(istype(spell_type, /obj/effect/proc_holder))
-		var/obj/instanced_spell = spell_type
-		spell_type = instanced_spell.type
-	for(var/obj/effect/proc_holder/spell as anything in spell_list)
-		if((specific && spell.type == spell_type) || istype(spell, spell_type))
-			return TRUE
-	return FALSE
 
 /datum/mind/proc/owns_soul()
 	return soulOwner == src
@@ -866,6 +696,7 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 		if(istype(S, spell))
 			spell_list -= S
 			qdel(S)
+	current?.client << output(null, "statbrowser:check_spells")
 
 /datum/mind/proc/RemoveAllSpells()
 	for(var/obj/effect/proc_holder/S in spell_list)
@@ -890,6 +721,11 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	for(var/X in spell_list)
 		var/obj/effect/proc_holder/spell/S = X
 		S.action.Grant(new_character)
+	var/datum/antagonist/changeling/changeling = new_character.mind.has_antag_datum(/datum/antagonist/changeling)
+	if(changeling &&(ishuman(new_character) || ismonkey(new_character)))
+		for(var/P in changeling.purchasedpowers)
+			var/obj/effect/proc_holder/changeling/I = P
+			I.action.Grant(new_character)
 
 /datum/mind/proc/disrupt_spells(delay, list/exceptions = New())
 	for(var/X in spell_list)
@@ -899,10 +735,10 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 				continue
 		S.charge_counter = delay
 		S.updateButtonIcon()
-		INVOKE_ASYNC(S, TYPE_PROC_REF(/obj/effect/proc_holder/spell, start_recharge))
+		INVOKE_ASYNC(S, /obj/effect/proc_holder/spell.proc/start_recharge)
 
-/datum/mind/proc/get_ghost(even_if_they_cant_reenter, ghosts_with_clients)
-	for(var/mob/dead/observer/G in (ghosts_with_clients ? GLOB.player_list : GLOB.dead_mob_list))
+/datum/mind/proc/get_ghost(even_if_they_cant_reenter)
+	for(var/mob/dead/observer/G in GLOB.dead_mob_list)
 		if(G.mind == src)
 			if(G.can_reenter_corpse || even_if_they_cant_reenter)
 				return G
@@ -914,21 +750,17 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	if(G)
 		G.reenter_corpse()
 
+/// Sets our can_hijack to the fastest speed our antag datums allow.
+/datum/mind/proc/get_hijack_speed()
+	. = 0
+	for(var/datum/antagonist/A in antag_datums)
+		. = max(., A.hijack_speed())
 
 /datum/mind/proc/has_objective(objective_type)
 	for(var/datum/antagonist/A in antag_datums)
 		for(var/O in A.objectives)
 			if(istype(O,objective_type))
 				return TRUE
-
-/// Setter for the assigned_role job datum.sync_mind()
-/datum/mind/proc/set_assigned_role(datum/job/new_role)
-	if(!istype(new_role))
-		new_role = ispath(new_role) ? SSjob.GetJobType(new_role) : SSjob.GetJob(new_role)
-	if(assigned_role == new_role)
-		return assigned_role
-	. = assigned_role
-	assigned_role = new_role
 
 /mob/proc/sync_mind()
 	mind_initialize()	//updates the mind (or creates and initializes one if one doesn't exist)
@@ -953,9 +785,11 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	else
 		mind = new /datum/mind(key)
 		SSticker.minds += mind
+		SEND_SIGNAL(src, COMSIG_MOB_ON_NEW_MIND)
 	if(!mind.name)
 		mind.name = real_name
 	mind.current = src
+	mind.hide_ckey = client?.prefs?.hide_ckey
 
 /mob/living/carbon/mind_initialize()
 	..()
@@ -982,22 +816,3 @@ GLOBAL_LIST_EMPTY(personal_objective_minds)
 	..()
 	mind.assigned_role = ROLE_PAI
 	mind.special_role = ""
-
-/datum/mind/proc/add_sleep_experience(skill, amt, silent = FALSE)
-	sleep_adv.add_sleep_experience(skill, amt, silent)
-
-/datum/mind/proc/add_personal_objective(datum/objective/O)
-	if(!istype(O))
-		return FALSE
-	personal_objectives += O
-	O.owner = src
-	return TRUE
-
-/datum/mind/proc/remove_personal_objective(datum/objective/O)
-	personal_objectives -= O
-	qdel(O)
-
-/datum/mind/proc/clear_personal_objectives()
-	for(var/O in personal_objectives)
-		qdel(O)
-	personal_objectives.Cut()

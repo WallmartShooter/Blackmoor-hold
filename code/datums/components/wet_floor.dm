@@ -12,9 +12,9 @@
 	var/permanent = FALSE
 	var/last_process = 0
 
-/datum/component/wet_floor/InheritComponent(datum/newcomp, orig, argslist)
+/datum/component/wet_floor/InheritComponent(datum/newcomp, orig, strength, duration_minimum, duration_add, duration_maximum, _permanent)
 	if(!newcomp)	//We are getting passed the arguments of a would-be new component, but not a new component
-		add_wet(arglist(argslist))
+		add_wet(arglist(args.Copy(3)))
 	else			//We are being passed in a full blown component
 		var/datum/component/wet_floor/WF = newcomp			//Lets make an assumption
 		if(WF.gc())						//See if it's even valid, still. Also does LAZYLEN and stuff for us.
@@ -29,14 +29,16 @@
 	permanent = _permanent
 	if(!permanent)
 		START_PROCESSING(SSwet_floors, src)
-	addtimer(CALLBACK(src, PROC_REF(gc), TRUE), 1)		//GC after initialization.
+	addtimer(CALLBACK(src, .proc/gc, TRUE), 1)		//GC after initialization.
 	last_process = world.time
 
 /datum/component/wet_floor/RegisterWithParent()
-	RegisterSignal(parent, COMSIG_TURF_IS_WET, PROC_REF(is_wet))
-	RegisterSignal(parent, COMSIG_TURF_MAKE_DRY, PROC_REF(dry))
+	. = ..()
+	RegisterSignal(parent, COMSIG_TURF_IS_WET, .proc/is_wet)
+	RegisterSignal(parent, COMSIG_TURF_MAKE_DRY, .proc/dry)
 
 /datum/component/wet_floor/UnregisterFromParent()
+	. = ..()
 	UnregisterSignal(parent, list(COMSIG_TURF_IS_WET, COMSIG_TURF_MAKE_DRY))
 
 /datum/component/wet_floor/Destroy()
@@ -45,7 +47,6 @@
 	qdel(T.GetComponent(/datum/component/slippery))
 	if(istype(T))		//If this is false there is so many things wrong with it.
 		T.cut_overlay(current_overlay)
-		T.OnDry()
 	else
 		stack_trace("Warning: Wet floor component wasn't on a turf when being destroyed! This is really bad!")
 	return ..()
@@ -95,7 +96,9 @@
 			qdel(parent.GetComponent(/datum/component/slippery))
 			return
 
-	parent.LoadComponent(/datum/component/slippery, intensity, lube_flags, CALLBACK(src, PROC_REF(AfterSlip)))
+	var/datum/component/slippery/S = parent.LoadComponent(/datum/component/slippery, NONE, CALLBACK(src, .proc/AfterSlip))
+	S.intensity = intensity
+	S.lube_flags = lube_flags
 
 /datum/component/wet_floor/proc/dry(datum/source, strength = TURF_WET_WATER, immediate = FALSE, duration_decrease = INFINITY)
 	for(var/i in time_left_list)
@@ -113,12 +116,12 @@
 	var/turf/open/T = parent
 	var/diff = world.time - last_process
 	var/decrease = 0
-	var/t = T.temperature
+	var/t = T.GetTemperature()
 	switch(t)
 		if(-INFINITY to T0C)
 			add_wet(TURF_WET_ICE, max_time_left())			//Water freezes into ice!
 		if(T0C to T0C + 100)
-			decrease = ((T.temperature - T0C) / SSwet_floors.temperature_coeff) * (diff / SSwet_floors.time_ratio)
+			decrease = ((T.air.return_temperature() - T0C) / SSwet_floors.temperature_coeff) * (diff / SSwet_floors.time_ratio)
 		if(T0C + 100 to INFINITY)
 			decrease = INFINITY
 	decrease = max(0, decrease)
@@ -178,7 +181,7 @@
 /datum/component/wet_floor/proc/_do_add_wet(type, duration_minimum, duration_add, duration_maximum)
 	var/time = 0
 	if(LAZYACCESS(time_left_list, "[type]"))
-		time = CLAMP(LAZYACCESS(time_left_list, "[type]") + duration_add, duration_minimum, duration_maximum)
+		time = clamp(LAZYACCESS(time_left_list, "[type]") + duration_add, duration_minimum, duration_maximum)
 	else
 		time = min(duration_minimum, duration_maximum)
 	LAZYSET(time_left_list, "[type]", time)

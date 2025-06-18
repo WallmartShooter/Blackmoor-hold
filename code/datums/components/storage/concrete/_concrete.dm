@@ -7,6 +7,8 @@
 	can_transfer = TRUE
 	var/drop_all_on_deconstruct = TRUE
 	var/drop_all_on_destroy = FALSE
+	var/drop_all_on_break = FALSE
+	var/unlock_on_break = FALSE
 	var/transfer_contents_on_component_transfer = FALSE
 	var/list/datum/component/storage/slaves = list()
 
@@ -15,8 +17,9 @@
 
 /datum/component/storage/concrete/Initialize()
 	. = ..()
-	RegisterSignal(parent, COMSIG_ATOM_CONTENTS_DEL, PROC_REF(on_contents_del))
-	RegisterSignal(parent, COMSIG_OBJ_DECONSTRUCT, PROC_REF(on_deconstruct))
+	RegisterSignal(parent, COMSIG_ATOM_CONTENTS_DEL, .proc/on_contents_del)
+	RegisterSignal(parent, COMSIG_OBJ_DECONSTRUCT, .proc/on_deconstruct)
+	RegisterSignal(parent, COMSIG_OBJ_BREAK, .proc/on_break)
 
 /datum/component/storage/concrete/Destroy()
 	var/atom/real_location = real_location()
@@ -57,13 +60,13 @@
 		_contents_limbo = null
 	if(_user_limbo)
 		for(var/i in _user_limbo)
-			show_to(i)
+			ui_show(i)
 		_user_limbo = null
 
 /datum/component/storage/concrete/_insert_physical_item(obj/item/I, override = FALSE)
 	. = TRUE
 	var/atom/real_location = real_location()
-	if(I.loc != real_location)
+	if(I.loc != real_location && real_location)
 		I.forceMove(real_location)
 	refresh_mob_views()
 
@@ -73,15 +76,33 @@
 		var/datum/component/storage/slave = i
 		slave.refresh_mob_views()
 
+/datum/component/storage/concrete/emp_act(datum/source, severity)
+	if(emp_shielded)
+		return
+	var/atom/real_location = real_location()
+	for(var/i in real_location)
+		var/atom/A = i
+		A.emp_act(severity)
+
 /datum/component/storage/concrete/proc/on_slave_link(datum/component/storage/S)
 	if(S == src)
-		return FALSE
+		return
+	if(!length(slaves))
+		RegisterSignal(parent, COMSIG_ATOM_GET_LOCS, .proc/get_locs_react)
 	slaves += S
-	return TRUE
+
 
 /datum/component/storage/concrete/proc/on_slave_unlink(datum/component/storage/S)
 	slaves -= S
-	return FALSE
+	if(!length(slaves))
+		UnregisterSignal(parent, COMSIG_ATOM_GET_LOCS)
+
+
+/datum/component/storage/concrete/proc/get_locs_react(datum/source, list/locs)
+	SIGNAL_HANDLER
+	for(var/datum/component/storage/slave as anything in slaves)
+		locs += slave.parent
+
 
 /datum/component/storage/concrete/proc/on_contents_del(datum/source, atom/A)
 	var/atom/real_location = parent
@@ -92,6 +113,12 @@
 /datum/component/storage/concrete/proc/on_deconstruct(datum/source, disassembled)
 	if(drop_all_on_deconstruct)
 		do_quick_empty()
+
+/datum/component/storage/concrete/proc/on_break(datum/source, damage_flag)
+	if(drop_all_on_break)
+		do_quick_empty()
+	if(unlock_on_break)
+		set_locked(source, FALSE)
 
 /datum/component/storage/concrete/can_see_contents()
 	. = ..()
@@ -117,12 +144,9 @@
 	if(ismob(parent.loc) && isitem(AM))
 		var/obj/item/I = AM
 		var/mob/M = parent.loc
-		I.dropped(M, TRUE)
-		I.item_flags &= ~IN_STORAGE
+		I.dropped(M)
 	if(new_location)
-		//Reset the items values
-		_removal_reset(AM)
-		AM.forceMove(new_location)
+		AM.forceMove(new_location)		// exited comsig will handle removal reset.
 		//We don't want to call this if the item is being destroyed
 		AM.on_exit_storage(src)
 	else
@@ -166,7 +190,6 @@
 				I.forceMove(parent.drop_location())
 		return FALSE
 	I.on_enter_storage(master)
-	I.item_flags |= IN_STORAGE
 	refresh_mob_views()
 	I.mouse_opacity = MOUSE_OPACITY_OPAQUE //So you can click on the area around the item to equip it, instead of having to pixel hunt
 	if(M)

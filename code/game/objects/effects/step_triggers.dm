@@ -20,6 +20,13 @@
 		return
 	Trigger(H)
 
+
+/obj/effect/step_trigger/singularity_act()
+	return
+
+/obj/effect/step_trigger/singularity_pull()
+	return
+
 /* Sends a message to mob when triggered*/
 
 /obj/effect/step_trigger/message
@@ -29,7 +36,7 @@
 
 /obj/effect/step_trigger/message/Trigger(mob/M)
 	if(M.client)
-		to_chat(M, span_info("[message]"))
+		to_chat(M, "<span class='info'>[message]</span>")
 		if(once)
 			qdel(src)
 
@@ -45,7 +52,7 @@
 	var/list/affecting = list()
 
 /obj/effect/step_trigger/thrower/Trigger(atom/A)
-	if(!A || !ismovableatom(A))
+	if(!A || !ismovable(A))
 		return
 	var/atom/movable/AM = A
 	var/curtiles = 0
@@ -57,7 +64,8 @@
 	if(isliving(AM))
 		var/mob/living/M = AM
 		if(immobilize)
-			M.mobility_flags &= ~MOBILITY_MOVE
+			ADD_TRAIT(M, TRAIT_MOBILITY_NOMOVE, src)
+			M.update_mobility()
 
 	affecting.Add(AM)
 	while(AM && !stopthrow)
@@ -94,8 +102,8 @@
 	if(isliving(AM))
 		var/mob/living/M = AM
 		if(immobilize)
-			M.mobility_flags |= MOBILITY_MOVE
-		M.update_mobility()
+			REMOVE_TRAIT(M, TRAIT_MOBILITY_NOMOVE, src)
+			M.update_mobility()
 
 /* Stops things thrown by a thrower, doesn't do anything */
 
@@ -169,7 +177,7 @@
 /* Simple sound player, Mapper friendly! */
 
 /obj/effect/step_trigger/sound_effect
-	var/sound //eg. path to the sound, inside 'sound/blank.ogg'
+	var/sound //eg. path to the sound, inside '' eg: 'growl.ogg'
 	var/volume = 100
 	var/freq_vary = 1 //Should the frequency of the sound vary?
 	var/extra_range = 0 // eg World.view = 7, extra_range = 1, 7+1 = 8, 8 turfs radius

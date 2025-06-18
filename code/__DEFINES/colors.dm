@@ -1,17 +1,10 @@
 // This is eventually for wjohn to add more color standardization stuff like I keep asking him >:(
 
-#define COLOR_INPUT_DISABLED "#000000"
-#define COLOR_INPUT_ENABLED "#231d1d"
-
-#define COLOR_DARKMODE_BACKGROUND "#202020"
-#define COLOR_DARKMODE_DARKBACKGROUND "#171717"
-#define COLOR_DARKMODE_TEXT "#a4bad6"
-
-#define COLOR_WHITE            "#EEEEEE"
-#define COLOR_SILVER           "#C0C0C0"
-#define COLOR_GRAY             "#808080"
+#define COLOR_INPUT_DISABLED "#F0F0F0"
+#define COLOR_INPUT_ENABLED "#D3B5B5"
 #define COLOR_FLOORTILE_GRAY   "#8D8B8B"
 #define COLOR_ALMOST_BLACK	   "#333333"
+#define COLOR_WHITE            "#FFFFFF"
 #define COLOR_BLACK            "#000000"
 #define COLOR_RED              "#FF0000"
 #define COLOR_RED_LIGHT        "#FF3333"
@@ -38,6 +31,7 @@
 #define COLOR_RED_GRAY         "#B4696A"
 #define COLOR_PALE_BLUE_GRAY   "#98C5DF"
 #define COLOR_PALE_GREEN_GRAY  "#B7D993"
+#define COLOR_PALE_ORANGE      "#FFC066"
 #define COLOR_PALE_RED_GRAY    "#D59998"
 #define COLOR_PALE_PURPLE_GRAY "#CBB1CA"
 #define COLOR_PURPLE_GRAY      "#AE8CA8"
@@ -58,51 +52,4 @@
 #define COLOR_ASSEMBLY_LBLUE   "#5D99BE"
 #define COLOR_ASSEMBLY_BLUE    "#38559E"
 #define COLOR_ASSEMBLY_PURPLE  "#6F6192"
-
-
-//roguetown
-#define CLOTHING_RED			"#8b2323"
-#define CLOTHING_PURPLE			"#8747b1"
-#define CLOTHING_BLACK			"#2b292e"
-#define CLOTHING_GREY			"#6c6c6c"
-#define CLOTHING_BROWN			"#61462c"
-#define CLOTHING_GREEN			"#428138"
-#define CLOTHING_DARK_GREEN		"#264d26"
-#define CLOTHING_BLUE			"#173266"
-#define CLOTHING_YELLOW			"#ffcd43"
-#define CLOTHING_TEAL			"#249589"
-#define CLOTHING_AZURE			"#007fff"
-#define CLOTHING_WHITE			"#ffffff"
-#define CLOTHING_ORANGE			"#df8405"
-#define CLOTHING_MAGENTA		"#962e5c"
-
-#define CLOTHING_WET			"#bbbbbb"
-
-#define CLOTHING_COLOR_NAMES	list("Red","Purple","Black","Brown","Green","Blue","Yellow","Teal","White","Orange","Magenta")
-
-/proc/clothing_color2hex(input)
-	switch(input)
-		if("Red")
-			return CLOTHING_RED
-		if("Purple")
-			return CLOTHING_PURPLE
-		if("Black")
-			return CLOTHING_BLACK
-		if("Brown")
-			return CLOTHING_BROWN
-		if("Green")
-			return CLOTHING_GREEN
-		if("Blue")
-			return CLOTHING_BLUE
-		if("Yellow")
-			return CLOTHING_YELLOW
-		if("Teal")
-			return CLOTHING_TEAL
-		if("Azure")
-			return CLOTHING_AZURE
-		if("White")
-			return CLOTHING_WHITE
-		if("Orange")
-			return CLOTHING_ORANGE
-		if("Magenta")
-			return CLOTHING_MAGENTA
+#define COLOR_ASSEMBLY_PINK    "#ff4adc"

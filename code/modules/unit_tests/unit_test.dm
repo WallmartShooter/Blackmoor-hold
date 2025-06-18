@@ -19,25 +19,33 @@ GLOBAL_VAR(test_log)
 	//Bit of metadata for the future maybe
 	var/list/procs_tested
 
-	//usable vars
+	/// The bottom left turf of the testing zone
 	var/turf/run_loc_bottom_left
+
+	/// The top right turf of the testing zone
 	var/turf/run_loc_top_right
 
-	///The priority of the test, the larger it is the later it fires
-	var/priority = TEST_DEFAULT
+	/// The type of turf to allocate for the testing zone
+	var/test_turf_type = /turf/open/floor/plasteel
 
 	//internal shit
-	var/list/allocated
+	var/focus = FALSE
 	var/succeeded = TRUE
+	var/list/allocated
 	var/list/fail_reasons
 
-/proc/cmp_unit_test_priority(datum/unit_test/a, datum/unit_test/b)
-	return initial(a.priority) - initial(b.priority)
+	var/static/datum/turf_reservation/turf_reservation
 
 /datum/unit_test/New()
-	run_loc_bottom_left = locate(1, 1, 1)
-	run_loc_top_right = locate(5, 5, 1)
-	allocated = list()
+	if (isnull(turf_reservation))
+		turf_reservation = SSmapping.RequestBlockReservation(5, 5)
+
+	for (var/turf/reserved_turf in turf_reservation.reserved_turfs)
+		reserved_turf.ChangeTurf(test_turf_type)
+
+	allocated = new
+	run_loc_bottom_left = locate(turf_reservation.bottom_left_coords[1], turf_reservation.bottom_left_coords[2], turf_reservation.bottom_left_coords[3])
+	run_loc_top_right = locate(turf_reservation.top_right_coords[1], turf_reservation.top_right_coords[2], turf_reservation.top_right_coords[3])
 
 /datum/unit_test/Destroy()
 	//clear the test area
@@ -57,11 +65,22 @@ GLOBAL_VAR(test_log)
 
 	LAZYADD(fail_reasons, reason)
 
+/// Allocates an instance of the provided type, and places it somewhere in an available loc
+/// Instances allocated through this proc will be destroyed when the test is over
+/datum/unit_test/proc/allocate(type, ...)
+	var/list/arguments = args.Copy(2)
+	if (!arguments.len)
+		arguments = list(run_loc_bottom_left)
+	else if (arguments[1] == null)
+		arguments[1] = run_loc_bottom_left
+	var/instance = new type(arglist(arguments))
+	allocated += instance
+	return instance
+
 /proc/RunUnitTests()
 	CHECK_TICK
 
-	var/list/tests_to_run = sortTim(subtypesof(/datum/unit_test), /proc/cmp_unit_test_priority)
-	for(var/I in tests_to_run)
+	for(var/I in subtypesof(/datum/unit_test))
 		var/datum/unit_test/test = new I
 
 		GLOB.current_test = test
@@ -85,15 +104,3 @@ GLOBAL_VAR(test_log)
 		CHECK_TICK
 
 	SSticker.force_ending = TRUE
-
-/// Allocates an instance of the provided type, and places it somewhere in an available loc
-/// Instances allocated through this proc will be destroyed when the test is over
-/datum/unit_test/proc/allocate(type, ...)
-	var/list/arguments = args.Copy(2)
-	if (!arguments.len)
-		arguments = list(run_loc_bottom_left)
-	else if (arguments[1] == null)
-		arguments[1] = run_loc_bottom_left
-	var/instance = new type(arglist(arguments))
-	allocated += instance
-	return instance

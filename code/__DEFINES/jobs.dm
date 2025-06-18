@@ -1,3 +1,16 @@
+//Globa job defines
+
+//Defines Factions
+#define FACTION_NCR "NCR"
+#define FACTION_LEGION "Legion"
+#define FACTION_BROTHERHOOD "BOS"
+#define FACTION_OASIS "Town"
+#define FACTION_ENCLAVE "Enclave"
+#define FACTION_WASTELAND "Wastelander"
+#define FACTION_RAIDERS "Raiders"
+#define FACTION_TRIBE "Tribe"
+#define FACTION_VAULT "Vault"
+#define FACTION_FOLLOWERS "Followers"
 
 #define ENGSEC			(1<<0)
 
@@ -23,6 +36,7 @@
 #define DOCTOR			(1<<4)
 #define GENETICIST		(1<<5)
 #define VIROLOGIST		(1<<6)
+#define PARAMEDIC		(1<<7)
 
 
 #define CIVILIAN		(1<<2)
@@ -30,32 +44,152 @@
 #define HOP				(1<<0)
 #define BARTENDER		(1<<1)
 #define BOTANIST		(1<<2)
-//#define COOK			(1<<3) //This is redefined below, and is a ss13 leftover.
+#define COOK			(1<<3)
 #define JANITOR			(1<<4)
 #define CURATOR			(1<<5)
 #define QUARTERMASTER	(1<<6)
 #define CARGOTECH		(1<<7)
-//#define MINER			(1<<8) //This is redefined below, and is a ss13 leftover.
+#define MINER			(1<<8)
 #define LAWYER			(1<<9)
 #define CHAPLAIN		(1<<10)
-#define CLOWN			(1<<11)
-#define MIME			(1<<12)
-#define ASSISTANT		(1<<13)
+#define ASSISTANT		(1<<11)
+
+//F13
+
+#define NCR				(1<<3)
+
+#define F13COLONEL		 (1<<0)
+#define F13CAPTAIN		 (1<<1)
+#define F13LIEUTENANT    (1<<2)
+#define F13LOGISTICSOFFICER (1<<3)
+#define F13MEDICALOFFICER (1<<4)
+#define	F13FIRSTSERGEANT (1<<5)
+#define F13HEAVYTROOPER	 (1<<6)
+#define F13DRILLSERGEANT (1<<7)
+#define F13SERGEANT		 (1<<8)
+#define F13CORPORAL		 (1<<9)
+#define F13COMBATMEDIC	 (1<<10)
+#define F13COMBATENGINEER (1<<11)
+#define F13TROOPER		 (1<<12)
+#define F13CONSCRIPT	 (1<<13)
+#define F13OFFDUTYNCR	 (1<<14)
+#define F13VETRANGER	 (1<<15)
+#define F13RANGER	 	 (1<<16)
+#define F13MP            (1<<17)
+#define F13REP           (1<<18)
+
+#define LEGION			(1<<4)
+
+#define F13LEGATE		(1<<0)
+#define F13CENTURION	(1<<1)
+#define F13ORATOR		(1<<2)
+#define F13PRIESTESS 	(1<<3)
+#define F13DECANREC		(1<<4)
+#define F13DECAN		(1<<5)
+#define F13DECANVET		(1<<6)
+#define F13VEXILLARIUS	(1<<7)
+#define F13EXPLORER		(1<<8)
+#define F13VENATOR		(1<<9)
+#define F13VETLEGIONARY	(1<<10)
+#define F13LEGIONARY	(1<<11)
+#define F13RECRUITLEG	(1<<12)
+#define F13AUXILIA		(1<<13)
+#define F13LEGIONSLAVE	(1<<14)
+#define F13IMMUNE		(1<<15)
+#define F13CAMPFOLLOWER (1<<16)
+#define F13SLAVEMASTER	(1<<17)
+
+#define BOS				(1<<5)
+
+#define F13ELDER		(1<<0)
+#define F13HEADPALADIN	(1<<1)
+#define F13SENIORPALADIN	(1<<2)
+#define F13PALADIN		(1<<3)
+#define F13HEADKNIGHT	(1<<4)
+#define F13SENIORKNIGHT	(1<<5)
+#define F13KNIGHT		(1<<6)
+#define F13HEADSCRIBE	(1<<7)
+#define F13SENIORSCRIBE (1<<8)
+#define F13SCRIBE		(1<<9)
+#define F13INITIATE		(1<<10)
+#define F13OFFDUTYBOS	(1<<11)
+
+#define DEP_OASIS (1<<6)
+
+#define F13POLICECHIEF	(1<<0)
+#define F13TOWNDOCTOR	(1<<1)
+#define F13SETTLER		(1<<2)
+#define F13FARMER		(1<<3)
+#define F13PROSPECTOR	(1<<4)
+#define F13POLICEMAN	(1<<5)
+#define F13MAYOR		(1<<6)
+#define F13SECRETARY    (1<<7)
+#define F13PREACHER		(1<<8)
+#define F13SHOPKEEPER	(1<<9)
+#define F13ASSIST		(1<<10)
+#define F13BARKEEP		(1<<11)
+
+#define VAULT			(1<<7)
+
+#define F13OVERSEER		(1<<0)
+#define F13HOS			(1<<1)
+#define F13DOCTOR		(1<<2)
+#define F13VAULTSCIENTIST	(1<<3)
+#define F13OFFICER		(1<<4)
+#define F13VAULTENGINEER	(1<<5)
+#define F13DWELLER		(1<<6)
+#define F13AI			(1<<7)
+#define F13CYBORG		(1<<8)
+
+#define WASTELAND		(1<<8)
+
+#define F13WASTELANDER	(1<<1)
+#define F13RAIDER		(1<<2)
+#define F13PUSHER		(1<<3)
+#define F13DETECTIVE	(1<<5)
+#define F13VIGILANTE	(1<<6)
+#define F13ADMINBOOS	(1<<7)
+#define F13TRIBAL		(1<<8)
+
+#define ENCLAVE			(1<<9)
+
+#define F13USCPT		(1<<0)
+#define F13USLT			(1<<1)
+#define F13USGYSGT		(1<<2)
+#define F13USSGT		(1<<3)
+#define F13USSCIENTIST	(1<<4)
+#define F13USSPECIALIST	(1<<5)
+#define F13USPRIVATE	(1<<6)
+#define F13USBDUTY      (1<<7)
+#define F13USAI			(1<<8)
+
+#define TRIBAL			(1<<10)
+
+#define F13CHIEF		(1<<0)
+#define F13SHAMAN		(1<<1)
+#define F13HHUNTER		(1<<2)
+#define F13DRUID		(1<<3)
+#define F13VILLAGER		(1<<4)
+#define F13HUNTER		(1<<5)
+#define F13GUARDIAN		(1<<6)
+#define F13SPIRITPLEDGED (1<<7)
+
+#define FOLLOWERS		(1<<11)
+
+#define	F13LEADPRACTITIONER	(1<<0)
+#define	F13PRACTITIONER	(1<<1)
+#define F13FOLLOWERGUARD	(1<<2)
+#define F13FOLLOWERVOLUNTEER	(1<<3)
+
 
 #define JOB_AVAILABLE 0
 #define JOB_UNAVAILABLE_GENERIC 1
 #define JOB_UNAVAILABLE_BANNED 2
 #define JOB_UNAVAILABLE_PLAYTIME 3
 #define JOB_UNAVAILABLE_ACCOUNTAGE 4
-#define JOB_UNAVAILABLE_PATRON 5
-#define JOB_UNAVAILABLE_RACE 6
-#define JOB_UNAVAILABLE_SEX 7
-#define JOB_UNAVAILABLE_AGE 8
-#define JOB_UNAVAILABLE_WTEAM 9
-#define JOB_UNAVAILABLE_LASTCLASS 10
-#define JOB_UNAVAILABLE_JOB_COOLDOWN 11
-#define JOB_UNAVAILABLE_SLOTFULL 12
-#define JOB_UNAVAILABLE_VIRTUESVICE 13
+#define JOB_UNAVAILABLE_SLOTFULL 5
+#define JOB_UNAVAILABLE_SPECIESLOCK 6
+#define JOB_UNAVAILABLE_WHITELIST 7
 
 #define DEFAULT_RELIGION "Christianity"
 #define DEFAULT_DEITY "Space Jesus"
@@ -72,329 +206,122 @@
 #define JOB_DISPLAY_ORDER_COOK 8
 #define JOB_DISPLAY_ORDER_BOTANIST 9
 #define JOB_DISPLAY_ORDER_JANITOR 10
-#define JOB_DISPLAY_ORDER_CLOWN 11
-#define JOB_DISPLAY_ORDER_MIME 12
 #define JOB_DISPLAY_ORDER_CURATOR 13
 #define JOB_DISPLAY_ORDER_LAWYER 14
 #define JOB_DISPLAY_ORDER_CHAPLAIN 15
-#define JOB_DISPLAY_ORDER_CHIEF_ENGINEER 16
-#define JOB_DISPLAY_ORDER_STATION_ENGINEER 17
-#define JOB_DISPLAY_ORDER_ATMOSPHERIC_TECHNICIAN 18
-#define JOB_DISPLAY_ORDER_CHIEF_MEDICAL_OFFICER 19
-#define JOB_DISPLAY_ORDER_MEDICAL_DOCTOR 20
-#define JOB_DISPLAY_ORDER_CHEMIST 21
-#define JOB_DISPLAY_ORDER_GENETICIST 22
-#define JOB_DISPLAY_ORDER_VIROLOGIST 23
-#define JOB_DISPLAY_ORDER_RESEARCH_DIRECTOR 24
-#define JOB_DISPLAY_ORDER_SCIENTIST 25
-#define JOB_DISPLAY_ORDER_ROBOTICIST 26
-#define JOB_DISPLAY_ORDER_HEAD_OF_SECURITY 27
-#define JOB_DISPLAY_ORDER_WARDEN 28
-#define JOB_DISPLAY_ORDER_DETECTIVE 29
-#define JOB_DISPLAY_ORDER_SECURITY_OFFICER 30
-#define JOB_DISPLAY_ORDER_AI 31
-#define JOB_DISPLAY_ORDER_CYBORG 32
+//#define JOB_DISPLAY_ORDER_AI 16
+//#define JOB_DISPLAY_ORDER_CYBORG 17
+#define JOB_DISPLAY_ORDER_CHIEF_ENGINEER 18
+#define JOB_DISPLAY_ORDER_STATION_ENGINEER 19
+#define JOB_DISPLAY_ORDER_ATMOSPHERIC_TECHNICIAN 20
+#define JOB_DISPLAY_ORDER_CHIEF_MEDICAL_OFFICER 21
+#define JOB_DISPLAY_ORDER_MEDICAL_DOCTOR 22
+#define JOB_DISPLAY_ORDER_PARAMEDIC 23
+#define JOB_DISPLAY_ORDER_CHEMIST 24
+#define JOB_DISPLAY_ORDER_VIROLOGIST 25
+#define JOB_DISPLAY_ORDER_GENETICIST 26
+#define JOB_DISPLAY_ORDER_RESEARCH_DIRECTOR 27
+#define JOB_DISPLAY_ORDER_SCIENTIST 28
+#define JOB_DISPLAY_ORDER_ROBOTICIST 29
+#define JOB_DISPLAY_ORDER_HEAD_OF_SECURITY 30
+#define JOB_DISPLAY_ORDER_WARDEN 31
+//#define JOB_DISPLAY_ORDER_DETECTIVE 32
+#define JOB_DISPLAY_ORDER_SECURITY_OFFICER 33
 
-#define NOBLEMEN		(1<<0)
+#define JOB_DISPLAY_ORDER_CAPTAIN_NCR 34
+#define JOB_DISPLAY_ORDER_LIEUTENANT 35
+#define JOB_DISPLAY_ORDER_LOGISTICSOFFICER 36
+#define JOB_DISPLAY_ORDER_REPRESENTATIVE 37
+#define JOB_DISPLAY_ORDER_MEDICALOFFICER 38
+#define JOB_DISPLAY_ORDER_FIRSTSERGEANT 39
+#define JOB_DISPLAY_ORDER_HEAVYTROOPER 40
+#define JOB_DISPLAY_ORDER_DRILLSERGEANT 41
+#define JOB_DISPLAY_ORDER_SERGEANT 42
+#define JOB_DISPLAY_ORDER_CORPORAL 43
+#define JOB_DISPLAY_ORDER_COMBATMEDIC 44
+#define JOB_DISPLAY_ORDER_COMBATENGINEER 45
+#define JOB_DISPLAY_ORDER_TROOPER 46
+#define JOB_DISPLAY_ORDER_CONSCRIPT 47
+#define JOB_DISPLAY_ORDER_OFFDUTYNCR 48
+#define JOB_DISPLAY_ORDER_VETRANGER 49
+#define JOB_DISPLAY_ORDER_RANGER 50
 
-#define LORD		(1<<0)
-#define LADY		(1<<1)
-#define HAND		(1<<2)
-#define STEWARD		(1<<3)
-#define KNIGHT		(1<<4)
-#define GUARD_CAPTAIN		(1<<5)
-#define MARSHAL		(1<<6)
-#define HOSTAGE		(1<<7)
+#define JOB_DISPLAY_ORDER_CENTURION 51
+#define JOB_DISPLAY_ORDER_ORATOR 52
+#define JOB_DISPLAY_ORDER_PRIESTESS 53
+#define JOB_DISPLAY_ORDER_DECANREC 54
+#define JOB_DISPLAY_ORDER_DECAN 55
+#define JOB_DISPLAY_ORDER_DECANVET 56
+#define JOB_DISPLAY_ORDER_VEXILLARIUS 57
+#define JOB_DISPLAY_ORDER_EXPLORER 58
+#define JOB_DISPLAY_ORDER_VENATOR 59
+#define JOB_DISPLAY_ORDER_VETLEGIONARY 60
+#define JOB_DISPLAY_ORDER_LEGIONARY 61
+#define JOB_DISPLAY_ORDER_RECRUITLEG 62
+#define JOB_DISPLAY_ORDER_CAMPFOLLOWER 63
+#define JOB_DISPLAY_ORDER_IMMUNE 64
+#define JOB_DISPLAY_ORDER_AUXILIA 65
+#define JOB_DISPLAY_ORDER_LEGIONSLAVE 66
 
-#define GARRISON		(1<<1)
+#define JOB_DISPLAY_ORDER_HEADPALADIN 67
+#define JOB_DISPLAY_ORDER_SENIORPALADIN 68
+#define JOB_DISPLAY_ORDER_PALADIN 69
+#define JOB_DISPLAY_ORDER_HEADKNIGHT 70
+#define JOB_DISPLAY_ORDER_SENIORKNIGHT 71
+#define JOB_DISPLAY_ORDER_KNIGHT 72
+#define JOB_DISPLAY_ORDER_HEADSCRIBE 73
+#define JOB_DISPLAY_ORDER_SENIORSCRIBE 74
+#define JOB_DISPLAY_ORDER_SCRIBE 75
+#define JOB_DISPLAY_ORDER_INITIATE 76
+#define JOB_DISPLAY_ORDER_OFFDUTYBOS 77
 
-#define GUARDSMAN	(1<<0)
-#define MANATARMS	(1<<1)
-#define DUNGEONEER	(1<<2)
-#define SQUIRE		(1<<3)
-#define BOGGUARD	(1<<4)
-#define SERGEANT	(1<<5)
-#define SHERIFF		(1<<6)
+#define JOB_DISPLAY_ORDER_SHERIFF 78
+#define JOB_DISPLAY_ORDER_SETTLER 79
+#define JOB_DISPLAY_ORDER_FARMER 80
+#define JOB_DISPLAY_ORDER_PROSPECTOR 81
+#define JOB_DISPLAY_ORDER_DEPUTY 82
+#define JOB_DISPLAY_ORDER_MAYOR 83
+#define JOB_DISPLAY_ORDER_PREACHER 84
+#define JOB_DISPLAY_ORDER_SHOPKEEPER 85
+#define JOB_DISPLAY_ORDER_BARKEEP 86
 
-#define CHURCHMEN		(1<<2)
+#define JOB_DISPLAY_ORDER_OVERSEER 87
+#define JOB_DISPLAY_ORDER_HOS 88
+#define JOB_DISPLAY_ORDER_DOCTOR 89
+#define JOB_DISPLAY_ORDER_VAULTSCIENTIST 90
+#define JOB_DISPLAY_ORDER_OFFICER 91
+#define JOB_DISPLAY_ORDER_VAULTENGINEER 92
+#define JOB_DISPLAY_ORDER_DWELLER 93
+#define JOB_DISPLAY_ORDER_AI 94
+#define JOB_DISPLAY_ORDER_CYBORG 95
 
-#define PRIEST		(1<<0)
-#define MONK		(1<<1)
-#define GRAVEDIGGER	(1<<2)
-#define DRUID		(1<<3)
+#define JOB_DISPLAY_ORDER_WASTELANDER 96
+#define JOB_DISPLAY_ORDER_RAIDER 97
+#define JOB_DISPLAY_ORDER_PUSHER 98
+#define JOB_DISPLAY_ORDER_DETECTIVE 99
 
-#define COURTIERS	(1<<3)
+#define JOB_DISPLAY_ORDER_F13USLT 100
+#define JOB_DISPLAY_ORDER_F13USGYSGT 101
+#define JOB_DISPLAY_ORDER_F13USSGT 102
+#define JOB_DISPLAY_ORDER_F13USAI 103
+#define JOB_DISPLAY_ORDER_F13USSCIENTIST 104
+#define JOB_DISPLAY_ORDER_F13USSPECIALIST 105
+#define JOB_DISPLAY_ORDER_F13USPRIVATE 106
 
-#define JESTER		(1<<0)
-#define WIZARD		(1<<1)
-#define PHYSICIAN 	(1<<2)
-#define BUTLER		(1<<3)
-#define COUNCILLOR	(1<<4)
+#define JOB_DISPLAY_ORDER_CHIEF 107
+#define JOB_DISPLAY_ORDER_SHAMAN 108
+#define JOB_DISPLAY_ORDER_HHUNTER 109
+#define JOB_DISPLAY_ORDER_DRUID 110
+#define JOB_DISPLAY_ORDER_VILLAGER 111
+#define JOB_DISPLAY_ORDER_HUNTER 112
+#define JOB_DISPLAY_ORDER_GUARDIAN 113
+#define JOB_DISPLAY_ORDER_SPIRITPLEDGED 114
 
-#define YEOMEN		(1<<4)
+#define	JOB_DISPLAY_ORDER_LEADPRACTITIONER 115
+#define	JOB_DISPLAY_ORDER_PRACTITIONER 116
+#define JOB_DISPLAY_ORDER_FOLLOWERGUARD 117
+#define JOB_DISPLAY_ORDER_FOLLOWERVOLUNTEER 118
 
-#define BARKEEP		(1<<0)
-#define ARCHIVIST	(1<<1)
-#define ARMORSMITH	(1<<2)
-#define WEAPONSMITH (1<<3)
-#define BLACKSMITH  (1<<4)
-#define ALCHEMIST	(1<<5)
-#define ARTIFICER	(1<<6)
-#define TAILOR		(1<<7)
-#define MERCHANT	(1<<8)
-#define SCRIBE		(1<<9)
-#define ELDER		(1<<10)
+#define JOB_DISPLAY_ORDER_SECRETARY 119
 
-#define PEASANTS	(1<<5)
-
-#define HUNTER		(1<<0)
-#define FARMER		(1<<1)
-#define BUTCHER		(1<<2)
-#define FISHER		(1<<3)
-#define LUMBERJACK	(1<<4)
-#define MINER		(1<<5)
-#define COOK		(1<<6)
-#define KNAVEWENCH (1<<7)
-#define GRABBER		(1<<8)
-#define NITEMASTER	(1<<9)
-#define WENCH		(1<<10)
-#define BEGGAR		(1<<11)
-#define ADVENTURER	(1<<12)
-#define PILGRIM		(1<<13)
-#define VILLAGER	(1<<14)
-#define PRISONERR	(1<<15)
-#define PRISONERB	(1<<16)
-#define LUNATIC		(1<<17)
-#define MIGRANT		(1<<18)
-#define BANDIT		(1<<19)
-#define COURTAGENT	(1<<20)
-#define WRETCH		(1<<21)
-
-#define YOUNGFOLK	(1<<6)
-
-#define APPRENTICE	(1<<0)
-#define CHURCHLING	(1<<1)
-#define SERVANT		(1<<2)
-#define ORPHAN		(1<<3)
-#define PRINCE		(1<<4)
-#define SHOPHAND	(1<<5)
-#define CLERK 		(1<<6)
-#define MAGEAPPRENTICE	(1<<7)
-#define APOTHECARY	(1<<8)
-
-#define MERCENARIES		(1<<7)
-
-#define VETERAN			(1<<1)
-#define MERCENARY		(1<<2)
-#define DESERT_RIDER	(1<<3)	//Unused
-#define GRENZELHOFT		(1<<4)	//Unused
-
-
-#define TRIBAL		(1<<8)
-
-#define CHIEFTAIN	(1<<0)
-#define TRIBALCOOK	(1<<1)
-#define TRIBALGUARD	(1<<2)
-#define TRIBALSMITH	(1<<3)
-
-#define SLOP		(1<<9)
-
-#define TESTER		(1<<0)
-#define DEATHKNIGHT (1<<1)
-#define SKELETON	(1<<2)
-#define GOBLIN		(1<<3)
-
-#define INQUISITION (1<<10)
-
-#define PURITAN		(1<<0)
-#define ORTHODOXIST	(1<<1)
-
-
-#define JCOLOR_NOBLE "#aa83b9"
-#define JCOLOR_COURTIER "#81adc8"
-#define JCOLOR_CHURCH "#c0ba8d"
-#define JCOLOR_SOLDIER "#b18484"
-#define JCOLOR_YEOMAN "#819e82"
-#define JCOLOR_PEASANT "#b09262"
-#define JCOLOR_MERCENARY "#c86e3a"
-#define JCOLOR_INQUISITION "#FF0000"
-
-// job display orders //
-
-// Nobles
-#define JDO_LORD 1
-#define JDO_LADY 1.1
-#define JDO_PRINCE 1.2
-#define JDO_HAND 2
-#define JDO_STEWARD 3
-#define JDO_CLERK 3.1
-#define JDO_MARSHAL 4
-#define JDO_COUNCILLOR 4.1
-
-// Courtiers
-#define JDO_MAGICIAN 5
-#define JDO_MAGEAPPRENTICE 5.1
-#define JDO_PHYSICIAN 6
-#define JDO_APOTHECARY 6.1
-#define JDO_JESTER 7
-#define JDO_BUTLER 7.1
-#define JDO_SERVANT 7.2
-
-#define JDO_GUARD_CAPTAIN 8
-#define JDO_KNIGHT 8.1
-#define JDO_SQUIRE 8.2
-#define JDO_SERGEANT 8.3
-#define JDO_CASTLEGUARD 8.4
-#define JDO_GATEMASTER 8.5
-#define JDO_SHERIFF 8.6
-#define JDO_TOWNGUARD 8.7
-#define JDO_DUNGEONEER 8.8
-#define JDO_BOGGUARD 9.1
-
-#define JDO_PRIEST 10
-#define JDO_MARTYR 11
-#define JDO_TEMPLAR 12
-#define JDO_MONK 13
-#define JDO_DRUID 13.1
-#define JDO_CHURCHLING 14
-#define JDO_GRAVEMAN 15
-
-#define JDO_MERCHANT 17
-#define JDO_SHOPHAND 17.1
-#define JDO_GRABBER 17.2
-
-#define JDO_ARCHIVIST 18
-
-#define JDO_CHIEF 18.1
-#define JDO_ARMORER 19.1
-#define JDO_WEAPONSMITH 19.2
-#define JDO_BLACKSMITH 20
-#define JDO_APPRENTICE 21
-
-#define JDO_ARTIFICER 22
-#define JDO_TAILOR 24
-
-#define JDO_BARKEEP 26
-#define JDO_COOK 27
-#define JDO_NITEMASTER 27.1
-#define JDO_KNAVEWENCH 27.2
-#define JDO_WENCH 27.3
-
-#define JDO_SOILSON 28
-
-#define JDO_VILLAGER 30
-#define JDO_ADVENTURER 30.1
-#define JDO_PILGRIM 30.2
-#define JDO_MIGRANT 32.3
-#define JDO_BANDIT 31.3
-#define JDO_COURTAGENT 30.3
-#define JDO_WRETCH 30.4
-
-#define JDO_MERCENARY 31
-#define JDO_GRENZELHOFT 31.1
-#define JDO_DESERT_RIDER 31.2
-#define JDO_VET 31.4
-
-#define JDO_VAGRANT 33
-#define JDO_ORPHAN 34
-
-#define JDO_PRISONERR 35
-#define JDO_PRISONERB 35.1
-#define JDO_HOSTAGE 35.2
-#define JDO_LUNATIC 35.3
-
-#define JDO_CHIEFTAIN 36
-#define JDO_TRIBALCOOK 37
-#define JDO_TRIBALGUARD 38
-#define JDO_TRIBALSMITH 39
-#define JDO_PURITAN 40
-#define JDO_ORTHODOXIST 40.1
-
-#define BITFLAG_CHURCH (1<<0)
-#define BITFLAG_ROYALTY (1<<1)
-#define BITFLAG_CONSTRUCTOR (1<<2)
-#define BITFLAG_GARRISON (1<<3)
-
-#define MANOR_ROLES \
-	/datum/job/roguetown/jester,\
-	/datum/job/roguetown/veteran,\
-	/datum/job/roguetown/clerk,\
-	/datum/job/roguetown/wapprentice,\
-	/datum/job/roguetown/servant,\
-	/datum/job/roguetown/butler,\
-	/datum/job/roguetown/apothecary,\
-	/datum/job/roguetown/magician
-
-#define NOBLE_ROLES \
-	/datum/job/roguetown/prince,\
-	/datum/job/roguetown/councillor,\
-	/datum/job/roguetown/physician,\
-	/datum/job/roguetown/marshal,\
-	/datum/job/roguetown/captain,\
-	/datum/job/roguetown/hand,\
-	/datum/job/roguetown/knight,\
-	/datum/job/roguetown/lady,\
-	/datum/job/roguetown/lord,\
-	/datum/job/roguetown/steward
-
-#define KING_QUEEN_ROLES \
-	/datum/job/roguetown/lady,\
-	/datum/job/roguetown/lord
-
-#define CHURCH_ROLES \
-	/datum/job/roguetown/churchling,\
-	/datum/job/roguetown/druid,\
-	/datum/job/roguetown/monk,\
-	/datum/job/roguetown/priest,\
-	/datum/job/roguetown/templar
-
-#define PEASANT_ROLES \
-	/datum/job/roguetown/villager,\
-	/datum/job/roguetown/nightmaiden,\
-	/datum/job/roguetown/beggar,\
-	/datum/job/roguetown/butcher,\
-	/datum/job/roguetown/cook,\
-	/datum/job/roguetown/knavewench,\
-	/datum/job/roguetown/lunatic,\
-	/datum/job/roguetown/farmer,\
-	/datum/job/roguetown/orphan,\
-	/datum/job/roguetown/shophand,\
-	/datum/job/roguetown/bapprentice,\
-	/datum/job/roguetown/prisonerb,\
-	/datum/job/roguetown/hostage,\
-	/datum/job/roguetown/prisonerr
-
-#define YEOMEN_ROLES \
-	/datum/job/roguetown/elder,\
-	/datum/job/roguetown/niteman,\
-	/datum/job/roguetown/archivist,\
-	/datum/job/roguetown/barkeep,\
-	/datum/job/roguetown/armorsmith,\
-	/datum/job/roguetown/weaponsmith,\
-	/datum/job/roguetown/blacksmith,\
-	/datum/job/roguetown/artificer,\
-	/datum/job/roguetown/merchant,\
-	/datum/job/roguetown/tailor,\
-	/datum/job/roguetown/scribe
-
-#define WANDERER_ROLES \
-	/datum/job/roguetown/pilgrim,\
-	/datum/job/roguetown/adventurer,\
-	/datum/job/roguetown/mercenary/desert_rider,\
-	/datum/job/roguetown/mercenary/grenzelhoft,\
-	/datum/job/roguetown/bandit,\
-	/datum/job/roguetown/wretch
-
-#define GARRISON_ROLES \
-	/datum/job/roguetown/bogguardsman,\
-	/datum/job/roguetown/sergeant,\
-	/datum/job/roguetown/dungeoneer,\
-	/datum/job/roguetown/gatemaster,\
-	/datum/job/roguetown/manorguard,\
-	/datum/job/roguetown/sheriff,\
-	/datum/job/roguetown/squire,\
-	/datum/job/roguetown/guardsman
-
-#define INQUISITION_ROLES \
-	/datum/job/roguetown/puritan,\
-	/datum/job/roguetown/orthodoxist
+#define JOB_DISPLAY_ORDER_TRIBAL 120

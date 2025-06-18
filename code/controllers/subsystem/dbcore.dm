@@ -4,7 +4,6 @@ SUBSYSTEM_DEF(dbcore)
 	wait = 1 MINUTES
 	init_order = INIT_ORDER_DBCORE
 	var/const/FAILED_DB_CONNECTION_CUTOFF = 5
-	var/failed_connection_timeout = 0
 
 	var/schema_mismatch = 0
 	var/db_minor = 0
@@ -15,6 +14,7 @@ SUBSYSTEM_DEF(dbcore)
 	var/list/active_queries = list()
 
 	var/connection  // Arbitrary handle returned from rust_g.
+
 
 /datum/controller/subsystem/dbcore/Initialize()
 	//We send warnings to the admins during subsystem init, as the clients will be New'd and messages
@@ -29,7 +29,7 @@ SUBSYSTEM_DEF(dbcore)
 
 /datum/controller/subsystem/dbcore/fire()
 	for(var/I in active_queries)
-		var/datum/DBQuery/Q = I
+		var/datum/db_query/Q = I
 		if(world.time - Q.last_activity_time > (5 MINUTES))
 			message_admins("Found undeleted query, please check the server logs and notify coders.")
 			log_sql("Undeleted query: \"[Q.sql]\" LA: [Q.last_activity] LAT: [Q.last_activity_time]")
@@ -43,7 +43,7 @@ SUBSYSTEM_DEF(dbcore)
 /datum/controller/subsystem/dbcore/Shutdown()
 	//This is as close as we can get to the true round end before Disconnect() without changing where it's called, defeating the reason this is a subsystem
 	if(SSdbcore.Connect())
-		var/datum/DBQuery/query_round_shutdown = SSdbcore.NewQuery(
+		var/datum/db_query/query_round_shutdown = SSdbcore.NewQuery(
 			"UPDATE [format_table_name("round")] SET shutdown_datetime = Now(), end_state = :end_state WHERE id = :round_id",
 			list("end_state" = SSticker.end_state, "round_id" = GLOB.round_id)
 		)
@@ -65,11 +65,7 @@ SUBSYSTEM_DEF(dbcore)
 	if(IsConnected())
 		return TRUE
 
-	if(failed_connection_timeout <= world.time) //it's been more than 5 seconds since we failed to connect, reset the counter
-		failed_connections = 0
-
-	if(failed_connections > FAILED_DB_CONNECTION_CUTOFF)	//If it failed to establish a connection more than 5 times in a row, don't bother attempting to connect for 5 seconds.
-		failed_connection_timeout = world.time + 50
+	if(failed_connections > FAILED_DB_CONNECTION_CUTOFF)	//If it failed to establish a connection more than 5 times in a row, don't bother attempting to connect anymore.
 		return FALSE
 
 	if(!CONFIG_GET(flag/sql_enabled))
@@ -80,6 +76,7 @@ SUBSYSTEM_DEF(dbcore)
 	var/db = CONFIG_GET(string/feedback_database)
 	var/address = CONFIG_GET(string/address)
 	var/port = CONFIG_GET(number/port)
+
 	var/timeout = max(CONFIG_GET(number/async_query_timeout), CONFIG_GET(number/blocking_query_timeout))
 	var/thread_limit = CONFIG_GET(number/bsql_thread_limit)
 
@@ -89,7 +86,6 @@ SUBSYSTEM_DEF(dbcore)
 		"user" = user,
 		"pass" = pass,
 		"db_name" = db,
-		"max_threads" = 5,
 		"read_timeout" = timeout,
 		"write_timeout" = timeout,
 		"max_threads" = thread_limit,
@@ -107,7 +103,9 @@ SUBSYSTEM_DEF(dbcore)
 	if(CONFIG_GET(flag/sql_enabled))
 		if(Connect())
 			log_world("Database connection established.")
-			var/datum/DBQuery/query_db_version = NewQuery("SELECT major, minor FROM [format_table_name("schema_revision")] ORDER BY date DESC LIMIT 1")
+			var/datum/db_query/query_db_version = NewQuery(
+				"SELECT major, minor FROM [format_table_name("schema_revision")] ORDER BY date DESC LIMIT 1"
+			)
 			query_db_version.Execute()
 			if(query_db_version.NextRow())
 				db_major = text2num(query_db_version.item[1])
@@ -127,18 +125,20 @@ SUBSYSTEM_DEF(dbcore)
 /datum/controller/subsystem/dbcore/proc/SetRoundID()
 	if(!Connect())
 		return
-	var/datum/DBQuery/query_round_initialize = SSdbcore.NewQuery(
-		"INSERT INTO [format_table_name("round")] (initialize_datetime, server_ip, server_port) VALUES (Now(), INET_ATON(:internet_address), :port)",
-		list("internet_address" = world.internet_address || "0", "port" = "[world.port]")
+	var/datum/db_query/query_round_initialize = SSdbcore.NewQuery(
+		{"
+			INSERT INTO [format_table_name("round")] (initialize_datetime, server_ip, server_port)
+			VALUES (Now(), INET_ATON(:address), :port)
+		"}, list("address" = world.internet_address || "0", "port" = world.port)
 	)
-	query_round_initialize.Execute(async = FALSE)
+	query_round_initialize.Execute()
 	GLOB.round_id = "[query_round_initialize.last_insert_id]"
 	qdel(query_round_initialize)
 
 /datum/controller/subsystem/dbcore/proc/SetRoundStart()
 	if(!Connect())
 		return
-	var/datum/DBQuery/query_round_start = SSdbcore.NewQuery(
+	var/datum/db_query/query_round_start = SSdbcore.NewQuery(
 		"UPDATE [format_table_name("round")] SET start_datetime = Now() WHERE id = :round_id",
 		list("round_id" = GLOB.round_id)
 	)
@@ -148,7 +148,7 @@ SUBSYSTEM_DEF(dbcore)
 /datum/controller/subsystem/dbcore/proc/SetRoundEnd()
 	if(!Connect())
 		return
-	var/datum/DBQuery/query_round_end = SSdbcore.NewQuery(
+	var/datum/db_query/query_round_end = SSdbcore.NewQuery(
 		"UPDATE [format_table_name("round")] SET end_datetime = Now(), game_mode_result = :game_mode_result, station_name = :station_name WHERE id = :round_id",
 		list("game_mode_result" = SSticker.mode_result, "station_name" = station_name(), "round_id" = GLOB.round_id)
 	)
@@ -162,7 +162,7 @@ SUBSYSTEM_DEF(dbcore)
 	connection = null
 
 /datum/controller/subsystem/dbcore/proc/IsConnected()
-	if (!CONFIG_GET(flag/sql_enabled))
+	if(!CONFIG_GET(flag/sql_enabled))
 		return FALSE
 	if (!connection)
 		return FALSE
@@ -181,28 +181,7 @@ SUBSYSTEM_DEF(dbcore)
 		log_admin_private("ERROR: Advanced admin proc call led to sql query: [sql_query]. Query has been blocked")
 		message_admins("ERROR: Advanced admin proc call led to sql query. Query has been blocked")
 		return FALSE
-	return new /datum/DBQuery(connection, sql_query, arguments)
-
-/datum/controller/subsystem/dbcore/proc/QuerySelect(list/querys, warn = FALSE, qdel = FALSE)
-	if (!islist(querys))
-		if (!istype(querys, /datum/DBQuery))
-			CRASH("Invalid query passed to QuerySelect: [querys]")
-		querys = list(querys)
-
-	for (var/thing in querys)
-		var/datum/DBQuery/query = thing
-		if (warn)
-			INVOKE_ASYNC(query, TYPE_PROC_REF(/datum/DBQuery, warn_execute))
-		else
-			INVOKE_ASYNC(query, TYPE_PROC_REF(/datum/DBQuery, Execute))
-
-	for (var/thing in querys)
-		var/datum/DBQuery/query = thing
-		UNTIL(!query.in_progress)
-		if (qdel)
-			qdel(query)
-
-
+	return new /datum/db_query(connection, sql_query, arguments)
 
 /*
 Takes a list of rows (each row being an associated list of column => value) and inserts them via a single mass query.
@@ -211,7 +190,7 @@ You are expected to do your own escaping of the data, and expected to provide yo
 The duplicate_key arg can be true to automatically generate this part of the query
 	or set to a string that is appended to the end of the query
 Ignore_errors instructes mysql to continue inserting rows if some of them have errors.
-	 the erroneous row(s) aren't inserted and there isn't really any way to know why or why errored
+	the erroneous row(s) aren't inserted and there isn't really any way to know why or why errored
 Delayed insert mode was removed in mysql 7 and only works with MyISAM type tables,
 	It was included because it is still supported in mariadb.
 	It does not work with duplicate_key and the mysql server ignores it in those cases
@@ -219,10 +198,10 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 /datum/controller/subsystem/dbcore/proc/MassInsert(table, list/rows, duplicate_key = FALSE, ignore_errors = FALSE, delayed = FALSE, warn = FALSE, async = TRUE, special_columns = null)
 	if (!table || !rows || !istype(rows))
 		return
-
 	// Prepare column list
 	var/list/columns = list()
 	var/list/has_question_mark = list()
+
 	for (var/list/row in rows)
 		for (var/column in row)
 			columns[column] = "?"
@@ -268,15 +247,14 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 		query_parts += "\nON DUPLICATE KEY UPDATE [column_list.Join(", ")]"
 	else if (duplicate_key != FALSE)
 		query_parts += duplicate_key
-
-	var/datum/DBQuery/Query = NewQuery(query_parts.Join(), arguments)
+	var/datum/db_query/Query = NewQuery(query_parts.Join(), arguments)
 	if (warn)
 		. = Query.warn_execute(async)
 	else
 		. = Query.Execute(async)
 	qdel(Query)
 
-/datum/DBQuery
+/datum/db_query
 	// Inputs
 	var/connection
 	var/sql
@@ -296,7 +274,7 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 
 	var/list/item  //list of data values populated by NextRow()
 
-/datum/DBQuery/New(connection, sql, arguments)
+/datum/db_query/New(connection, sql, arguments)
 	SSdbcore.active_queries[src] = TRUE
 	Activity("Created")
 	item = list()
@@ -305,25 +283,25 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 	src.sql = sql
 	src.arguments = arguments
 
-/datum/DBQuery/Destroy()
+/datum/db_query/Destroy()
 	Close()
 	SSdbcore.active_queries -= src
 	return ..()
 
-/datum/DBQuery/CanProcCall(proc_name)
+/datum/db_query/CanProcCall(proc_name)
 	//fuck off kevinz
 	return FALSE
 
-/datum/DBQuery/proc/Activity(activity)
+/datum/db_query/proc/Activity(activity)
 	last_activity = activity
 	last_activity_time = world.time
 
-/datum/DBQuery/proc/warn_execute(async = TRUE)
+/datum/db_query/proc/warn_execute(async = FALSE)
 	. = Execute(async)
 	if(!.)
-		to_chat(usr, span_danger("A SQL error occurred during this operation, check the server logs."))
+		to_chat(usr, "<span class='danger'>A SQL error occurred during this operation, check the server logs.</span>")
 
-/datum/DBQuery/proc/Execute(async = TRUE, log_error = TRUE)
+/datum/db_query/proc/Execute(async = FALSE, log_error = TRUE)
 	Activity("Execute")
 	if(in_progress)
 		CRASH("Attempted to start a new query while waiting on the old one")
@@ -333,9 +311,6 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 		return FALSE
 
 	var/start_time
-	if(!async)
-		start_time = REALTIMEOFDAY
-	Close()
 	. = run_query(async)
 	var/timed_out = !. && findtext(last_error, "Operation timed out")
 	if(!. && log_error)
@@ -347,7 +322,7 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 		log_query_debug("Query used: [sql]")
 		slow_query_check()
 
-/datum/DBQuery/proc/run_query(async)
+/datum/db_query/proc/run_query(async)
 	var/job_result_str
 
 	if (async)
@@ -376,12 +351,12 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 			last_error = "offline"
 			return FALSE
 
-/datum/DBQuery/proc/slow_query_check()
+/datum/db_query/proc/slow_query_check()
 	message_admins("HEY! A database query timed out. Did the server just hang? <a href='?_src_=holder;[HrefToken()];slowquery=yes'>\[YES\]</a>|<a href='?_src_=holder;[HrefToken()];slowquery=no'>\[NO\]</a>")
 
-/datum/DBQuery/proc/NextRow(async = TRUE)
+/datum/db_query/proc/NextRow(async)
 	Activity("NextRow")
-
+	
 	if (rows && next_row_to_take <= rows.len)
 		item = rows[next_row_to_take]
 		next_row_to_take++
@@ -389,9 +364,9 @@ Delayed insert mode was removed in mysql 7 and only works with MyISAM type table
 	else
 		return FALSE
 
-/datum/DBQuery/proc/ErrorMsg()
+/datum/db_query/proc/ErrorMsg()
 	return last_error
 
-/datum/DBQuery/proc/Close()
+/datum/db_query/proc/Close()
 	rows = null
 	item = null

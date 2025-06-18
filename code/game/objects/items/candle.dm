@@ -1,63 +1,53 @@
-#define CANDLE_LUMINOSITY	3
+#define CANDLE_LUMINOSITY	2
 /obj/item/candle
-	name = "candle"
-	desc = "A wick repeatedly dipped into melted beespiderwax to form a candle."
+	name = "red candle"
+	desc = "In Greek myth, Prometheus stole fire from the Gods and gave it to \
+		humankind. The jewelry he kept for himself."
 	icon = 'icons/obj/candle.dmi'
 	icon_state = "candle1"
 	item_state = "candle1"
 	w_class = WEIGHT_CLASS_TINY
-	experimental_inhand = FALSE
 	light_color = LIGHT_COLOR_FIRE
 	heat = 1000
+	light_system = MOVABLE_LIGHT
+	light_range = CANDLE_LUMINOSITY
+	light_on = FALSE
 	var/wax = 1000
 	var/lit = FALSE
 	var/infinite = FALSE
 	var/start_lit = FALSE
+	var/heats_space = TRUE
 
-/obj/item/candle/lit
-	start_lit = TRUE
-	icon_state = "candle1_lit"
 
 /obj/item/candle/Initialize()
 	. = ..()
 	if(start_lit)
 		light()
 
-/obj/item/candle/update_icon()
+/obj/item/candle/update_icon_state()
 	icon_state = "candle[(wax > 400) ? ((wax > 750) ? 1 : 2) : 3][lit ? "_lit" : ""]"
 
-/obj/item/candle/afterattack(atom/movable/A, mob/user, proximity)
-	. = ..()
-	if(!proximity)
-		return
-	if(lit)
-		A.fire_act()
+/obj/item/candle/attackby(obj/item/W, mob/user, params)
+	var/msg = W.ignition_effect(src, user)
+	if(msg)
+		light(msg)
+	else
+		return ..()
 
-/obj/item/candle/Crossed(H as mob|obj)
-	if(ishuman(H)) //i guess carp and shit shouldn't set them off
-		var/mob/living/carbon/M = H
-		if(M.m_intent == MOVE_INTENT_RUN)
-			wax = 100
-			put_out_candle()
-
-/obj/item/candle/fire_act(added, maxstacks)
+/obj/item/candle/fire_act(exposed_temperature, exposed_volume)
 	if(!lit)
-		light()
-		return TRUE
+		light() //honk
 	return ..()
 
-/obj/item/candle/spark_act()
-	fire_act()
-
 /obj/item/candle/get_temperature()
-	return lit * heat
+	return lit * heat * heats_space
 
 /obj/item/candle/proc/light(show_message)
 	if(!lit)
 		lit = TRUE
 		if(show_message)
 			usr.visible_message(show_message)
-		set_light(CANDLE_LUMINOSITY)
+		set_light_on(TRUE)
 		START_PROCESSING(SSobj, src)
 		update_icon()
 
@@ -66,7 +56,7 @@
 		return
 	lit = FALSE
 	update_icon()
-	set_light(0)
+	set_light_on(FALSE)
 	return TRUE
 
 /obj/item/candle/extinguish()
@@ -82,130 +72,94 @@
 		new /obj/item/trash/candle(loc)
 		qdel(src)
 	update_icon()
-	open_flame()
-
-/obj/item/candle/attack_self(mob/user)
-	if(put_out_candle())
-		user.visible_message(span_notice("[user] snuffs [src]."))
-
-/obj/item/candle/yellow
-	icon = 'icons/roguetown/items/lighting.dmi'
-
-/obj/item/candle/yellow/lit
-	start_lit = TRUE
-	icon_state = "candle1_lit"
-
-/obj/item/candle/eora
-	icon = 'icons/roguetown/items/lighting.dmi'
-	name = "eora's candle"
-	desc = "A rather lovely candle with a reddish hue."
-	color = "#f858b5ff"
-	light_color = "#ff13d8ff"
-	infinite = TRUE
-
-/obj/item/candle/eora/lit
-	start_lit = TRUE
-	icon_state = "candle1_lit"
+	if(heats_space)
+		open_flame()
 
 /obj/item/candle/infinite
 	infinite = TRUE
 	start_lit = TRUE
 
-/obj/item/candle/skull
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "skullcandle"
-	desc = "A rather macabre way to hold a candle. Fit for crypts and old dusty libraries."
+/obj/item/candle/infinite/hugbox
+	heats_space = FALSE
+
+//FL13 - Right now this functions basically as a candle. Could change it later, but for now this will do.
+/obj/item/candle/tribal_torch
+	name = "tribal torch"
+	desc = "A standing torch, used to provide light in dark environments."
+	icon = 'icons/obj/candle.dmi'
+	icon_state = "torch_unlit"
+	item_state = "torch"
+	w_class = WEIGHT_CLASS_BULKY
+	light_color = LIGHT_COLOR_FIRE
 	infinite = TRUE
+	heat = T0C + 400
+	light_range = 7
+	var/flicker_chance = 1
+	var/flickering = FALSE
 
-/obj/item/candle/skull/update_icon()
-	icon_state = "skullcandle[lit ? "_lit" : ""]"
+/obj/item/candle/tribal_torch/attackby(obj/item/W, mob/user, params)
+	..()
+	var/msg = W.ignition_effect(src, user)
+	if(msg)
+		light(msg)
 
-/obj/item/candle/skull/lit
-	start_lit = TRUE
-	icon_state = "skullcandle_lit"
+/obj/item/candle/tribal_torch/fire_act(exposed_temperature, exposed_volume)
+	if(!src.lit)
+		light() //honk
+	..()
 
-/obj/item/candle/candlestick/gold
-	name = "three-stick gold candlestick"
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "gcandelabra"
-	infinite = TRUE
-	sellprice = 40
+/obj/item/candle/tribal_torch/process()
+	. = ..()
+	if(!flickering && prob(flicker_chance))
+		flicker(rand(1, 4)) // 0.1 to 0.4 seconds
 
-/obj/item/candle/candlestick/gold/update_icon()
-	icon_state = "gcandelabra[lit ? "_lit" : ""]"
+/obj/item/candle/tribal_torch/proc/flicker(duration)
+	flickering = TRUE
+	addtimer(CALLBACK(src, .proc/unflicker, light_range), duration)
+	set_light_range(light_range - rand(1, 2))
 
-/obj/item/candle/candlestick/gold/lit
-	icon_state = "gcandelabra_lit"
-	start_lit = TRUE
+/obj/item/candle/tribal_torch/proc/unflicker(new_range)
+	set_light_range(new_range)
+	flickering = FALSE
 
-/obj/item/candle/candlestick/silver
-	name = "three-stick silver candlestick"
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "scandelabra"
-	infinite = TRUE
-	sellprice = 60
+/obj/item/candle/attack_self(mob/user)
+	if(!src.lit)
+		to_chat(user, "<span class='notice'>You start pushing [src] into the ground...</span>")
+		if (do_after(user, 20, target=src))
+			qdel(src)
+			new /obj/structure/destructible/tribal_torch(get_turf(user))
+			set_light_color(LIGHT_COLOR_ORANGE)
+			user.visible_message("<span class='notice'>[user] plants [src] firmly in the ground.</span>", "<span class='notice'>You plant [src] firmly in the ground.</span>")
+			return
+	else if(lit)
+		user.visible_message(
+			"<span class='notice'>[user] snuffs [src] out.</span>")
+		lit = FALSE
+		update_icon()
+		set_light_on(FALSE)
 
-/obj/item/candle/candlestick/silver/update_icon()
-	icon_state = "scandelabra[lit ? "_lit" : ""]"
 
-/obj/item/candle/candlestick/silver/lit
-	icon_state = "scandelabra_lit"
-	start_lit = TRUE
+/obj/item/candle/tribal_torch/update_icon()
+	icon_state = "torch_[lit ? null : "un"]lit"
+	item_state = "torch[lit ? "-on" : null]"
 
-/obj/item/candle/candlestick/gold/single
-	name = "one-stick gold candlestick"
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "singlegcandelabra"
-	infinite = TRUE
-	sellprice = 30
-
-/obj/item/candle/candlestick/gold/single/update_icon()
-	icon_state = "singlegcandelabra[lit ? "_lit" : ""]"
-
-/obj/item/candle/candlestick/gold/single/lit
-	icon_state = "singlegcandelabra_lit"
-	start_lit = TRUE
-
-/obj/item/candle/candlestick/silver/single
-	name = "one-stick silver candlestick"
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "singlescandelabra"
-	infinite = TRUE
-	sellprice = 50
-
-/obj/item/candle/candlestick/silver/single/update_icon()
-	icon_state = "singlescandelabra[lit ? "_lit" : ""]"
-
-/obj/item/candle/candlestick/silver/single/lit
-	icon_state = "singlescandelabra_lit"
-	start_lit = TRUE
-
-/obj/item/candle/gold
-	name = "gold candle"
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "gcandle"
-	infinite = TRUE
-	sellprice = 30
-
-/obj/item/candle/gold/update_icon()
-	icon_state = "gcandle[lit ? "_lit" : ""]"
-
-/obj/item/candle/gold/lit
-	icon_state = "gcandle_lit"
-	start_lit = TRUE
-
-/obj/item/candle/silver
-	name = "silver candle"
-	icon = 'icons/roguetown/items/lighting.dmi'
-	icon_state = "scandle"
-	infinite = TRUE
-	sellprice = 50
-
-/obj/item/candle/silver/update_icon()
-	icon_state = "scandle[lit ? "_lit" : ""]"
-
-/obj/item/candle/silver/lit
-	icon_state = "scandle_lit"
-	start_lit = TRUE
+/obj/item/candle/tribal_torch/proc/do_wallmount(turf/T, mob/user)
+	var/ndir = turn(get_dir(T, user), 180)
+	if(!(ndir in GLOB.cardinals))
+		return
+	var/turf/user_turf = get_turf(user)
+	if(gotwallitem(user_turf, ndir, 2))
+		to_chat(user, span_warning("There's already an item on this wall!"))
+		return
+	playsound(src.loc, 'sound/machines/click.ogg', 75, 1)
+	user.visible_message("[user.name] attaches [src] to the wall.",
+		span_notice("You attach [src] to the wall."),
+		"<span class='italics'>You hear clicking.</span>")
+	var/type_to_make = lit ? /obj/structure/destructible/tribal_torch/wall/lit : /obj/structure/destructible/tribal_torch/wall
+	var/obj/structure/destructible/tribal_torch/wall/wall_torch = new type_to_make (user_turf)
+	wall_torch.dir = ndir
+	wall_torch.update_icon()
+	qdel(src)
+	return
 
 #undef CANDLE_LUMINOSITY

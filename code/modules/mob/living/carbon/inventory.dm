@@ -14,10 +14,28 @@
 			return legcuffed
 	return null
 
-/mob/living/carbon/proc/equip_in_one_of_slots(obj/item/I, list/slots, qdel_on_fail = 1)
+/mob/living/carbon/proc/equip_in_one_of_slots(obj/item/I, list/slots, qdel_on_fail = 1, critical = FALSE)
 	for(var/slot in slots)
 		if(equip_to_slot_if_possible(I, slots[slot], qdel_on_fail = 0, disable_warning = TRUE))
 			return slot
+	if(critical) //it is CRITICAL they get this item, no matter what
+		//do they have a backpack?
+		var/obj/item/backpack = get_item_by_slot(SLOT_BACK)
+		if(!backpack)
+			//nothing on their back
+			backpack = new /obj/item/storage/backpack(get_turf(src))
+			if(equip_to_slot(backpack, SLOT_BACK)) //worst-case-scenario, something that shouldnt wear a backpack gets one
+				I.forceMove(backpack)
+				return SLOT_BACK
+		else if(istype(backpack) && SEND_SIGNAL(backpack, COMSIG_CONTAINS_STORAGE))
+			//place it in here, regardless of storage capacity
+			I.forceMove(backpack)
+			return SLOT_BACK
+		else
+			//this should NEVER happen, but if it does, report it with the appropriate information
+			var/conclusion = qdel_on_fail ? "deleted" : "not moved, staying at current position [I.x], [I.y], [I.z]"
+			message_admins("User [src] failed to get item of critical importance: [I]. Result: item is [conclusion]")
+			//it's not dropped at their turf as this is generally un-safe for midround antags and we don't know their status
 	if(qdel_on_fail)
 		qdel(I)
 	return null
@@ -72,16 +90,8 @@
 			put_in_hands(I)
 			update_inv_hands()
 		if(SLOT_IN_BACKPACK)
-			not_handled = TRUE
-			if(backr)
-				testing("insert_backr")
-				if(SEND_SIGNAL(backr, COMSIG_TRY_STORAGE_INSERT, I, src, TRUE))
-					not_handled = FALSE
-			if(backl && not_handled)
-				testing("insert_backl")
-				if(SEND_SIGNAL(backl, COMSIG_TRY_STORAGE_INSERT, I, src, TRUE))
-					not_handled = FALSE
-
+			if(!back || !SEND_SIGNAL(back, COMSIG_TRY_STORAGE_INSERT, I, src, TRUE))
+				not_handled = TRUE
 		else
 			not_handled = TRUE
 
@@ -91,13 +101,9 @@
 	if(!not_handled)
 		I.equipped(src, slot)
 
-	if(hud_used)
-		hud_used.throw_icon?.update_icon()
-		hud_used.give_intent?.update_icon()
-
 	return not_handled
 
-/mob/living/carbon/doUnEquip(obj/item/I, force, newloc, no_move, invdrop = TRUE, silent = FALSE)
+/mob/living/carbon/doUnEquip(obj/item/I, force, newloc, no_move, invdrop = TRUE)
 	. = ..() //Sets the default return value to what the parent returns.
 	if(!. || !I) //We don't want to set anything to null if the parent returned 0.
 		return
@@ -130,14 +136,13 @@
 			update_inv_legcuffed()
 
 //handle stuff to update when a mob equips/unequips a mask.
-/mob/living/proc/wear_mask_update(obj/item/I, toggle_off = 1)
+/mob/living/proc/wear_mask_update(obj/item/clothing/C, toggle_off = 1)
 	update_inv_wear_mask()
 
-/mob/living/carbon/wear_mask_update(obj/item/I, toggle_off = 1)
-	var/obj/item/clothing/C = I
-	if(istype(C) && (C.tint || initial(C.tint)))
+/mob/living/carbon/wear_mask_update(obj/item/clothing/C, toggle_off = 1)
+	if(isclothing(C) && (C.tint || initial(C.tint)))
 		update_tint()
-	update_inv_wear_mask()
+	return ..()
 
 //handle stuff to update when a mob equips/unequips a headgear.
 /mob/living/carbon/proc/head_update(obj/item/I, forced)
@@ -153,25 +158,3 @@
 /mob/living/carbon/proc/get_holding_bodypart_of_item(obj/item/I)
 	var/index = get_held_index_of_item(I)
 	return index && hand_bodyparts[index]
-
-//GetAllContents that is reasonable for carbons
-/mob/living/carbon/proc/get_all_gear()
-	var/list/processing_list = get_equipped_items(include_pockets = TRUE) + held_items
-	listclearnulls(processing_list) // handles empty hands
-	var/i = 0
-	while(i < length(processing_list))
-		var/atom/A = processing_list[++i]
-		var/datum/component/storage/STR = A.GetComponent(/datum/component/storage)
-		if(STR)
-			processing_list += STR.return_inv(TRUE)
-	return processing_list
-
-//Vanderlin port - Matthios Eyes ability to nab most expensive items.
-/mob/living/carbon/proc/get_most_expensive()
-	var/atom/movable/most_expensive = null
-	var/price = 0
-	for(var/atom/movable/atom in get_all_gear())
-		if(atom.sellprice > price)
-			most_expensive = atom
-			price = atom.sellprice
-	return most_expensive

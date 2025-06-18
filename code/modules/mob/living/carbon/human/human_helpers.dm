@@ -1,19 +1,6 @@
 
-/mob/living/carbon/human/proc/change_name(new_name)
-	real_name = new_name
-
 /mob/living/carbon/human/restrained(ignore_grab)
-	. = ((wear_armor && wear_armor.breakouttime) || ..())
-
-/mob/living/carbon/human/check_language_hear(language)
-	if(!language)
-		return
-	if(wear_neck)
-		if(istype(wear_neck, /obj/item/clothing/neck/roguetown/talkstone))
-			return TRUE
-	if(!has_language(language))
-		if(has_flaw(/datum/charflaw/paranoid))
-			add_stress(/datum/stressevent/paratalk)
+	. = ((wear_suit && wear_suit.breakouttime) || ..())
 
 
 /mob/living/carbon/human/canBeHandcuffed()
@@ -25,11 +12,27 @@
 //gets assignment from ID or ID inside PDA or PDA itself
 //Useful when player do something with computers
 /mob/living/carbon/human/proc/get_assignment(if_no_id = "No id", if_no_job = "No job", hand_first = TRUE)
-	return if_no_job
+	var/obj/item/card/id/id = get_idcard(hand_first)
+	if(id)
+		. = id.assignment
+	else
+		var/obj/item/pda/pda = wear_id
+		if(istype(pda))
+			. = pda.ownjob
+		else
+			return if_no_id
+	if(!.)
+		return if_no_job
 
 //gets name from ID or ID inside PDA or PDA itself
 //Useful when player do something with computers
 /mob/living/carbon/human/proc/get_authentification_name(if_no_id = "Unknown")
+	var/obj/item/card/id/id = get_idcard(FALSE)
+	if(id)
+		return id.registered_name
+	var/obj/item/pda/pda = wear_id
+	if(istype(pda))
+		return pda.owner
 	return if_no_id
 
 //repurposed proc. Now it combines get_id_name() and get_face_name() to determine a mob's name variable. Made into a separate proc as it'll be useful elsewhere
@@ -40,7 +43,7 @@
 		return name_override
 	if(face_name)
 		if(id_name && (id_name != face_name))
-			return "Unknown [(gender == FEMALE) ? "Woman" : "Man"]"
+			return "[face_name] (as [id_name])"
 		return face_name
 	if(id_name)
 		return id_name
@@ -52,20 +55,42 @@
 		return if_no_face
 	if( head && (head.flags_inv&HIDEFACE) )
 		return if_no_face		//Likewise for hats
-	if( wear_neck && (wear_neck.flags_inv&HIDEFACE) )
-		return if_no_face		//Likewise for hats
-	if( istype(src, /mob/living/carbon/human/species/skeleton)) //SPOOKY BONES
-		return real_name
 	var/obj/item/bodypart/O = get_bodypart(BODY_ZONE_HEAD)
-	if( !O || (HAS_TRAIT(src, TRAIT_DISFIGURED)) || !real_name || (O.skeletonized && !mind?.has_antag_datum(/datum/antagonist/lich)))	//disfigured. use id-name if possible
+	if( !O || (HAS_TRAIT(src, TRAIT_DISFIGURED)) || (O.brutestate+O.burnstate)>2 || cloneloss>50 || !real_name)	//disfigured. use id-name if possible
 		return if_no_face
 	return real_name
 
 //gets name from ID or PDA itself, ID inside PDA doesn't matter
 //Useful when player is being seen by other mobs
 /mob/living/carbon/human/proc/get_id_name(if_no_id = "Unknown")
-	. = if_no_id	//to prevent null-names making the mob unclickable
+	var/obj/item/storage/wallet/wallet = wear_id
+	var/obj/item/pda/pda = wear_id
+	var/obj/item/card/id/id = wear_id
+	var/obj/item/modular_computer/tablet/tablet = wear_id
+	if(istype(wallet))
+		id = wallet.front_id
+	if(istype(id))
+		. = id.registered_name
+	else if(istype(pda))
+		. = pda.owner
+	else if(istype(tablet))
+		var/obj/item/computer_hardware/card_slot/card_slot = tablet.all_components[MC_CARD]
+		if(card_slot?.stored_card)
+			. = card_slot.stored_card.registered_name
+	if(!.)
+		. = if_no_id	//to prevent null-names making the mob unclickable
 	return
+
+//gets ID card object from special clothes slot or null.
+/mob/living/carbon/human/get_idcard(hand_first = TRUE)
+	. = ..()
+	if(. && hand_first)
+		return
+	//Check inventory slots
+	var/obj/item/card/id/id_card = wear_id?.GetID()
+	if(!id_card)
+		id_card = belt?.GetID()
+	return id_card || .
 
 /mob/living/carbon/human/IsAdvancedToolUser()
 	if(HAS_TRAIT(src, TRAIT_MONKEYLIKE))
@@ -76,8 +101,9 @@
 	return dna.species.handle_chemicals(R,src)
 	// if it returns 0, it will run the usual on_mob_life for that reagent. otherwise, it will stop after running handle_chemicals for the species.
 
-
 /mob/living/carbon/human/can_track(mob/living/user)
+	if(wear_id && istype(wear_id.GetID(), /obj/item/card/id/syndicate))
+		return 0
 	if(istype(head, /obj/item/clothing/head))
 		var/obj/item/clothing/head/hat = head
 		if(hat.blockTracking)
@@ -87,17 +113,26 @@
 
 /mob/living/carbon/human/can_use_guns(obj/item/G)
 	. = ..()
+	if(!.)
+		return
 	if(G.trigger_guard == TRIGGER_GUARD_NORMAL)
 		if(HAS_TRAIT(src, TRAIT_CHUNKYFINGERS))
-			to_chat(src, span_warning("My meaty finger is much too large for the trigger guard!"))
+			to_chat(src, "<span class='warning'>Your meaty finger is much too large for the trigger guard!</span>")
 			return FALSE
-	if(HAS_TRAIT(src, TRAIT_NOGUNS))
-		to_chat(src, span_warning("I can't bring myself to use a ranged weapon!"))
-		return FALSE
+		if(HAS_TRAIT(src, TRAIT_NOGUNS))
+			to_chat(src, "<span class='warning'>Your fingers don't fit in the trigger guard!</span>")
+			return FALSE
 
-/mob/living/carbon/human/get_policy_keywords()
-	. = ..()
-	. += "[dna.species.type]"
+/mob/living/carbon/human/proc/get_bank_account()
+	RETURN_TYPE(/datum/bank_account)
+	var/datum/bank_account/account
+	var/obj/item/card/id/I = get_idcard()
+
+	if(I && I.registered_account)
+		account = I.registered_account
+		return account
+
+	return FALSE
 
 /mob/living/carbon/human/can_see_reagents()
 	. = ..()
@@ -105,35 +140,39 @@
 		return
 	if(isclothing(glasses) && (glasses.clothing_flags & SCAN_REAGENTS))
 		return TRUE
-	if(isclothing(head) && (head.clothing_flags & SCAN_REAGENTS))
-		return TRUE
-	if(isclothing(wear_mask) && (wear_mask.clothing_flags & SCAN_REAGENTS))
-		return TRUE
 
-/mob/living/carbon/human/get_punch_dmg()
-	var/damage = 12
+/*
+/mob/living/carbon/human/transfer_blood_dna(list/blood_dna)
+	..()
+	if(blood_dna.len)
+		last_bloodtype = blood_dna[blood_dna[blood_dna.len]]//trust me this works
+		last_blood_DNA = blood_dna[blood_dna.len]*/
 
-	var/used_str = STASTR
+/// For use formatting all of the scars this human has for saving for persistent scarring
+/mob/living/carbon/human/proc/format_scars()
+	var/list/missing_bodyparts = get_missing_limbs()
+	if(!all_scars && !length(missing_bodyparts))
+		return
+	var/scars = ""
+	for(var/i in missing_bodyparts)
+		var/datum/scar/scaries = new
+		scars += "[scaries.format_amputated(i)]"
+	for(var/i in all_scars)
+		var/datum/scar/scaries = i
+		scars += "[scaries.format()];"
+	return scars
 
-	var/obj/G = get_item_by_slot(SLOT_GLOVES)
-	if(domhand)
-		used_str = get_str_arms(used_hand)
+/// Takes a single scar from the persistent scar loader and recreates it from the saved data
+/mob/living/carbon/human/proc/load_scar(scar_line)
+	var/list/scar_data = splittext(scar_line, "|")
+	if(LAZYLEN(scar_data) != SCAR_SAVE_LENGTH)
+		return // invalid, should delete
+	var/version = text2num(scar_data[SCAR_SAVE_VERS])
+	if(!version || version < SCAR_CURRENT_VERSION) // get rid of old scars
+		return
+	var/obj/item/bodypart/the_part = get_bodypart("[scar_data[SCAR_SAVE_ZONE]]")
+	var/datum/scar/scaries = new
+	return scaries.load(the_part, scar_data[SCAR_SAVE_VERS], scar_data[SCAR_SAVE_DESC], scar_data[SCAR_SAVE_PRECISE_LOCATION], text2num(scar_data[SCAR_SAVE_SEVERITY]))
 
-	if(used_str >= 11)
-		damage = max(damage + (damage * ((used_str - 10) * 0.3)), 1)
-
-	if(used_str <= 9)
-		damage = max(damage - (damage * ((10 - used_str) * 0.1)), 1)
-
-	if(istype(G, /obj/item/clothing/gloves/roguetown/plate))
-		damage = (damage * 1.20)
-	if(istype(G, /obj/item/clothing/gloves/roguetown/chain))
-		damage = (damage * 1.15)
-	if(istype(G, /obj/item/clothing/gloves/roguetown/leather))
-		damage = (damage * 1.10) 
-
-	if(mind)
-		if(mind.has_antag_datum(/datum/antagonist/werewolf))
-			return 30
-
-	return damage
+/mob/living/carbon/human/get_biological_state()
+	return dna.species.get_biological_state()

@@ -1,13 +1,16 @@
-
-
 /mob/living
+	flags_1 = HEAR_1 | CRITICAL_ATOM_1
 	see_invisible = SEE_INVISIBLE_LIVING
 	sight = 0
-	see_in_dark = 8
-	hud_possible = list(ANTAG_HUD)
-	
+	see_in_dark = 2
+	hud_possible = list(HEALTH_HUD,STATUS_HUD,ANTAG_HUD,NANITE_HUD,DIAG_NANITE_FULL_HUD,RAD_HUD,ONLINE_HUD)
+	pressure_resistance = 10
+	has_field_of_vision = TRUE
+	pass_flags_self = PASSMOB
 	typing_indicator_enabled = TRUE
-	
+
+	var/last_click_move = 0 // Stores the previous next_move value.
+
 	var/resize = 1 //Badminnery resize
 	var/lastattacker = null
 	var/lastattackerckey = null
@@ -27,28 +30,39 @@
 
 	var/mobility_flags = MOBILITY_FLAGS_DEFAULT
 
-	var/resting = FALSE
-	var/wallpressed = FALSE
-
-	var/pixelshift_layer = 0
-
-	var/lying = 0			//number of degrees. DO NOT USE THIS IN CHECKS. CHECK FOR MOBILITY FLAGS INSTEAD!!
-	var/lying_prev = 0		//last value of lying on update_mobility
+	var/living_flags = NONE
+	// Combat - Blocking/Parrying system
+	/// Our block_parry_data for unarmed blocks/parries. Currently only used for parrying, as unarmed block isn't implemented yet. YOU MUST RUN [get_block_parry_data(this)] INSTEAD OF DIRECTLY ACCESSING!
+	var/datum/block_parry_data/block_parry_data = /datum/block_parry_data		// defaults to *something* because [combat_flags] dictates whether or not we can unarmed block/parry.
+	// Blocking
+	/// The item the user is actively blocking with if any.
+	var/obj/item/active_block_item
+	// Parrying
+	/// Whether or not the user is in the middle of an active parry. Set to [UNARMED_PARRY], [ITEM_PARRY], [MARTIAL_PARRY] if parrying.
+	var/parrying = FALSE
+	/// The itme the user is currently parrying with, if any.
+	var/obj/item/active_parry_item
+	/// world.time of parry action start
+	var/parry_start_time = 0
+	/// Current parry effect.
+	var/obj/effect/abstract/parry/parry_visual_effect
+	/// world.time of last parry end
+	var/parry_end_time_last = 0
+	/// Successful parries within the current parry cycle. It's a list of efficiency percentages.
+	var/list/successful_parries
 
 	var/confused = 0	//Makes the mob move in random directions.
 
 	var/hallucination = 0 //Directly affects how long a mob will hallucinate for
 
-	var/last_special = 0 //Used by the resist verb, likely used to prevent players from bypassing next_move by logging in/out.
-	var/timeofdeath = 0
 
 	//Allows mobs to move through dense areas without restriction. For instance, in space or out of holder objects.
 	var/incorporeal_move = FALSE //FALSE is off, INCORPOREAL_MOVE_BASIC is normal, INCORPOREAL_MOVE_SHADOW is for ninjas
-								 //and INCORPOREAL_MOVE_JAUNT is blocked by holy water/salt
+								//and INCORPOREAL_MOVE_JAUNT is blocked by holy water/salt
 
-	var/list/roundstart_quirks
+	var/list/roundstart_quirks = list()
 
-	var/list/surgeries //a list of surgery steps. generally empty, they're added when the player is performing them.
+	var/list/surgeries = list()	//a list of surgery datums. generally empty, they're added when the player wants them.
 
 	var/now_pushing = null //used by living/Bump() and living/PushAM() to prevent potential infinite loop.
 
@@ -89,7 +103,9 @@
 
 	var/stun_absorption = null //converted to a list of stun absorption sources this mob has when one is added
 
-	var/blood_volume = BLOOD_VOLUME_NORMAL //how much blood the mob has
+	var/blood_volume = 0 //how much blood the mob has
+	var/blood_ratio = 1 //How much blood the mob needs, in terms of ratio (i.e 1.2 will require BLOOD_VOLUME_NORMAL of 672) DO NOT GO ABOVE 3.55 Well, actually you can but, then they can't get enough blood.
+	var/obj/effect/proc_holder/ranged_ability //Any ranged ability the mob has, as a click override
 
 	var/see_override = 0 //0 for no override, sets see_invisible = see_override in silicon & carbon life process via update_sight()
 
@@ -100,80 +116,49 @@
 	var/stuttering = 0
 	var/slurring = 0
 	var/cultslurring = 0
+	var/clockcultslurring = 0
 	var/derpspeech = 0
 
 	var/list/implants = null
 
 	var/datum/riding/riding_datum
 
-	var/datum/language/selected_default_language
-
 	var/last_words	//used for database logging
 
 	var/list/obj/effect/proc_holder/abilities = list()
 
-	var/can_be_held = FALSE	//whether this can be picked up and held.
-
+	var/radiation = 0 //If the mob is irradiated.
 	var/ventcrawl_layer = PIPING_LAYER_DEFAULT
 	var/losebreath = 0
 
-	var/slowed_by_drag = TRUE //Whether the mob is slowed down when dragging another prone mob
+	//List of active diseases
+	var/list/diseases = list() // list of all diseases in a mob
+	var/list/disease_resistances = list()
 
-	var/list/ownedSoullinks //soullinks we are the owner of
-	var/list/sharedSoullinks //soullinks we are a/the sharer of
+	var/drag_slowdown = TRUE //Whether the mob is slowed down when dragging another prone mob
 
-	var/maxrogstam = 1000
-	var/maxrogfat = 100
-	var/rogstam = 1000
-	var/rogfat = 0
+	var/rotate_on_lying = FALSE
 
-	var/last_fatigued = 0
-	var/last_ps = 0
+	/// Next world.time when we can get the "you can't move while buckled to [thing]" message.
+	var/buckle_message_cooldown = 0
 
-	var/ambushable = 0
+	//// CITADEL STATION COMBAT ////
+	/// See __DEFINES/combat.dm
+	var/combat_flags = COMBAT_FLAGS_SPRINT_EXEMPT
+	/// Next world.time when we will show a visible message on entering combat mode voluntarily again.
+	var/combatmessagecooldown = 0
 
-	var/surrendering = 0
+	var/incomingstammult = 1
+	var/bufferedstam = 0
+	var/stambuffer = 20
+	var/stambufferregentime
 
-	var/defprob = 50 //base chance to defend against this mob's attacks, for simple mob combat
-	var/encumbrance = 0
+	//Sprint buffer---
+	var/sprint_buffer = 42					//Tiles
+	var/sprint_buffer_max = 42
+	var/sprint_buffer_regen_ds = 0.1		//Tiles per world.time decisecond
+	var/sprint_buffer_regen_last = 0		//last world.time this was regen'd for math.
+	var/sprint_stamina_cost = 0.70			//stamina loss per tile while insufficient sprint buffer.
+	//---End
 
-	var/eyesclosed = 0
-	var/fallingas = 0
-
-	var/bleed_rate = 0 //how much are we bleeding
-	var/bleedsuppress = 0 //for stopping bloodloss, eventually this will be limb-based like bleeding
-
-	var/list/next_attack_msg = list()
-
-	///The NAME (not the reference) of the mob's summoner and probable master.
-	var/summoner = null
-
-
-	var/datum/component/personal_crafting/craftingthing
-
-	var/obj/item/grabbing/r_grab = null
-	var/obj/item/grabbing/l_grab = null
-
-	var/datum/sex_controller/sexcon
-
-	var/slowdown
-
-	var/last_dir_change = 0
-
-	var/list/death_trackers = list()
-
-	var/rot_type = /datum/component/rot/simple
-
-	var/list/mob_descriptors
-	var/list/custom_descriptors
-
-	/**This variable updated in mob_movement.dm primarily. Mainly a shitcode measure for existing shitcode because this is SHITCODE!
-	 * All it does is track when a mob is sneaking so we don't have to constantly reset alpha values as this fucks with how things are intended to be.
-	 * if you really need to cancel someone who is sneaking, call update_sneak_invis(TRUE).*/
-	var/rogue_sneaking = FALSE
-	/* Can be used to change the lighting threshholds at which players can sneak.*/
-	var/rogue_sneaking_light_threshhold = 0.15
-
-	var/voice_pitch = 1
-
-	var/domhand = 0
+	var/disconnect_time //how long have we been dc'd for

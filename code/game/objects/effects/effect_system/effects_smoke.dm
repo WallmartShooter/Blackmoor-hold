@@ -8,9 +8,8 @@
 	icon_state = "smoke"
 	pixel_x = -32
 	pixel_y = -32
-	opacity = 1
+	opacity = 0
 	layer = FLY_LAYER
-	plane = GAME_PLANE_UPPER
 	anchored = TRUE
 	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
 	animate_movement = 0
@@ -33,7 +32,7 @@
 
 /obj/effect/particle_effect/smoke/Initialize()
 	. = ..()
-	create_reagents(500)
+	create_reagents(500, NONE, NO_REAGENTS_VALUE)
 	START_PROCESSING(SSobj, src)
 
 
@@ -43,7 +42,7 @@
 
 /obj/effect/particle_effect/smoke/proc/kill_smoke()
 	STOP_PROCESSING(SSobj, src)
-	INVOKE_ASYNC(src, PROC_REF(fade_out))
+	INVOKE_ASYNC(src, .proc/fade_out)
 	QDEL_IN(src, 10)
 
 /obj/effect/particle_effect/smoke/process()
@@ -60,10 +59,12 @@
 		return 0
 	if(lifetime<1)
 		return 0
+	if(C.internal != null || C.has_smoke_protection())
+		return 0
 	if(C.smoke_delay)
 		return 0
 	C.smoke_delay++
-	addtimer(CALLBACK(src, PROC_REF(remove_smoke_delay), C), 10)
+	addtimer(CALLBACK(src, .proc/remove_smoke_delay, C), 10)
 	return 1
 
 /obj/effect/particle_effect/smoke/proc/remove_smoke_delay(mob/living/carbon/C)
@@ -92,9 +93,10 @@
 				S.set_opacity(TRUE)
 			newsmokes.Add(S)
 
-	//the smoke spreads rapidly but not instantly
-	for(var/obj/effect/particle_effect/smoke/SM in newsmokes)
-		addtimer(CALLBACK(SM, TYPE_PROC_REF(/obj/effect/particle_effect/smoke, spread_smoke)), 1)
+	if(newsmokes.len)
+		spawn(1) //the smoke spreads rapidly but not instantly
+			for(var/obj/effect/particle_effect/smoke/SM in newsmokes)
+				SM.spread_smoke()
 
 
 /datum/effect_system/smoke_spread
@@ -131,9 +133,72 @@
 		M.emote("cough")
 		return 1
 
+/obj/effect/particle_effect/smoke/bad/CanPass(atom/movable/mover, border_dir)
+	if(istype(mover, /obj/item/projectile/beam))
+		var/obj/item/projectile/beam/B = mover
+		B.damage = (B.damage/2)
+	return 1
+
+
 
 /datum/effect_system/smoke_spread/bad
 	effect_type = /obj/effect/particle_effect/smoke/bad
+
+/////////////////////////////////////////////
+// Nanofrost smoke
+/////////////////////////////////////////////
+
+/obj/effect/particle_effect/smoke/freezing
+	name = "nanofrost smoke"
+	color = "#B2FFFF"
+	opaque = 0
+
+/datum/effect_system/smoke_spread/freezing
+	effect_type = /obj/effect/particle_effect/smoke/freezing
+	var/blast = 0
+	var/temperature = 2
+	var/weldvents = TRUE
+	var/distcheck = TRUE
+
+/datum/effect_system/smoke_spread/freezing/proc/Chilled(atom/A)
+	if(isopenturf(A))
+		var/turf/open/T = A
+		if(T.air)
+			var/datum/gas_mixture/G = T.air
+			if(!distcheck || get_dist(T, location) < blast) // Otherwise we'll get silliness like people using Nanofrost to kill people through walls with cold air
+				G.set_temperature(temperature)
+			T.air_update_turf()
+			for(var/obj/effect/hotspot/H in T)
+				qdel(H)
+			if(G.get_moles(GAS_PLASMA))
+				G.adjust_moles(GAS_N2, G.get_moles(GAS_PLASMA))
+				G.set_moles(GAS_PLASMA, 0)
+		if (weldvents)
+			for(var/obj/machinery/atmospherics/components/unary/U in T)
+				if(!isnull(U.welded) && !U.welded) //must be an unwelded vent pump or vent scrubber.
+					U.welded = TRUE
+					U.update_icon()
+					U.visible_message("<span class='danger'>[U] was frozen shut!</span>")
+		for(var/mob/living/L in T)
+			L.ExtinguishMob()
+		for(var/obj/item/Item in T)
+			Item.extinguish()
+
+/datum/effect_system/smoke_spread/freezing/set_up(radius = 5, loca, blast_radius = 0)
+	..()
+	blast = blast_radius
+
+/datum/effect_system/smoke_spread/freezing/start()
+	if(blast)
+		for(var/turf/T in RANGE_TURFS(blast, location))
+			Chilled(T)
+	..()
+
+/datum/effect_system/smoke_spread/freezing/decon
+	temperature = 293.15
+	distcheck = FALSE
+	weldvents = FALSE
+
 
 /////////////////////////////////////////////
 // Sleep smoke
@@ -179,8 +244,11 @@
 		return 0
 	if(!istype(M))
 		return 0
+	var/mob/living/carbon/C = M
+	if(C.internal != null || C.has_smoke_protection())
+		return 0
 	var/fraction = 1/initial(lifetime)
-	reagents.copy_to(M, fraction*reagents.total_volume)
+	reagents.copy_to(C, fraction*reagents.total_volume)
 	reagents.reaction(M, INGEST, fraction)
 	return 1
 
@@ -218,7 +286,7 @@
 			contained = "\[[contained]\]"
 
 		var/where = "[AREACOORD(location)]"
-		if(carry.my_atom.fingerprintslast)
+		if(carry.my_atom && carry.my_atom.fingerprintslast)
 			var/mob/M = get_mob_by_key(carry.my_atom.fingerprintslast)
 			var/more = ""
 			if(M)
@@ -256,12 +324,3 @@
 
 /obj/effect/particle_effect/smoke/transparent
 	opaque = FALSE
-	alpha = 50
-	opacity = FALSE
-	lifetime = 3
-
-/proc/do_smoke(range=0, location=null, smoke_type=/obj/effect/particle_effect/smoke)
-	var/datum/effect_system/smoke_spread/smoke = new
-	smoke.effect_type = smoke_type
-	smoke.set_up(range, location)
-	smoke.start()

@@ -7,11 +7,7 @@
 	var/clusterMin = 1
 	var/clusterCheckFlags = CLUSTER_CHECK_SAME_ATOMS
 	var/allowAtomsOnSpace = FALSE
-	var/checkdensity = TRUE
-	var/list/excluded_turfs = list()
-	var/list/allowed_turfs = list()
-	var/list/allowed_areas = list()
-	var/include_subtypes = TRUE
+
 
 //Syncs the module up with its mother
 /datum/mapGeneratorModule/proc/sync(datum/mapGenerator/mum)
@@ -24,32 +20,18 @@
 /datum/mapGeneratorModule/proc/generate()
 	if(!mother)
 		return
-	excluded_turfs = typecacheof(excluded_turfs)
-	allowed_turfs = typecacheof(allowed_turfs)
-	allowed_areas = typecacheof(allowed_areas, only_root_path = !include_subtypes)
 	var/list/map = mother.map
 	for(var/turf/T in map)
 		place(T)
-		CHECK_TICK
 
 
 //Place a spawnable atom or turf on this turf
 /datum/mapGeneratorModule/proc/place(turf/T)
 	if(!T)
 		return 0
+
 	var/clustering = 0
 	var/skipLoopIteration = FALSE
-
-	if(excluded_turfs[T.type])
-		return
-
-	if(allowed_turfs.len && !allowed_turfs[T.type])
-		return
-
-	if(allowed_areas.len)
-		var/area/A = get_area(T)
-		if(!allowed_areas[A.type])
-			return
 
 	//Turfs don't care whether atoms can be placed here
 	for(var/turfPath in spawnableTurfs)
@@ -60,7 +42,7 @@
 			//You're the same as me? I hate you I'm going home
 			if(clusterCheckFlags & CLUSTER_CHECK_SAME_TURFS)
 				clustering = rand(clusterMin,clusterMax)
-				for(var/turf/F as anything in RANGE_TURFS(clustering,T))
+				for(var/turf/F in RANGE_TURFS(clustering,T))
 					if(istype(F,turfPath))
 						skipLoopIteration = TRUE
 						break
@@ -71,7 +53,7 @@
 			//You're DIFFERENT to me? I hate you I'm going home
 			if(clusterCheckFlags & CLUSTER_CHECK_DIFFERENT_TURFS)
 				clustering = rand(clusterMin,clusterMax)
-				for(var/turf/F as anything in RANGE_TURFS(clustering,T))
+				for(var/turf/F in RANGE_TURFS(clustering,T))
 					if(!(istype(F,turfPath)))
 						skipLoopIteration = TRUE
 						break
@@ -126,13 +108,14 @@
 	. = 1
 	if(!T)
 		return 0
-	if(checkdensity)
-		if(T.density)
+	if(T.density)
+		. = 0
+	for(var/atom/A in T)
+		if(A.density)
 			. = 0
-		for(var/atom/A in T)
-			if(A.density)
-				. = 0
-				break
+			break
+	if(!allowAtomsOnSpace && (isspaceturf(T)))
+		. = 0
 
 
 ///////////////////////////////////////////////////////////

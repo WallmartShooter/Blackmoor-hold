@@ -1,11 +1,12 @@
 // This is a list of turf types we dont want to assign to baseturfs unless through initialization or explicitly
 GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
-	/turf/baseturf_bottom,
+	/turf/open/space,
+	/turf/baseturf_bottom
 	)))
 
-/turf/proc/empty(turf_type=/turf/open/floor/rogue/naturalstone, baseturf_type, list/ignore_typecache, flags)
+/turf/proc/empty(turf_type=/turf/open/space, baseturf_type, list/ignore_typecache, flags)
 	// Remove all atoms except observers, landmarks, docking ports
-	var/static/list/ignored_atoms = typecacheof(list(/mob/dead, /obj/effect/landmark, /atom/movable/lighting_object))
+	var/static/list/ignored_atoms = typecacheof(list(/mob/dead, /obj/effect/landmark, /obj/docking_port, /atom/movable/lighting_object))
 	var/list/allowed_contents = typecache_filter_list_reverse(GetAllContentsIgnoring(ignore_typecache), ignored_atoms)
 	allowed_contents -= src
 	for(var/i in 1 to allowed_contents.len)
@@ -43,10 +44,21 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 		if(slip)
 			var/datum/component/wet_floor/WF = T.AddComponent(/datum/component/wet_floor)
 			WF.InheritComponent(slip)
+		if (copy_air)
+			var/turf/open/openTurf = T
+			openTurf.air.copy_from(air)
 
 //wrapper for ChangeTurf()s that you want to prevent/affect without overriding ChangeTurf() itself
 /turf/proc/TerraformTurf(path, new_baseturf, flags)
 	return ChangeTurf(path, new_baseturf, flags)
+
+/turf/proc/get_z_base_turf()
+	. = SSmapping.level_trait(z, ZTRAIT_BASETURF) || /turf/open/space
+	if (!ispath(.))
+		. = text2path(.)
+		if (!ispath(.))
+			warning("Z-level [z] has invalid baseturf '[SSmapping.level_trait(z, ZTRAIT_BASETURF)]'")
+			. = /turf/open/space
 
 // Creates a new turf
 // new_baseturfs can be either a single type or list of types, formated the same as baseturfs. see turf.dm
@@ -55,41 +67,33 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 		if(null)
 			return
 		if(/turf/baseturf_bottom)
-			path = SSmapping.level_trait(z, ZTRAIT_BASETURF) || /turf/open/floor/rogue/naturalstone
-			if (!ispath(path))
-				path = text2path(path)
-				if (!ispath(path))
-					warning("Z-level [z] has invalid baseturf '[SSmapping.level_trait(z, ZTRAIT_BASETURF)]'")
-					path = /turf/open/floor/rogue/naturalstone
-
-	if(!GLOB.use_preloader && path == type && !(flags & CHANGETURF_FORCEOP)) // Don't no-op if the map loader requires it to be reconstructed
+			path = get_z_base_turf()
+		if(/turf/open/space/basic)
+			// basic doesn't initialize and this will cause issues
+			// no warning though because this can happen naturaly as a result of it being built on top of
+			path = /turf/open/space
+	if(!GLOB.use_preloader && path == type && !(flags & CHANGETURF_FORCEOP) && (baseturfs == new_baseturfs)) // Don't no-op if the map loader requires it to be reconstructed, or if this is a new set of baseturfs
 		return src
 	if(flags & CHANGETURF_SKIP)
-		testing("fuck3")
 		return new path(src)
-
-	var/isopenspa = FALSE
-	if(istype(src, /turf/open/transparent/openspace))
-		isopenspa = TRUE
-	else
-		if(path == /turf/open/transparent/openspace)
-			isopenspa = TRUE
 
 	var/old_opacity = opacity
 	var/old_dynamic_lighting = dynamic_lighting
 	var/old_affecting_lights = affecting_lights
 	var/old_lighting_object = lighting_object
-	var/old_outdoor_effect = outdoor_effect
-	var/old_corners = corners
+	var/old_lc_topright = lc_topright
+	var/old_lc_topleft = lc_topleft
+	var/old_lc_bottomright = lc_bottomright
+	var/old_lc_bottomleft = lc_bottomleft
+
+	var/old_directional_opacity = directional_opacity
+	var/old_dynamic_lumcount = dynamic_lumcount
+	var/old_sunlight_state = sunlight_state
 
 	var/old_exl = explosion_level
 	var/old_exi = explosion_id
 	var/old_bp = blueprint_data
 	blueprint_data = null
-
-	var/oldPA = primary_area
-
-	STOP_PROCESSING(SSweather,src)
 
 	var/list/old_baseturfs = baseturfs
 
@@ -97,7 +101,7 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 	SEND_SIGNAL(src, COMSIG_TURF_CHANGE, path, new_baseturfs, flags, transferring_comps)
 	for(var/i in transferring_comps)
 		var/datum/component/comp = i
-		comp.ClearFromParent()
+		comp.RemoveComponent()
 
 	changing_turf = TRUE
 	qdel(src)	//Just get the side effects and call Destroy
@@ -111,7 +115,6 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 	else
 		W.baseturfs = old_baseturfs
 
-
 	W.explosion_id = old_exi
 	W.explosion_level = old_exl
 
@@ -120,28 +123,20 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 
 	W.blueprint_data = old_bp
 
-	W.primary_area = oldPA
-
-	START_PROCESSING(SSweather,W)
-	if(isopenspa)
-		var/turf/belo = get_step_multiz(W, DOWN)
-		for(var/x in 1 to 5)
-			if(belo)
-				belo.update_see_sky()
-				START_PROCESSING(SSweather,belo)
-				belo = get_step_multiz(belo, DOWN)
-			else
-				break
+	base_opacity = initial(opacity)
+	directional_opacity = old_directional_opacity
+	dynamic_lumcount = old_dynamic_lumcount
 
 	if(SSlighting.initialized)
-		if(SSoutdoor_effects.initialized)
-			outdoor_effect = old_outdoor_effect
-			get_sky_and_weather_states()
-
-		recalc_atom_opacity()
 		lighting_object = old_lighting_object
+
+		recalculate_directional_opacity()
+
 		affecting_lights = old_affecting_lights
-		corners = old_corners
+		lc_topright = old_lc_topright
+		lc_topleft = old_lc_topleft
+		lc_bottomright = old_lc_bottomright
+		lc_bottomleft = old_lc_bottomleft
 		if (old_opacity != opacity || dynamic_lighting != old_dynamic_lighting)
 			reconsider_lights()
 
@@ -150,18 +145,40 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 				lighting_build_overlay()
 			else
 				lighting_clear_overlay()
+		/*
+		for(var/turf/open/space/S in RANGE_TURFS(1, src)) //RANGE_TURFS is in code\__HELPERS\game.dm
+			S.update_starlight()
+		*/
+	// Handle the sunlight state change properly, if any.
+	if(sunlight_state != old_sunlight_state)
+		handle_sunlight_state_change(old_sunlight_state)
 
 	return W
 
-/turf/open/ChangeTurf(path, list/new_baseturfs, flags) //Resist the temptation to make this default to keeping air.
+/turf/open/ChangeTurf(path, list/new_baseturfs, flags)
 	if ((flags & CHANGETURF_INHERIT_AIR) && ispath(path, /turf/open))
+		var/datum/gas_mixture/stashed_air = new()
+		stashed_air.copy_from(air)
 		. = ..()
 		if (!.) // changeturf failed or didn't do anything
+			QDEL_NULL(stashed_air)
+
 			return
+		var/turf/open/newTurf = .
+		newTurf.air.copy_from(stashed_air)
+		update_air_ref(planetary_atmos ? 1 : 2)
+		QDEL_NULL(stashed_air)
 	else
 		if(ispath(path,/turf/closed))
 			flags |= CHANGETURF_RECALC_ADJACENT
-		return ..()
+			update_air_ref(-1)
+
+			. = ..()
+		else
+			. = ..()
+			if(!istype(air,/datum/gas_mixture))
+				Initialize_Atmos(0)
+
 
 // Take off the top layer turf and replace it with the next baseturf down
 /turf/proc/ScrapeAway(amount=1, flags)
@@ -178,55 +195,12 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 		new_baseturfs.len -= min(amount, new_baseturfs.len - 1) // No removing the very bottom
 		if(new_baseturfs.len == 1)
 			new_baseturfs = new_baseturfs[1]
-
-		if(turf_type == /turf/open/transparent/openspace)
-			var/turf/below = get_step_multiz(src, DOWN)
-			if(!below) //We are at the LOWEST z-level.
-				turf_type = /turf/open/floor/rogue/naturalstone
-			else
-				if(isclosedturf(below)) //must destroy bottom closed turfs to create a hole
-					var/turf/closed/C = below
-					if(C.above_floor)
-						turf_type = C.above_floor
-					else
-						turf_type = type
-//				else
-//					var/area/old_area = below.loc
-//					var/area/new_area = loc
-//					if(new_area.outdoors && !old_area.outdoors)
-//						below.change_area(old_area, new_area)
-//		else
-//			if(istype(turf_type, /turf/open) && istype(src, /turf/closed))
-//				var/turf/closed/CL = src
-//				var/turf/above = get_step_multiz(src, UP)
-//				if(above)
-//					if(istype(above, CL.above_floor))
-//						above.ChangeTurf(/turf/open/transparent/openspace, list(/turf/open/transparent/openspace), flags)
 		return ChangeTurf(turf_type, new_baseturfs, flags)
 
-	var/used_type = baseturfs
-
-	if(baseturfs == /turf/open/transparent/openspace)
-		var/turf/below = get_step_multiz(src, DOWN)
-		if(!below) //We are at the LOWEST z-level.
-			used_type = /turf/open/floor/rogue/naturalstone
-		else
-			if(isclosedturf(below)) //must destroy bottom closed turfs to create a hole
-				var/turf/closed/C = below
-				if(C.above_floor)
-					used_type = C.above_floor
-				else
-					used_type = type
-//			else
-//				var/area/old_area = below.loc
-//				var/area/new_area = loc
-//				if(new_area.outdoors && !old_area.outdoors)
-//					below.change_area(old_area, new_area)
-
-	if(used_type == type)
+	if(baseturfs == type)
 		return src
 
-	return ChangeTurf(used_type, baseturfs, flags) // The bottom baseturf will never go away
+	return ChangeTurf(baseturfs, baseturfs, flags) // The bottom baseturf will never go away
 
 // Take the input as baseturfs and put it underneath the current baseturfs
 // If fake_turf_type is provided and new_baseturfs is not the baseturfs list will be created identical to the turf type's
@@ -285,7 +259,6 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 		if(!istype(src, /turf/closed))
 			baseturfs += type
 		baseturfs += new_baseturfs
-		testing("fuck2")
 		return ChangeTurf(fake_turf_type, null, flags)
 	if(!length(baseturfs))
 		baseturfs = list(baseturfs)
@@ -299,17 +272,8 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 			baseturfs += new_baseturfs
 	else
 		change_type = new_baseturfs
+	return ChangeTurf(change_type, null, flags)
 
-	var/turf/T = ChangeTurf(change_type, null, flags)
-/*	if(isturf(T))
-		T.lighting_object = locate() in T.contents
-		if(T.lighting_object)
-		for(var/X in GLOB.cardinals)
-			var/turf/TU = get_step(T, X)
-			if(TU)
-				TU.reconsider_lights()
-				break*/
-	return T
 // Copy an existing turf and put it on top
 // Returns the new turf
 /turf/proc/CopyOnTop(turf/copytarget, ignore_bottom=1, depth=INFINITY, copy_air = FALSE)
@@ -320,9 +284,9 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 	if(depth)
 		var/list/target_baseturfs
 		if(length(copytarget.baseturfs))
-			// with default inputs this would be Copy(CLAMP(2, -INFINITY, baseturfs.len))
+			// with default inputs this would be Copy(clamp(2, -INFINITY, baseturfs.len))
 			// Don't forget a lower index is lower in the baseturfs stack, the bottom is baseturfs[1]
-			target_baseturfs = copytarget.baseturfs.Copy(CLAMP(1 + ignore_bottom, 1 + copytarget.baseturfs.len - depth, copytarget.baseturfs.len))
+			target_baseturfs = copytarget.baseturfs.Copy(clamp(1 + ignore_bottom, 1 + copytarget.baseturfs.len - depth, copytarget.baseturfs.len))
 		else if(!ignore_bottom)
 			target_baseturfs = list(copytarget.baseturfs)
 		if(target_baseturfs)
@@ -342,32 +306,39 @@ GLOBAL_LIST_INIT(blacklisted_automated_baseturfs, typecacheof(list(
 	else
 		CALCULATE_ADJACENT_TURFS(src)
 
+	//update firedoor adjacency
+	var/list/turfs_to_check = get_adjacent_open_turfs(src) | src
+	for(var/I in turfs_to_check)
+		var/turf/T = I
+		for(var/obj/machinery/door/firedoor/FD in T)
+			FD.CalculateAffectingAreas()
+
 	queue_smooth_neighbors(src)
 
 	HandleTurfChange(src)
 
 /turf/open/AfterChange(flags)
 	..()
+	RemoveLattice()
+	if(!(flags & (CHANGETURF_IGNORE_AIR | CHANGETURF_INHERIT_AIR)))
+		Assimilate_Air()
+
+//////Assimilate Air//////
+/turf/open/proc/Assimilate_Air()
+	var/turf_count = LAZYLEN(atmos_adjacent_turfs)
+	if(blocks_air || !turf_count) //if there weren't any open turfs, no need to update.
+		return
+
+	var/datum/gas_mixture/total = new//Holders to assimilate air from nearby turfs
+
+	for(var/T in atmos_adjacent_turfs)
+		var/turf/open/S = T
+		if(!S.air)
+			continue
+		total.merge(S.air)
+
+	air.copy_from(total.remove_ratio(1/turf_count))
 
 /turf/proc/ReplaceWithLattice()
 	ScrapeAway(flags = CHANGETURF_INHERIT_AIR)
-//	new /obj/structure/lattice(locate(x, y, z))
-
-/turf/open/proc/try_respawn_mined_chunks(chance = 150, list/weighted_rocks)
-	if(!prob(chance))
-		return
-
-	var/turf/closed/mineral/random/rogue/picked = pickweight(weighted_rocks)
-	GLOB.mined_resource_loc -= src
-
-	ChangeTurf(picked)
-
-	for(var/direction in GLOB.cardinals)
-		var/turf/open/turf = get_step(src, direction)
-		if(!istype(turf))
-			continue
-		if(!(turf in GLOB.mined_resource_loc))
-			continue
-		try_respawn_mined_chunks(chance-25, list(picked = 10))
-		if(!prob(chance))
-			return
+	new /obj/structure/lattice(locate(x, y, z))

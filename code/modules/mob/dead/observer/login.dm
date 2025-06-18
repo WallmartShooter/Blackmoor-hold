@@ -1,13 +1,12 @@
 /mob/dead/observer/Login()
 	..()
 
-	if(client && client.prefs)
-		ghost_accs = client.prefs.ghost_accs
-		ghost_others = client.prefs.ghost_others
+	ghost_accs = client.prefs.ghost_accs
+	ghost_others = client.prefs.ghost_others
 	var/preferred_form = null
 
 	if(IsAdminGhost(src))
-		has_unlimited_silicon_privilege = 1
+		silicon_privileges = ALL
 
 	if(client.prefs.unlock_content)
 		preferred_form = client.prefs.ghost_form

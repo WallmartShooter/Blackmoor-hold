@@ -1,125 +1,70 @@
 /obj/item/bodypart/head
 	name = BODY_ZONE_HEAD
-	desc = ""
+	desc = "Didn't make sense not to live for fun, your brain gets smart but your head gets dumb."
 	icon = 'icons/mob/human_parts.dmi'
 	icon_state = "default_human_head"
-	max_damage = 200
+	max_damage = 300
 	body_zone = BODY_ZONE_HEAD
 	body_part = HEAD
-	w_class = WEIGHT_CLASS_NORMAL //Quite a hefty load
+	w_class = WEIGHT_CLASS_BULKY //Quite a hefty load
 	slowdown = 1 //Balancing measure
 	throw_range = 2 //No head bowling
 	px_x = 0
 	px_y = -8
 	stam_damage_coeff = 1
-	max_stamina_damage = 100
-	max_pain_damage = 125
-	dismember_wound = /datum/wound/dismemberment/head
+	max_stamina_damage = 0 //Setting this to 0 since this has the same exact effects as the chest when disabled
 
 	var/mob/living/brain/brainmob = null //The current occupant.
 	var/obj/item/organ/brain/brain = null //The brain organ
-	var/obj/item/organ/eyes/eyes
-	var/obj/item/organ/eyes/eyesl
-	var/obj/item/organ/ears/ears
-	var/obj/item/organ/tongue/tongue
 
 	//Limb appearance info:
 	var/real_name = "" //Replacement name
 	//Hair colour and style
 	var/hair_color = "000"
-	var/hairstyle = "Bald"
+	var/hair_style = "Bald"
 	var/hair_alpha = 255
 	//Facial hair colour and style
 	var/facial_hair_color = "000"
-	var/facial_hairstyle = "Shaved"
+	var/facial_hair_style = "Shaved"
 	//Eye Colouring
+
+	var/obj/item/organ/eyes/eyes = null
 
 	var/lip_style = null
 	var/lip_color = "white"
+	//If the head is a special sprite
+	var/custom_head
 
-	offset = OFFSET_HEAD
-	offset_f = OFFSET_HEAD_F
-	//subtargets for crits
-	subtargets = list(BODY_ZONE_PRECISE_R_EYE, BODY_ZONE_PRECISE_L_EYE, BODY_ZONE_PRECISE_NOSE, BODY_ZONE_PRECISE_MOUTH, BODY_ZONE_PRECISE_SKULL, BODY_ZONE_PRECISE_EARS, BODY_ZONE_PRECISE_NECK)
-	//grabtargets for grabs
-	grabtargets = list(BODY_ZONE_HEAD, BODY_ZONE_PRECISE_R_EYE, BODY_ZONE_PRECISE_L_EYE, BODY_ZONE_PRECISE_NOSE, BODY_ZONE_PRECISE_MOUTH, BODY_ZONE_PRECISE_SKULL, BODY_ZONE_PRECISE_EARS, BODY_ZONE_PRECISE_NECK)
-	resistance_flags = FLAMMABLE
-	
-	grid_width = 64
-	grid_height = 64
+	wound_resistance = 10
+	scars_covered_by_clothes = FALSE
 
-	/// Brainkill means that this head is considered dead and revival is impossible
-	var/brainkill = FALSE
-
-/obj/item/bodypart/head/grabbedintents(mob/living/user, precise)
-	var/used_limb = precise
-	switch(used_limb)
-		if(BODY_ZONE_HEAD)
-			return list(/datum/intent/grab/move, /datum/intent/grab/twist, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_EARS)
-			return list(/datum/intent/grab/move, /datum/intent/grab/twist, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_NOSE)
-			return list(/datum/intent/grab/move, /datum/intent/grab/twist, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_SKULL)
-			return list(/datum/intent/grab/move, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_L_EYE)
-			return list(/datum/intent/grab/move, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_R_EYE)
-			return list(/datum/intent/grab/move, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_MOUTH)
-			return list(/datum/intent/grab/move, /datum/intent/grab/twist, /datum/intent/grab/smash)
-		if(BODY_ZONE_PRECISE_NECK)
-			return list(/datum/intent/grab/move, /datum/intent/grab/choke, /datum/intent/grab/hostage)
-
-/obj/item/bodypart/head/Destroy()
-	QDEL_NULL(brainmob) //order is sensitive, see warning in handle_atom_del() below
-	QDEL_NULL(brain)
-	QDEL_NULL(eyes)
-	QDEL_NULL(ears)
-	QDEL_NULL(tongue)
+/obj/item/bodypart/head/can_dismember(obj/item/I)
+	// Can't decap people alive or with some kind of headgear. Balance reasons.
+	if(owner && (owner.stat != DEAD || owner.head))
+		return FALSE
 	return ..()
 
-/obj/item/bodypart/head/handle_atom_del(atom/A)
-	if(A == brain)
-		brain = null
-		update_icon_dropped()
-		if(!QDELETED(brainmob)) //this shouldn't happen without badminnery.
-			message_admins("Brainmob: ([ADMIN_LOOKUPFLW(brainmob)]) was left stranded in [src] at [ADMIN_VERBOSEJMP(src)] without a brain!")
-			log_game("Brainmob: ([key_name(brainmob)]) was left stranded in [src] at [AREACOORD(src)] without a brain!")
-	if(A == brainmob)
-		brainmob = null
-	if(A == eyes)
-		eyes = null
-		update_icon_dropped()
-	if(A == ears)
-		ears = null
-	if(A == tongue)
-		tongue = null
-	return ..()
-
-/obj/item/bodypart/head/drop_organs(mob/user, violent_removal)
+/obj/item/bodypart/head/drop_organs(mob/user)
 	var/turf/T = get_turf(src)
 	if(status != BODYPART_ROBOTIC)
-		playsound(T, 'sound/blank.ogg', 50, TRUE, -1)
+		playsound(T, 'sound/misc/splort.ogg', 50, 1, -1)
 	for(var/obj/item/I in src)
 		if(I == brain)
 			if(user)
-				user.visible_message(span_warning("[user] saws [src] open and pulls out a brain!"), span_notice("I saw [src] open and pull out a brain."))
+				user.visible_message("<span class='warning'>[user] saws [src] open and pulls out a brain!</span>", "<span class='notice'>You saw [src] open and pull out a brain.</span>")
 			if(brainmob)
+				brainmob.container = null
 				brainmob.forceMove(brain)
 				brain.brainmob = brainmob
 				brainmob = null
-			if(violent_removal && prob(rand(80, 100))) //ghetto surgery can damage the brain.
-				to_chat(user, span_warning("[brain] was damaged in the process!"))
-				brain.setOrganDamage(brain.maxHealth)
 			brain.forceMove(T)
 			brain = null
 			update_icon_dropped()
 		else
+			if(istype(I, /obj/item/reagent_containers/pill))
+				for(var/datum/action/item_action/hands_free/activate_pill/AP in I.actions)
+					qdel(AP)
 			I.forceMove(T)
-	eyes = null
-	ears = null
-	tongue = null
 
 /obj/item/bodypart/head/update_limb(dropping_limb, mob/living/carbon/source)
 	var/mob/living/carbon/C
@@ -131,19 +76,17 @@
 	real_name = C.real_name
 	if(HAS_TRAIT(C, TRAIT_HUSK))
 		real_name = "Unknown"
-		hairstyle = "Bald"
-		facial_hairstyle = "Shaved"
+		hair_style = "Bald"
+		facial_hair_style = "Shaved"
 		lip_style = null
 
 	else if(!animal_origin)
 		var/mob/living/carbon/human/H = C
-		if(!H.dna || !H.dna.species)
-			return ..()
 		var/datum/species/S = H.dna.species
 
 		//Facial hair
-		if(H.facial_hairstyle && (FACEHAIR in S.species_traits))
-			facial_hairstyle = H.facial_hairstyle
+		if(H.facial_hair_style && (FACEHAIR in S.species_traits))
+			facial_hair_style = H.facial_hair_style
 			if(S.hair_color)
 				if(S.hair_color == "mutcolor")
 					facial_hair_color = H.dna.features["mcolor"]
@@ -153,12 +96,12 @@
 				facial_hair_color = H.facial_hair_color
 			hair_alpha = S.hair_alpha
 		else
-			facial_hairstyle = "Shaved"
+			facial_hair_style = "Shaved"
 			facial_hair_color = "000"
 			hair_alpha = 255
 		//Hair
-		if(H.hairstyle && (HAIR in S.species_traits))
-			hairstyle = H.hairstyle
+		if(H.hair_style && (HAIR in S.species_traits))
+			hair_style = H.hair_style
 			if(S.hair_color)
 				if(S.hair_color == "mutcolor")
 					hair_color = H.dna.features["mcolor"]
@@ -168,7 +111,7 @@
 				hair_color = H.hair_color
 			hair_alpha = S.hair_alpha
 		else
-			hairstyle = "Bald"
+			hair_style = "Bald"
 			hair_color = "000"
 			hair_alpha = initial(hair_alpha)
 		// lipstick
@@ -181,6 +124,8 @@
 	..()
 
 /obj/item/bodypart/head/update_icon_dropped()
+	if(custom_head)
+		return
 	var/list/standing = get_limb_icon(1)
 	if(!standing.len)
 		icon_state = initial(icon_state)//no overlays found, we default back to initial icon.
@@ -190,20 +135,44 @@
 		I.pixel_y = px_y
 	add_overlay(standing)
 
-/obj/item/bodypart/head/get_limb_icon(dropped, hideaux = FALSE)
+/obj/item/bodypart/head/get_limb_icon(dropped)
+	if(custom_head)
+		return
 	cut_overlays()
 	. = ..()
 	if(dropped) //certain overlays only appear when the limb is being detached from its owner.
 
 		if(status != BODYPART_ROBOTIC) //having a robotic head hides certain features.
+			//facial hair
+			if(facial_hair_style)
+				var/datum/sprite_accessory/S = GLOB.facial_hair_styles_list[facial_hair_style]
+				if(S)
+					var/image/facial_overlay = image(S.icon, "[S.icon_state]", -HAIR_LAYER, SOUTH)
+					facial_overlay.color = "#" + facial_hair_color
+					facial_overlay.alpha = hair_alpha
+					. += facial_overlay
+
 			//Applies the debrained overlay if there is no brain
 			if(!brain)
 				var/image/debrain_overlay = image(layer = -HAIR_LAYER, dir = SOUTH)
-				if(!(NOBLOOD in species_flags_list))
+				if(animal_origin == ALIEN_BODYPART)
+					debrain_overlay.icon = 'icons/mob/animal_parts.dmi'
+					debrain_overlay.icon_state = "debrained_alien"
+				else if(animal_origin == LARVA_BODYPART)
+					debrain_overlay.icon = 'icons/mob/animal_parts.dmi'
+					debrain_overlay.icon_state = "debrained_larva"
+				else if(!(NOBLOOD in species_flags_list))
 					debrain_overlay.icon = 'icons/mob/human_face.dmi'
 					debrain_overlay.icon_state = "debrained"
 				. += debrain_overlay
-			//ROGTODO add accessories (earrings, piercings) here
+			else
+				var/datum/sprite_accessory/S2 = GLOB.hair_styles_list[hair_style]
+				if(S2)
+					var/image/hair_overlay = image(S2.icon, "[S2.icon_state]", -HAIR_LAYER, SOUTH)
+					hair_overlay.color = "#" + hair_color
+					hair_overlay.alpha = hair_alpha
+					. += hair_overlay
+
 
 		// lipstick
 		if(lip_style)
@@ -212,20 +181,42 @@
 			. += lips_overlay
 
 		// eyes
-		var/image/eyes_overlay = image('icons/mob/human_face.dmi', "eyes_missing", -BODY_LAYER, SOUTH)
-		. += eyes_overlay
 		if(eyes)
-			eyes_overlay.icon_state = eyes.eye_icon_state
-
-			if(eyes.eye_color)
-				eyes_overlay.color = "#" + eyes.eye_color
+			var/image/left_eye = image('icons/mob/human_face.dmi', "left_eye", -BODY_LAYER, SOUTH)
+			var/image/right_eye = image('icons/mob/human_face.dmi', "right_eye", -BODY_LAYER, SOUTH)
+			if(eyes.left_eye_color && eyes.right_eye_color)
+				left_eye.color = "#" + eyes.left_eye_color
+				right_eye.color = "#" + eyes.right_eye_color
+			. += left_eye
+			. += right_eye
+		else
+			var/eyes_overlay = image('icons/mob/human_face.dmi', "eyes_missing", -BODY_LAYER, SOUTH)
+			. += eyes_overlay
 
 /obj/item/bodypart/head/monkey
 	icon = 'icons/mob/animal_parts.dmi'
 	icon_state = "default_monkey_head"
 	animal_origin = MONKEY_BODYPART
 
+/obj/item/bodypart/head/alien
+	icon = 'icons/mob/animal_parts.dmi'
+	icon_state = "alien_head"
+	px_x = 0
+	px_y = 0
+	dismemberable = 0
+	max_damage = 500
+	animal_origin = ALIEN_BODYPART
+
 /obj/item/bodypart/head/devil
 	dismemberable = 0
 	max_damage = 5000
 	animal_origin = DEVIL_BODYPART
+
+/obj/item/bodypart/head/larva
+	icon = 'icons/mob/animal_parts.dmi'
+	icon_state = "larva_head"
+	px_x = 0
+	px_y = 0
+	dismemberable = 0
+	max_damage = 50
+	animal_origin = LARVA_BODYPART

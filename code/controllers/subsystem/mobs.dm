@@ -1,4 +1,3 @@
-
 SUBSYSTEM_DEF(mobs)
 	name = "Mobs"
 	priority = FIRE_PRIORITY_MOBS
@@ -9,10 +8,11 @@ SUBSYSTEM_DEF(mobs)
 	var/static/list/clients_by_zlevel[][]
 	var/static/list/dead_players_by_zlevel[][] = list(list()) // Needs to support zlevel 1 here, MaxZChanged only happens when z2 is created and new_players can login before that.
 	var/static/list/cubemonkeys = list()
+	var/static/list/cheeserats = list()
 
-
-/datum/controller/subsystem/mobs/stat_entry()
-	..("P:[GLOB.mob_living_list.len]")
+/datum/controller/subsystem/mobs/stat_entry(msg)
+	msg = "P:[length(GLOB.mob_living_list)]"
+	return ..()
 
 /datum/controller/subsystem/mobs/proc/MaxZChanged()
 	if (!islist(clients_by_zlevel))
@@ -23,17 +23,6 @@ SUBSYSTEM_DEF(mobs)
 		clients_by_zlevel[clients_by_zlevel.len] = list()
 		dead_players_by_zlevel.len++
 		dead_players_by_zlevel[dead_players_by_zlevel.len] = list()
-
-/datum/controller/subsystem/mobs/proc/MaxZDec()
-	if (!islist(clients_by_zlevel))
-		clients_by_zlevel = new /list(world.maxz,0)
-		dead_players_by_zlevel = new /list(world.maxz,0)
-	while (clients_by_zlevel.len > world.maxz)
-		clients_by_zlevel.len--
-//		clients_by_zlevel[clients_by_zlevel.len] = list()
-		dead_players_by_zlevel.len--
-//		dead_players_by_zlevel[dead_players_by_zlevel.len] = list()
-
 
 /datum/controller/subsystem/mobs/fire(resumed = 0)
 	var/seconds = wait * 0.1
@@ -46,12 +35,9 @@ SUBSYSTEM_DEF(mobs)
 	while(currentrun.len)
 		var/mob/living/L = currentrun[currentrun.len]
 		currentrun.len--
-		if(!L || QDELETED(L))
-			GLOB.mob_living_list.Remove(L)
-			continue
-		if(L.stat == DEAD)
-			L.DeadLife()
-		else
+		if(L)
 			L.Life(seconds, times_fired)
+		else
+			GLOB.mob_living_list.Remove(L)
 		if (MC_TICK_CHECK)
 			return

@@ -15,8 +15,8 @@
 	if(!isatom(parent))
 		return COMPONENT_INCOMPATIBLE
 
-	RegisterSignal(parent, COMSIG_PARENT_EXAMINE, PROC_REF(examine))
-	RegisterSignal(parent, COMSIG_PARENT_ATTACKBY,PROC_REF(action))
+	RegisterSignal(parent, COMSIG_PARENT_EXAMINE, .proc/examine)
+	RegisterSignal(parent, COMSIG_PARENT_ATTACKBY,.proc/action)
 	update_parent(index)
 
 /datum/component/construction/proc/examine(datum/source, mob/user, list/examine_list)
@@ -86,6 +86,11 @@
 			if(ITEM_MOVE_INSIDE)
 				. = user.transferItemToLoc(I, parent)
 
+			// Using stacks
+			else if(istype(I, /obj/item/stack))
+				. = I.use_tool(parent, user, 0, volume=50, amount=current_step["amount"])
+
+
 	// Going backwards? Undo the last action. Drop/respawn the items used in last action, if any.
 	if(. && diff == BACKWARD && target_step && !target_step["no_refund"])
 		var/target_step_key = target_step["key"]
@@ -99,10 +104,13 @@
 				if(located_item)
 					located_item.forceMove(drop_location())
 
+			else if(ispath(target_step_key, /obj/item/stack))
+				new target_step_key(drop_location(), target_step["amount"])
+
 /datum/component/construction/proc/spawn_result()
 	// Some constructions result in new components being added.
 	if(ispath(result, /datum/component))
-		parent._AddComponent(result)
+		parent.AddComponent(result)
 		qdel(src)
 
 	else if(ispath(result, /atom))

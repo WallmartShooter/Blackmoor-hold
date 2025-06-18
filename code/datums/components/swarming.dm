@@ -5,21 +5,21 @@
 	var/list/swarm_members = list()
 
 /datum/component/swarming/Initialize(max_x = 24, max_y = 24)
-	if(!ismovableatom(parent))
-		return COMPONENT_INCOMPATIBLE
 	offset_x = rand(-max_x, max_x)
 	offset_y = rand(-max_y, max_y)
 
-	RegisterSignal(parent, COMSIG_MOVABLE_CROSSED, PROC_REF(join_swarm))
-	RegisterSignal(parent, COMSIG_MOVABLE_UNCROSSED, PROC_REF(leave_swarm))
+	RegisterSignal(parent, COMSIG_MOVABLE_CROSSED, .proc/join_swarm)
+	RegisterSignal(parent, COMSIG_MOVABLE_UNCROSSED, .proc/leave_swarm)
 
 /datum/component/swarming/Destroy()
-	for(var/other in swarm_members)
-		var/datum/component/swarming/other_swarm = other
-		other_swarm.swarm_members -= src
-		if(!other_swarm.swarm_members.len)
-			other_swarm.unswarm()
-	swarm_members = null
+	if(is_swarming)
+		for(var/A in swarm_members)
+			var/datum/component/swarming/other_swarm = A
+			other_swarm.swarm_members -= src
+			swarm_members -= other_swarm
+			if(!length(other_swarm.swarm_members))
+				other_swarm.unswarm()
+		unswarm()
 	return ..()
 
 /datum/component/swarming/proc/join_swarm(datum/source, atom/movable/AM)

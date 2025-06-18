@@ -1,7 +1,7 @@
 /obj/effect/acid
 	gender = PLURAL
 	name = "acid"
-	desc = ""
+	desc = "Burbling corrosive stuff."
 	icon_state = "acid"
 	density = FALSE
 	opacity = 0
@@ -17,7 +17,7 @@
 	target = get_turf(src)
 
 	if(acid_amt)
-		acid_level = min(acid_amt*acid_pwr, 12000) //capped so the acid effect doesn't last a half hour on the floor.
+		acid_level = min( (clamp(round(acid_amt, 1), 0, INFINITY)) *acid_pwr, 12000) //capped so the acid effect doesn't last a half hour on the floor.
 
 	//handle APCs and newscasters and stuff nicely
 	pixel_x = target.pixel_x + rand(-4,4)
@@ -38,7 +38,7 @@
 		return 0
 
 	if(prob(5))
-		playsound(loc, 'sound/blank.ogg', 100, TRUE)
+		playsound(loc, 'sound/items/welder.ogg', 100, 1)
 
 	for(var/obj/O in target)
 		if(prob(20) && !(resistance_flags & UNACIDABLE))
@@ -61,5 +61,32 @@
 			var/acid_used = min(acid_level*0.05, 20)
 			if(L.acid_act(10, acid_used, "feet"))
 				acid_level = max(0, acid_level - acid_used*10)
-				playsound(L, 'sound/blank.ogg', 50, TRUE)
-				to_chat(L, span_danger("[src] burns you!"))
+				playsound(L, 'sound/weapons/sear.ogg', 50, 1)
+				to_chat(L, "<span class='userdanger'>[src] burns you!</span>")
+
+//xenomorph corrosive acid
+/obj/effect/acid/alien
+	var/target_strength = 30
+
+
+/obj/effect/acid/alien/process()
+	. = ..()
+	if(.)
+		if(prob(45))
+			playsound(loc, 'sound/items/welder.ogg', 100, 1)
+		target_strength--
+		if(target_strength <= 0)
+			target.visible_message("<span class='warning'>[target] collapses under its own weight into a puddle of goop and undigested debris!</span>")
+			target.acid_melt()
+			qdel(src)
+		else
+
+			switch(target_strength)
+				if(24)
+					visible_message("<span class='warning'>[target] is holding up against the acid!</span>")
+				if(16)
+					visible_message("<span class='warning'>[target] is being melted by the acid!</span>")
+				if(8)
+					visible_message("<span class='warning'>[target] is struggling to withstand the acid!</span>")
+				if(4)
+					visible_message("<span class='warning'>[target] begins to crumble under the acid!</span>")

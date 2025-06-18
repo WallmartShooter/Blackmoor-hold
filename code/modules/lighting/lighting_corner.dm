@@ -2,11 +2,11 @@
 // And corners get shared between multiple turfs (unless you're on the corners of the map, then 1 corner doesn't).
 // For the record: these should never ever ever be deleted, even if the turf doesn't have dynamic lighting.
 
-// This list is what the code that assigns corners listens to, the order in this list is the order in which corners are added to the /turf/corners list.
-GLOBAL_LIST_INIT(LIGHTING_CORNER_DIAGONAL, list(NORTHEAST, SOUTHEAST, SOUTHWEST, NORTHWEST))
-
 /datum/lighting_corner
-	var/list/turf/masters
+	var/turf/northeast
+	var/turf/northwest
+	var/turf/southeast
+	var/turf/southwest
 	var/list/datum/light_source/affecting // Light sources affecting us.
 	var/active                            = FALSE  // TRUE if one of our masters has dynamic lighting.
 
@@ -25,10 +25,18 @@ GLOBAL_LIST_INIT(LIGHTING_CORNER_DIAGONAL, list(NORTHEAST, SOUTHEAST, SOUTHWEST,
 	var/cache_b  = LIGHTING_SOFT_THRESHOLD
 	var/cache_mx = 0
 
+// Diagonal is our direction FROM them, not to.
 /datum/lighting_corner/New(turf/new_turf, diagonal)
 	. = ..()
-	masters = list()
-	masters[new_turf] = turn(diagonal, 180)
+
+#define SET_DIAGONAL(turf, diagonal) \
+	switch(diagonal){ \
+		if(SOUTHWEST) { northeast = turf; turf.lc_bottomleft = src; } \
+		if(SOUTHEAST) { northwest = turf; turf.lc_bottomright = src; } \
+		if(NORTHEAST) { southwest = turf; turf.lc_topright = src; } \
+		if(NORTHWEST) { southeast = turf; turf.lc_topleft = src; } \
+	}
+	SET_DIAGONAL(new_turf, diagonal)
 	z = new_turf.z
 
 	var/vertical   = diagonal & ~(diagonal - 1) // The horizontal directions (4 and 8) are bigger than the vertical ones (1 and 2), so we can reliably say the lsb is the horizontal direction.
@@ -37,52 +45,28 @@ GLOBAL_LIST_INIT(LIGHTING_CORNER_DIAGONAL, list(NORTHEAST, SOUTHEAST, SOUTHWEST,
 	x = new_turf.x + (horizontal == EAST  ? 0.5 : -0.5)
 	y = new_turf.y + (vertical   == NORTH ? 0.5 : -0.5)
 
-	// My initial plan was to make this loop through a list of all the dirs (horizontal, vertical, diagonal).
-	// Issue being that the only way I could think of doing it was very messy, slow and honestly overengineered.
-	// So we'll have this hardcode instead.
 	var/turf/T
-	var/i
-
-	// Diagonal one is easy.
+	// Build diagonal one
 	T = get_step(new_turf, diagonal)
-	if (T) // In case we're on the map's border.
-		if (!T.corners)
-			T.corners = list(null, null, null, null)
-
-		masters[T]   = diagonal
-		i            = GLOB.LIGHTING_CORNER_DIAGONAL.Find(turn(diagonal, 180))
-		T.corners[i] = src
-
-	// Now the horizontal one.
+	if(T)
+		SET_DIAGONAL(T, turn(diagonal, 180))
+	// Build horizontal
 	T = get_step(new_turf, horizontal)
-	if (T) // Ditto.
-		if (!T.corners)
-			T.corners = list(null, null, null, null)
-
-		masters[T]   = ((T.x > x) ? EAST : WEST) | ((T.y > y) ? NORTH : SOUTH) // Get the dir based on coordinates.
-		i            = GLOB.LIGHTING_CORNER_DIAGONAL.Find(turn(masters[T], 180))
-		T.corners[i] = src
-
-	// And finally the vertical one.
+	if(T)
+		SET_DIAGONAL(T, turn(((T.x > x) ? EAST : WEST) | ((T.y > y) ? NORTH : SOUTH), 180))
+	// Build vertical
 	T = get_step(new_turf, vertical)
-	if (T)
-		if (!T.corners)
-			T.corners = list(null, null, null, null)
-
-		masters[T]   = ((T.x > x) ? EAST : WEST) | ((T.y > y) ? NORTH : SOUTH) // Get the dir based on coordinates.
-		i            = GLOB.LIGHTING_CORNER_DIAGONAL.Find(turn(masters[T], 180))
-		T.corners[i] = src
+	if(T)
+		SET_DIAGONAL(T, turn(((T.x > x) ? EAST : WEST) | ((T.y > y) ? NORTH : SOUTH), 180))
 
 	update_active()
 
+#undef SET_DIAGONAL
+
 /datum/lighting_corner/proc/update_active()
 	active = FALSE
-	var/turf/T
-	var/thing
-	for (thing in masters)
-		T = thing
-		if (T.lighting_object)
-			active = TRUE
+	if(northeast?.lighting_object || northwest?.lighting_object || southeast?.lighting_object || southwest?.lighting_object)
+		active = TRUE
 
 // God that was a mess, now to do the rest of the corner code! Hooray!
 /datum/lighting_corner/proc/update_lumcount(delta_r, delta_g, delta_b)
@@ -96,7 +80,7 @@ GLOBAL_LIST_INIT(LIGHTING_CORNER_DIAGONAL, list(NORTHEAST, SOUTHEAST, SOUTHWEST,
 
 	if (!needs_update)
 		needs_update = TRUE
-		SSlighting.corners_queue += src
+		GLOB.lighting_update_corners += src
 
 /datum/lighting_corner/proc/update_objects()
 	// Cache these values a head of time so 4 individual lighting objects don't all calculate them individually.
@@ -122,13 +106,12 @@ GLOBAL_LIST_INIT(LIGHTING_CORNER_DIAGONAL, list(NORTHEAST, SOUTHEAST, SOUTHWEST,
 	#endif
 	cache_mx = round(mx, LIGHTING_ROUND_VALUE)
 
-	for (var/TT in masters)
-		var/turf/T = TT
-		if (T.lighting_object)
-			if (!T.lighting_object.needs_update)
-				T.lighting_object.needs_update = TRUE
-				SSlighting.objects_queue += T.lighting_object
-
+	#define QUEUE(turf) if(turf?.lighting_object && !turf.lighting_object.needs_update) { turf.lighting_object.needs_update = TRUE; GLOB.lighting_update_objects += turf.lighting_object }
+	QUEUE(northeast)
+	QUEUE(northwest)
+	QUEUE(southeast)
+	QUEUE(southwest)
+	#undef QUEUE
 
 /datum/lighting_corner/dummy/New()
 	return
@@ -138,6 +121,6 @@ GLOBAL_LIST_INIT(LIGHTING_CORNER_DIAGONAL, list(NORTHEAST, SOUTHEAST, SOUTHWEST,
 	if (!force)
 		return QDEL_HINT_LETMELIVE
 
-	stack_trace("Something called qdel on a lighting corner, please fix.")
+	stack_trace("Ok, Look, /tg/, I need you to find whatever fucker decided to call qdel on a fucking lighting corner, then tell him very nicely and politely that he is 100% stupid and needs his head checked. Thanks. Send them my regards by the way.")
 
 	return ..()

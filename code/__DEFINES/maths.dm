@@ -4,6 +4,8 @@
 
 #define NUM_E 2.71828183
 
+#define SQRT_2 1.414214
+
 #define PI						3.1416
 #define INFINITY				1e31	//closer then enough
 
@@ -16,7 +18,10 @@
 #define TICK_USAGE_TO_MS(starting_tickusage) (TICK_DELTA_TO_MS(TICK_USAGE_REAL - starting_tickusage))
 
 #define PERCENT(val) (round((val)*100, 0.1))
-#define CLAMP01(x) (CLAMP(x, 0, 1))
+
+#define CLAMP01(x) clamp(x, 0, 1)
+
+#define CLAMP(CLVALUE,CLMIN,CLMAX) ( max( (CLMIN), min((CLVALUE), (CLMAX)) ) )
 
 //time of day but automatically adjusts to the server going into the next day within the same round.
 //for when you need a reliable time number that doesn't depend on byond time.
@@ -27,27 +32,17 @@
 
 #define CEILING(x, y) ( -round(-(x) / (y)) * (y) )
 
-#define ROUND_UP(x) ( -round(-(x)))
-
 // round() acts like floor(x, 1) by default but can't handle other values
 #define FLOOR(x, y) ( round((x) / (y)) * (y) )
 
-
-#define CLAMP(CLVALUE,CLMIN,CLMAX) clamp(CLVALUE, CLMIN, CLMAX)
-
-
 // Similar to clamp but the bottom rolls around to the top and vice versa. min is inclusive, max is exclusive
-#define WRAP(val, min, max) ( min == max ? min : (val) - (round(((val) - (min))/((max) - (min))) * ((max) - (min))) )
+#define WRAP(val, min, max) clamp(( min == max ? min : (val) - (round(((val) - (min))/((max) - (min))) * ((max) - (min))) ),min,max-1)
 
 // Real modulus that handles decimals
 #define MODULUS(x, y) ( (x) - (y) * round((x) / (y)) )
 
-
-#define TAN(x) tan(x)
-
-
 // Cotangent
-#define COT(x) (1 / TAN(x))
+#define COT(x) (1 / tan(x))
 
 // Secant
 #define SEC(x) (1 / cos(x))
@@ -182,8 +177,8 @@
 	while(pixel_y < -16)
 		pixel_y += 32
 		new_y--
-	new_x = CLAMP(new_x, 0, world.maxx)
-	new_y = CLAMP(new_y, 0, world.maxy)
+	new_x = clamp(new_x, 0, world.maxx)
+	new_y = clamp(new_y, 0, world.maxy)
 	return locate(new_x, new_y, starting.z)
 
 // Returns a list where [1] is all x values and [2] is all y values that overlap between the given pair of rectangles
@@ -208,8 +203,30 @@
 
 #define EXP_DISTRIBUTION(desired_mean) ( -(1/(1/desired_mean)) * log(rand(1, 1000) * 0.001) )
 
-#define LORENTZ_DISTRIBUTION(x, s) ( s*TAN(TODEGREES(PI*(rand()-0.5))) + x )
-#define LORENTZ_CUMULATIVE_DISTRIBUTION(x, y, s) ( (1/PI)*TORADIANS(arctan((x-y)/s)) + 1/2 )
+#define LORENTZ_DISTRIBUTION(x, s) ( s*tan((rand()-0.5)*180) + x )
+#define LORENTZ_CUMULATIVE_DISTRIBUTION(x, y, s) ( (1/180)*(arctan((x-y)/s)) + 1/2 )
 
 #define RULE_OF_THREE(a, b, x) ((a*x)/b)
+// )
+
+/// Converts a probability/second chance to probability/delta_time chance
+/// For example, if you want an event to happen with a 10% per second chance, but your proc only runs every 5 seconds, do `if(prob(100*DT_PROB_RATE(0.1, 5)))`
+#define DT_PROB_RATE(prob_per_second, delta_time) (1 - (1 - (prob_per_second)) ** (delta_time))
+
+/// Like DT_PROB_RATE but easier to use, simply put `if(DT_PROB(10, 5))`
+#define DT_PROB(prob_per_second_percent, delta_time) (prob(100*DT_PROB_RATE((prob_per_second_percent)/100, (delta_time))))
+// )
+/// Taxicab distance--gets you the **actual** time it takes to get from one turf to another due to how we calculate diagonal movement
+#define MANHATTAN_DISTANCE(a, b) (abs(a.x - b.x) + abs(a.y - b.y))
+// )
+
+/// A function that exponentially approaches a maximum value of L
+/// k is the rate at which is approaches L, x_0 is the point where the function = 0
+#define LOGISTIC_FUNCTION(L,k,x,x_0) (L/(1+(NUM_E**(-k*(x-x_0)))))
+// )
+/// Make sure something is a boolean TRUE/FALSE 1/0 value, since things like bitfield & bitflag doesn't always give 1s and 0s.
+#define FORCE_BOOLEAN(x) ((x)? TRUE : FALSE)
+// )
+/// Gives the number of pixels in an orthogonal line of tiles.
+#define TILES_TO_PIXELS(tiles)			(tiles * PIXELS)
 // )

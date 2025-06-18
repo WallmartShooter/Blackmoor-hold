@@ -1,6 +1,6 @@
 /**
-  * A component to reset the parent to its previous state after some time passes
-  */
+ * A component to reset the parent to its previous state after some time passes
+ */
 /datum/component/dejavu
 	/// The turf the parent was on when this components was applied, they get moved back here after the duration
 	var/turf/starting_turf
@@ -42,34 +42,32 @@
 		tox_loss = L.getToxLoss()
 		oxy_loss = L.getOxyLoss()
 		brain_loss = L.getOrganLoss(ORGAN_SLOT_BRAIN)
-		rewind_type = PROC_REF(rewind_living)
+		rewind_type = .proc/rewind_living
 
 	if(iscarbon(parent))
-		var/mob/living/L = parent
-		clone_loss = L.getCloneLoss()
-		tox_loss = L.getToxLoss()
-		oxy_loss = L.getOxyLoss()
-		brain_loss = L.getOrganLoss(ORGAN_SLOT_BRAIN)
-		rewind_type = PROC_REF(rewind_living)
+		var/mob/living/carbon/C = parent
+		saved_bodyparts = C.save_bodyparts()
+		rewind_type = .proc/rewind_carbon
 
 	else if(isanimal(parent))
 		var/mob/living/simple_animal/M = parent
 		brute_loss = M.bruteloss
-		rewind_type = PROC_REF(rewind_animal)
+		rewind_type = .proc/rewind_animal
 
 	else if(isobj(parent))
 		var/obj/O = parent
 		integrity = O.obj_integrity
-		rewind_type = PROC_REF(rewind_obj)
+		rewind_type = .proc/rewind_obj
 
 	addtimer(CALLBACK(src, rewind_type), rewind_interval)
 
 /datum/component/dejavu/Destroy()
 	starting_turf = null
+	saved_bodyparts = null
 	return ..()
 
 /datum/component/dejavu/proc/rewind()
-	to_chat(parent, "<span class=notice>I remember a time not so long ago...</span>")
+	to_chat(parent, "<span class=notice>You remember a time not so long ago...</span>")
 
 	//comes after healing so new limbs comically drop to the floor
 	if(starting_turf)
@@ -92,6 +90,9 @@
 	rewind()
 
 /datum/component/dejavu/proc/rewind_carbon()
+	if(saved_bodyparts)
+		var/mob/living/carbon/master = parent
+		master.apply_saved_bodyparts(saved_bodyparts)
 	rewind_living()
 
 /datum/component/dejavu/proc/rewind_animal()

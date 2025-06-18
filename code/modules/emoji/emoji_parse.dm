@@ -2,7 +2,8 @@
 	. = text
 	if(!CONFIG_GET(flag/emojis))
 		return
-	var/static/list/emojis = icon_states(icon('icons/emoji.dmi'))
+	var/list/emojis = icon_states(icon('icons/emoji.dmi'))
+	emojis |= icon_states(icon('icons/emoji_32.dmi'))
 	var/parsed = ""
 	var/pos = 1
 	var/search = 0
@@ -12,15 +13,19 @@
 		parsed += copytext(text, pos, search)
 		if(search)
 			pos = search
-			search = findtext(text, ":", pos+1)
+			search = findtext(text, ":", pos + length(text[pos]))
 			if(search)
-				emoji = lowertext(copytext(text, pos+1, search))
-//				var/datum/asset/spritesheet/sheet = get_asset_datum(/datum/asset/spritesheet/goonchat)
-				var/datum/asset/spritesheet/sheet
+				emoji = lowertext(copytext(text, pos + length(text[pos]), search))
+				var/isthisapath = (emoji[1] == "/") && text2path(emoji)
+				var/datum/asset/spritesheet/sheet = get_asset_datum(/datum/asset/spritesheet/chat)
 				var/tag = sheet.icon_tag("emoji-[emoji]")
 				if(tag)
-					parsed += tag
-					pos = search + 1
+					parsed += "<i style='width:16px !important;height:16px !important;'>[tag]</i>" //evil way of enforcing 16x16
+					pos = search + length(text[pos])
+				else if(ispath(isthisapath, /atom))	//path
+					var/atom/thisisanatom = isthisapath
+					parsed += "[icon2html(initial(thisisanatom.icon), world, initial(thisisanatom.icon_state))]"
+					pos = search + length(text[pos])
 				else
 					parsed += copytext(text, pos, search)
 					pos = search
@@ -35,7 +40,8 @@
 	. = text
 	if(!CONFIG_GET(flag/emojis))
 		return
-	var/static/list/emojis = icon_states(icon('icons/emoji.dmi'))
+	var/list/emojis = icon_states(icon('icons/emoji.dmi'))
+	emojis |= icon_states(icon('icons/emoji_32.dmi'))
 	var/final = "" //only tags are added to this
 	var/pos = 1
 	var/search = 0
@@ -43,12 +49,12 @@
 		search = findtext(text, ":", pos)
 		if(search)
 			pos = search
-			search = findtext(text, ":", pos+1)
+			search = findtext(text, ":", pos + length(text[pos]))
 			if(search)
-				var/word = lowertext(copytext(text, pos+1, search))
+				var/word = lowertext(copytext(text, pos + length(text[pos]), search))
 				if(word in emojis)
-					final += lowertext(copytext(text, pos, search+1))
-				pos = search + 1
+					final += lowertext(copytext(text, pos, search + length(text[search])))
+				pos = search + length(text[search])
 				continue
 		break
 	return final

@@ -1,7 +1,47 @@
 //Landmarks and other helpers which speed up the mapping process and reduce the number of unique instances/subtypes of items/turf/ect
+/obj/effect/landmark/dungeon_mark
+	name = "test"	
+	invisibility = 25
 
+	var/list/templates
 
+/obj/effect/landmark/dungeon_mark/oasis
+	name = "oasis bunker"
 
+/obj/effect/landmark/dungeon_mark/northclaws
+	name = "north claws bunker"
+
+/obj/effect/landmark/dungeon_mark/northsmall
+	name = "north mini claws bunker"
+
+/obj/effect/landmark/dungeon_mark/miniclaws
+	name = "sewer mini claws bunker"
+
+/obj/effect/landmark/dungeon_mark/ants
+	name = "ant bunker"
+
+/obj/effect/landmark/dungeon_mark/northmutants
+	name = "north mutants bunker"
+
+/obj/effect/landmark/dungeon_mark/bandit
+	name = "bandit bunker"
+
+/obj/effect/landmark/dungeon_mark/Initialize()
+	. = ..()
+	GLOB.dungeon_marks += src
+
+/obj/effect/landmark/map_load_mark
+	name = "map loader landmark"	
+	invisibility = 25
+
+	var/id = null
+	var/list/templates	//list of template types to pick from
+
+/obj/effect/landmark/map_load_mark/Initialize()
+	. = ..()
+	LAZYADD(SSmapping.map_load_marks,src)
+
+/*
 /obj/effect/baseturf_helper //Set the baseturfs of every turf in the /area/ it is placed.
 	name = "baseturf editor"
 	icon = 'icons/effects/mapping_helpers.dmi'
@@ -18,7 +58,7 @@
 
 /obj/effect/baseturf_helper/LateInitialize()
 	if(!baseturf_to_replace)
-		baseturf_to_replace = typecacheof(list(/turf/baseturf_bottom))
+		baseturf_to_replace = typecacheof(/turf/open/space)
 	else if(!length(baseturf_to_replace))
 		baseturf_to_replace = list(baseturf_to_replace = TRUE)
 	else if(baseturf_to_replace[baseturf_to_replace[1]] != TRUE) // It's not associative
@@ -39,14 +79,39 @@
 		for(var/i in baseturf_cache)
 			if(baseturf_to_replace[i])
 				baseturf_cache -= i
-		if(!baseturf_cache.len)
-			thing.assemble_baseturfs(baseturf)
-		else
-			thing.PlaceOnBottom(null, baseturf)
 	else if(baseturf_to_replace[thing.baseturfs])
 		thing.assemble_baseturfs(baseturf)
-	else
-		thing.PlaceOnBottom(null, baseturf)
+		return
+
+	thing.PlaceOnBottom(null, baseturf)
+
+/obj/effect/baseturf_helper/space
+	name = "space baseturf editor"
+	baseturf = /turf/open/space
+
+/obj/effect/baseturf_helper/asteroid
+	name = "asteroid baseturf editor"
+	baseturf = /turf/open/floor/plating/asteroid
+
+/obj/effect/baseturf_helper/asteroid/airless
+	name = "asteroid airless baseturf editor"
+	baseturf = /turf/open/floor/plating/asteroid/airless
+
+/obj/effect/baseturf_helper/asteroid/basalt
+	name = "asteroid basalt baseturf editor"
+	baseturf = /turf/open/floor/plating/asteroid/basalt
+
+/obj/effect/baseturf_helper/asteroid/snow
+	name = "asteroid snow baseturf editor"
+	baseturf = /turf/open/floor/plating/asteroid/snow
+
+/obj/effect/baseturf_helper/beach/sand
+	name = "beach sand baseturf editor"
+	baseturf = /turf/open/floor/plating/beach/sand
+
+/obj/effect/baseturf_helper/beach/water
+	name = "water baseturf editor"
+	baseturf = /turf/open/floor/plating/beach/water
 
 /obj/effect/baseturf_helper/lava
 	name = "lava baseturf editor"
@@ -67,6 +132,48 @@
 	return late ? INITIALIZE_HINT_LATELOAD : INITIALIZE_HINT_QDEL
 
 
+//airlock helpers
+/obj/effect/mapping_helpers/airlock
+	layer = DOOR_HELPER_LAYER
+
+/obj/effect/mapping_helpers/airlock/cyclelink_helper
+	name = "airlock cyclelink helper"
+	icon_state = "airlock_cyclelink_helper"
+
+/obj/effect/mapping_helpers/airlock/cyclelink_helper/Initialize(mapload)
+	. = ..()
+	if(!mapload)
+		log_world("### MAP WARNING, [src] spawned outside of mapload!")
+		return
+	var/obj/machinery/door/airlock/airlock = locate(/obj/machinery/door/airlock) in loc
+	if(airlock)
+		if(airlock.cyclelinkeddir)
+			log_world("### MAP WARNING, [src] at [AREACOORD(src)] tried to set [airlock] cyclelinkeddir, but it's already set!")
+		else
+			airlock.cyclelinkeddir = dir
+	else
+		log_world("### MAP WARNING, [src] failed to find an airlock at [AREACOORD(src)]")
+
+
+/obj/effect/mapping_helpers/airlock/locked
+	name = "airlock lock helper"
+	icon_state = "airlock_locked_helper"
+
+/obj/effect/mapping_helpers/airlock/locked/Initialize(mapload)
+	. = ..()
+	if(!mapload)
+		log_world("### MAP WARNING, [src] spawned outside of mapload!")
+		return
+	var/obj/machinery/door/airlock/airlock = locate(/obj/machinery/door/airlock) in loc
+	if(airlock)
+		if(airlock.locked)
+			log_world("### MAP WARNING, [src] at [AREACOORD(src)] tried to bolt [airlock] but it's already locked!")
+		else
+			airlock.locked = TRUE
+	else
+		log_world("### MAP WARNING, [src] failed to find an airlock at [AREACOORD(src)]")
+
+
 //needs to do its thing before spawn_rivers() is called
 INITIALIZE_IMMEDIATE(/obj/effect/mapping_helpers/no_lava)
 
@@ -77,6 +184,19 @@ INITIALIZE_IMMEDIATE(/obj/effect/mapping_helpers/no_lava)
 	. = ..()
 	var/turf/T = get_turf(src)
 	T.flags_1 |= NO_LAVA_GEN_1
+
+//Contains the list of planetary z-levels defined by the planet_z helper.
+GLOBAL_LIST_EMPTY(z_is_planet)
+
+/obj/effect/mapping_helpers/planet_z //adds the map it is on to the z_is_planet list
+	name = "planet z helper"
+	layer = POINT_LAYER
+
+/obj/effect/mapping_helpers/planet_z/Initialize()
+	. = ..()
+	var/turf/T = get_turf(src)
+	GLOB.z_is_planet["[T.z]"] = TRUE
+
 
 //This helper applies components to things on the map directly.
 /obj/effect/mapping_helpers/component_injector
@@ -99,41 +219,22 @@ INITIALIZE_IMMEDIATE(/obj/effect/mapping_helpers/no_lava)
 		if(target_type && !istype(A,target_type))
 			continue
 		var/cargs = build_args()
-		A._AddComponent(arglist(cargs))
+		A.AddComponent(arglist(cargs))
 		qdel(src)
 		return
 
 /obj/effect/mapping_helpers/component_injector/proc/build_args()
 	return list(component_type)
 
-/obj/effect/mapping_helpers/dead_body_placer
-	name = "Dead Body placer"
-	late = TRUE
-	icon_state = "deadbodyplacer"
-	var/bodycount = 2 //number of bodies to spawn
+/obj/effect/mapping_helpers/component_injector/infective
+	name = "Infective Injector"
+	icon_state = "component_infective"
+	component_type = /datum/component/infective
+	var/disease_type
 
-/obj/effect/mapping_helpers/dead_body_placer/LateInitialize()
-	var/list/trays = list()
-	if(!trays.len)
-		log_mapping("[src] at [x],[y] could not find any morgues.")
-		return
-	for (var/i = 1 to bodycount)
-		var/mob/living/carbon/human/h = new /mob/living/carbon/human(get_turf(src), 1)
-		h.death()
-		for (var/part in h.internal_organs) //randomly remove organs from each body, set those we keep to be in stasis
-			if (prob(40))
-				qdel(part)
-			else
-				var/obj/item/organ/O = part
-				O.organ_flags |= ORGAN_FROZEN
-	qdel(src)
-
-//This is our map object, which just gets placed anywhere on the map. A .dm file is linked to it to set the templates list.
-//If there's only one template in the list, it will only pick that (useful for editing parts of maps without editing the WHOLE map)
-/obj/effect/landmark/map_load_mark
-	name = "map loader landmark"
-	var/list/templates //List of templates we're trying to pick from (must be a list, even if there's only one entry)
-
-/obj/effect/landmark/map_load_mark/Initialize()
-	. = ..()
-	LAZYADD(SSmapping.map_load_marks,src)
+/obj/effect/mapping_helpers/component_injector/infective/build_args()
+	if(!ispath(disease_type,/datum/disease))
+		CRASH("Wrong disease type passed in.")
+	var/datum/disease/D = new disease_type()
+	return list(component_type,D)
+*/

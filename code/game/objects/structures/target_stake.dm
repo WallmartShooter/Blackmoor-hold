@@ -1,6 +1,6 @@
 /obj/structure/target_stake
 	name = "target stake"
-	desc = ""
+	desc = "A thin platform with negatively-magnetized wheels."
 	icon = 'icons/obj/objects.dmi'
 	icon_state = "target_stake"
 	density = FALSE
@@ -46,12 +46,9 @@
 		T.density = TRUE
 		T.layer = OBJ_LAYER + 0.01
 		handle_density()
-		to_chat(user, span_notice("I slide the target into the stake."))
+		to_chat(user, "<span class='notice'>You slide the target into the stake.</span>")
 
-/obj/structure/target_stake/attack_hand(mob/user)
-	. = ..()
-	if(.)
-		return
+/obj/structure/target_stake/on_attack_hand(mob/user, act_intent = user.a_intent, unarmed_attack_flags)
 	if(pinned_target)
 		removeTarget(user)
 
@@ -64,13 +61,12 @@
 	if(ishuman(user))
 		if(!user.get_active_held_item())
 			user.put_in_hands(pinned_target)
-			to_chat(user, span_notice("I take the target out of the stake."))
+			to_chat(user, "<span class='notice'>You take the target out of the stake.</span>")
 	else
 		pinned_target.forceMove(user.drop_location())
-		to_chat(user, span_notice("I take the target out of the stake."))
+		to_chat(user, "<span class='notice'>You take the target out of the stake.</span>")
 
-/obj/structure/target_stake/bullet_act(obj/projectile/P)
+/obj/structure/target_stake/bullet_act(obj/item/projectile/P)
 	if(pinned_target)
-		pinned_target.bullet_act(P)
-	else
-		. = ..()
+		return pinned_target.bullet_act(P)
+	return ..()

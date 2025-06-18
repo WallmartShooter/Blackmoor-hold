@@ -60,18 +60,17 @@
 
 #define DESIGN_ID_IGNORE "IGNORE_THIS_DESIGN"
 
-#define RESEARCH_MATERIAL_RECLAMATION_ID "__materials"
+#define RESEARCH_MATERIAL_RECLAMATION_ID		"__materials"
+#define RESEARCH_DEEP_SCAN_ID					"__deepscan"
 
 //When adding new types, update the list below!
 #define TECHWEB_POINT_TYPE_GENERIC "General Research"
-#define TECHWEB_POINT_TYPE_NANITES "Nanite Research"
 
 #define TECHWEB_POINT_TYPE_DEFAULT TECHWEB_POINT_TYPE_GENERIC
 
 //defined here so people don't forget to change this!
 #define TECHWEB_POINT_TYPE_LIST_ASSOCIATIVE_NAMES list(\
-	TECHWEB_POINT_TYPE_GENERIC = "General Research",\
-	TECHWEB_POINT_TYPE_NANITES = "Nanite Research"\
+	TECHWEB_POINT_TYPE_GENERIC = "General Research"\
 	)
 
 #define TECHWEB_BOMB_POINTCAP		50000 //Adjust as needed; Stops toxins from nullifying RND progression mechanics. Current Value Cap Radius: 100

@@ -93,8 +93,29 @@
 
 /datum/action/vehicle
 	check_flags = AB_CHECK_RESTRAINED | AB_CHECK_STUN | AB_CHECK_CONSCIOUS
-	button_icon_state = ""
+	icon_icon = 'icons/mob/actions/actions_vehicle.dmi'
+	button_icon_state = "vehicle_eject"
 	var/obj/vehicle/vehicle_target
+
+/datum/action/vehicle/sealed
+	var/obj/vehicle/sealed/vehicle_entered_target
+
+/datum/action/vehicle/sealed/climb_out
+	name = "Climb Out"
+	desc = "Climb out of your vehicle!"
+	button_icon_state = "car_eject"
+
+/datum/action/vehicle/sealed/climb_out/Trigger()
+	if(..() && istype(vehicle_entered_target))
+		vehicle_entered_target.mob_try_exit(owner, owner)
 
 /datum/action/vehicle/ridden
 	var/obj/vehicle/ridden/vehicle_ridden_target
+
+/datum/action/vehicle/sealed/remove_key
+	name = "Remove key"
+	desc = "Take your key out of the vehicle's ignition"
+	button_icon_state = "car_removekey"
+
+/datum/action/vehicle/sealed/remove_key/Trigger()
+	vehicle_entered_target.remove_key(owner)

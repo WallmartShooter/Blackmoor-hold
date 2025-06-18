@@ -1,15 +1,14 @@
 /obj/effect/proc_holder/spell/targeted/inflict_handler
 	name = "Inflict Handler"
-	desc = ""
+	desc = "This spell blinds and/or destroys/damages/heals and/or knockdowns/stuns the target."
 
-	var/amt_paralyze = 0
+	var/amt_knockdown = 0
+	var/amt_hardstun
 	var/amt_unconscious = 0
 	var/amt_stun = 0
 
-	var/inflict_status
-	var/list/status_params = list()
-
 	//set to negatives for healing
+	var/amt_dam_stam
 	var/amt_dam_fire = 0
 	var/amt_dam_brute = 0
 	var/amt_dam_oxy = 0
@@ -27,7 +26,7 @@
 
 /obj/effect/proc_holder/spell/targeted/inflict_handler/cast(list/targets,mob/user = usr)
 	for(var/mob/living/target in targets)
-		playsound(target,sound, 50,TRUE)
+		playsound(target,sound, 50,1)
 		if(target.anti_magic_check(check_anti_magic, check_holy))
 			return
 		switch(destroys)
@@ -44,7 +43,10 @@
 		target.adjustToxLoss(amt_dam_tox)
 		target.adjustOxyLoss(amt_dam_oxy)
 		//disabling
-		target.Paralyze(amt_paralyze)
+		if(!amt_knockdown && amt_dam_stam)
+			target.adjustStaminaLoss(amt_dam_stam)
+		else
+			target.DefaultCombatKnockdown(amt_knockdown, override_hardstun = amt_hardstun, override_stamdmg = amt_dam_stam)
 		target.Unconscious(amt_unconscious)
 		target.Stun(amt_stun)
 
@@ -53,8 +55,3 @@
 		//summoning
 		if(summon_type)
 			new summon_type(target.loc, target)
-
-		if(inflict_status)
-			var/list/stat_args = status_params.Copy()
-			stat_args.Insert(1,inflict_status)
-			target.apply_status_effect(arglist(stat_args))

@@ -7,7 +7,6 @@
 	var/minimum_required = 1
 	var/role_name = "debug rat with cancer" // Q U A L I T Y  M E M E S
 	var/list/spawned_mobs = list()
-	var/status
 	fakeable = FALSE
 
 /datum/round_event/ghost_role/start()
@@ -18,17 +17,17 @@
 	// to prevent us from getting gc'd halfway through
 	processing = FALSE
 
-	status = spawn_role()
+	var/status = spawn_role()
 	if((status == WAITING_FOR_SOMETHING))
 		if(retry >= MAX_SPAWN_ATTEMPT)
 			message_admins("[role_name] event has exceeded maximum spawn attempts. Aborting and refunding.")
 			if(control && control.occurrences > 0)	//Don't refund if it hasn't
 				control.occurrences--
 			return
-		var/waittime = 300 * (2^retry)
+		var/waittime = 300 * (2**retry)
 		message_admins("The event will not spawn a [role_name] until certain \
 			conditions are met. Waiting [waittime/10]s and then retrying.")
-		addtimer(CALLBACK(src, PROC_REF(try_spawning), 0, ++retry), waittime)
+		addtimer(CALLBACK(src, .proc/try_spawning, 0, ++retry), waittime)
 		return
 
 	if(status == MAP_ERROR)
@@ -39,7 +38,7 @@
 	else if(status == SUCCESSFUL_SPAWN)
 		message_admins("[role_name] spawned successfully.")
 		if(spawned_mobs.len)
-			for (var/mob/M in spawned_mobs)
+			for(var/mob/M in spawned_mobs)
 				announce_to_ghosts(M)
 		else
 			message_admins("No mobs found in the `spawned_mobs` list, this is \
@@ -59,7 +58,7 @@
 	// Returns a list of candidates in priority order, with candidates from
 	// `priority_candidates` first, and ghost roles randomly shuffled and
 	// appended after
-	var/list/mob/regular_candidates
+	var/list/mob/dead/observer/regular_candidates
 	// don't get their hopes up
 	if(priority_candidates.len < minimum_required)
 		regular_candidates = pollGhostCandidates("Do you wish to be considered for the special role of '[role_name]'?", jobban, gametypecheck, be_special)

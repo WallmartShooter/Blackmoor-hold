@@ -1,25 +1,7 @@
 /mob/var/suiciding = 0
 
-/mob/proc/set_suicide(suicide_state)
-	suiciding = suicide_state
-	if(suicide_state)
-		GLOB.suicided_mob_list += src
-	else
-		GLOB.suicided_mob_list -= src
-
-/mob/living/carbon/set_suicide(suicide_state) //you thought that box trick was pretty clever, didn't you? well now hardmode is on, boyo.
-	. = ..()
-	var/obj/item/organ/brain/B = getorganslot(ORGAN_SLOT_BRAIN)
-	if(B)
-		B.suicided = suicide_state
-
-/mob/living/silicon/robot/set_suicide(suicide_state)
-	. = ..()
-
 /mob/living/carbon/human/verb/suicide()
 	set hidden = 1
-	if(!usr.client.holder)
-		return
 	if(!canSuicide())
 		return
 	var/oldkey = ckey
@@ -29,19 +11,15 @@
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE) //need to be called before calling suicide_act as fuck knows what suicide_act will do with your suicider
+		suiciding = TRUE
 		var/obj/item/held_item = get_active_held_item()
 		if(held_item)
 			var/damagetype = held_item.suicide_act(src)
 			if(damagetype)
 				if(damagetype & SHAME)
 					adjustStaminaLoss(200)
-					set_suicide(FALSE)
+					suiciding = FALSE
 					SEND_SIGNAL(src, COMSIG_ADD_MOOD_EVENT, "shameful_suicide", /datum/mood_event/shameful_suicide)
-					return
-
-				if(damagetype & MANUAL_SUICIDE_NONLETHAL) //Make sure to call the necessary procs if it does kill later
-					set_suicide(FALSE)
 					return
 
 				suicide_log()
@@ -77,15 +55,15 @@
 
 		var/suicide_message
 
-		if(used_intent.type == INTENT_DISARM)
+		if(a_intent == INTENT_DISARM)
 			suicide_message = pick("[src] is attempting to push [p_their()] own head off [p_their()] shoulders! It looks like [p_theyre()] trying to commit suicide.", \
 								"[src] is pushing [p_their()] thumbs into [p_their()] eye sockets! It looks like [p_theyre()] trying to commit suicide.", \
 								"[src] is ripping [p_their()] own arms off! It looks like [p_theyre()] trying to commit suicide.")//heheh get it?
-		if(used_intent.type == INTENT_GRAB)
+		if(a_intent == INTENT_GRAB)
 			suicide_message = pick("[src] is attempting to pull [p_their()] own head off! It looks like [p_theyre()] trying to commit suicide.", \
 									"[src] is aggressively grabbing [p_their()] own neck! It looks like [p_theyre()] trying to commit suicide.", \
 									"[src] is pulling [p_their()] eyes out of their sockets! It looks like [p_theyre()] trying to commit suicide.")
-		if(used_intent.type == INTENT_HELP)
+		if(a_intent == INTENT_HELP)
 			suicide_message = pick("[src] is hugging [p_them()]self to death! It looks like [p_theyre()] trying to commit suicide.", \
 									"[src] is high-fiving [p_them()]self to death! It looks like [p_theyre()] trying to commit suicide.", \
 									"[src] is getting too high on life! It looks like [p_theyre()] trying to commit suicide.")
@@ -95,49 +73,45 @@
 								"[src] is twisting [p_their()] own neck! It looks like [p_theyre()] trying to commit suicide.", \
 								"[src] is holding [p_their()] breath! It looks like [p_theyre()] trying to commit suicide.")
 
-		visible_message(span_danger("[suicide_message]"), span_danger("[suicide_message]"))
+		visible_message("<span class='danger'>[suicide_message]</span>", "<span class='userdanger'>[suicide_message]</span>")
 
 		suicide_log()
 
 		adjustOxyLoss(max(200 - getToxLoss() - getFireLoss() - getBruteLoss() - getOxyLoss(), 0))
-		death(FALSE)
+		death(0)
 
 /mob/living/brain/verb/suicide()
 	set hidden = 1
-	if(!usr.client.holder)
-		return
 	if(!canSuicide())
 		return
 	var/confirm = alert("Are you sure you want to commit suicide?", "Confirm Suicide", "Yes", "No")
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE)
-		visible_message(span_danger("[src]'s brain is growing dull and lifeless. [p_they(TRUE)] look[p_s()] like [p_theyve()] lost the will to live."), \
-						span_danger("[src]'s brain is growing dull and lifeless. [p_they(TRUE)] look[p_s()] like [p_theyve()] lost the will to live."))
+		suiciding = 1
+		visible_message("<span class='danger'>[src]'s brain is growing dull and lifeless. [p_they(TRUE)] look[p_s()] like [p_theyve()] lost the will to live.</span>", \
+						"<span class='userdanger'>[src]'s brain is growing dull and lifeless. [p_they(TRUE)] look[p_s()] like [p_theyve()] lost the will to live.</span>")
 
 		suicide_log()
 
-		death(FALSE)
+		death(0)
 
 /mob/living/carbon/monkey/verb/suicide()
 	set hidden = 1
-	if(!usr.client.holder)
-		return
 	if(!canSuicide())
 		return
 	var/confirm = alert("Are you sure you want to commit suicide?", "Confirm Suicide", "Yes", "No")
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE)
-		visible_message(span_danger("[src] is attempting to bite [p_their()] tongue. It looks like [p_theyre()] trying to commit suicide."), \
-				span_danger("[src] is attempting to bite [p_their()] tongue. It looks like [p_theyre()] trying to commit suicide."))
+		suiciding = 1
+		visible_message("<span class='danger'>[src] is attempting to bite [p_their()] tongue. It looks like [p_theyre()] trying to commit suicide.</span>", \
+				"<span class='userdanger'>[src] is attempting to bite [p_their()] tongue. It looks like [p_theyre()] trying to commit suicide.</span>")
 
 		suicide_log()
 
 		adjustOxyLoss(max(200- getToxLoss() - getFireLoss() - getBruteLoss() - getOxyLoss(), 0))
-		death(FALSE)
+		death(0)
 
 /mob/living/silicon/ai/verb/suicide()
 	set hidden = 1
@@ -147,15 +121,15 @@
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE)
-		visible_message(span_danger("[src] is powering down. It looks like [p_theyre()] trying to commit suicide."), \
-				span_danger("[src] is powering down. It looks like [p_theyre()] trying to commit suicide."))
+		suiciding = 1
+		visible_message("<span class='danger'>[src] is powering down. It looks like [p_theyre()] trying to commit suicide.</span>", \
+				"<span class='userdanger'>[src] is powering down. It looks like [p_theyre()] trying to commit suicide.</span>")
 
 		suicide_log()
 
 		//put em at -175
 		adjustOxyLoss(max(maxHealth * 2 - getToxLoss() - getFireLoss() - getBruteLoss() - getOxyLoss(), 0))
-		death(FALSE)
+		death(0)
 
 /mob/living/silicon/robot/verb/suicide()
 	set hidden = 1
@@ -165,27 +139,27 @@
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE)
-		visible_message(span_danger("[src] is powering down. It looks like [p_theyre()] trying to commit suicide."), \
-				span_danger("[src] is powering down. It looks like [p_theyre()] trying to commit suicide."))
+		suiciding = 1
+		visible_message("<span class='danger'>[src] is powering down. It looks like [p_theyre()] trying to commit suicide.</span>", \
+				"<span class='userdanger'>[src] is powering down. It looks like [p_theyre()] trying to commit suicide.</span>")
 
 		suicide_log()
 
 		//put em at -175
 		adjustOxyLoss(max(maxHealth * 2 - getToxLoss() - getFireLoss() - getBruteLoss() - getOxyLoss(), 0))
-		death(FALSE)
+		death(0)
 
 /mob/living/silicon/pai/verb/suicide()
 	set hidden = 1
 	var/confirm = alert("Are you sure you want to commit suicide?", "Confirm Suicide", "Yes", "No")
 	if(confirm == "Yes")
 		var/turf/T = get_turf(src.loc)
-		T.visible_message(span_notice("[src] flashes a message across its screen, \"Wiping core files. Please acquire a new personality to continue using pAI device functions.\""), null, \
-		 span_notice("[src] bleeps electronically."))
+		T.visible_message("<span class='notice'>[src] flashes a message across its screen, \"Wiping core files. Please acquire a new personality to continue using pAI device functions.\"</span>", null, \
+		"<span class='notice'>[src] bleeps electronically.</span>")
 
 		suicide_log()
 
-		death(FALSE)
+		death(0)
 	else
 		to_chat(src, "Aborting suicide attempt.")
 
@@ -197,57 +171,63 @@
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE)
-		visible_message(span_danger("[src] is thrashing wildly! It looks like [p_theyre()] trying to commit suicide."), \
-				span_danger("[src] is thrashing wildly! It looks like [p_theyre()] trying to commit suicide."), \
-				span_hear("I hear thrashing."))
+		suiciding = 1
+		visible_message("<span class='danger'>[src] is thrashing wildly! It looks like [p_theyre()] trying to commit suicide.</span>", \
+				"<span class='userdanger'>[src] is thrashing wildly! It looks like [p_theyre()] trying to commit suicide.</span>", \
+				"<span class='italics'>You hear thrashing.</span>")
 
 		suicide_log()
 
 		//put em at -175
 		adjustOxyLoss(max(200 - getFireLoss() - getBruteLoss() - getOxyLoss(), 0))
-		death(FALSE)
+		death(0)
 
 /mob/living/simple_animal/verb/suicide()
 	set hidden = 1
-	if(!usr.client.holder)
-		return
 	if(!canSuicide())
 		return
 	var/confirm = alert("Are you sure you want to commit suicide?", "Confirm Suicide", "Yes", "No")
 	if(!canSuicide())
 		return
 	if(confirm == "Yes")
-		set_suicide(TRUE)
-		visible_message(span_danger("[src] begins to fall down. It looks like [p_theyve()] lost the will to live."), \
-						span_danger("[src] begins to fall down. It looks like [p_theyve()] lost the will to live."))
+		suiciding = 1
+		visible_message("<span class='danger'>[src] begins to fall down. It looks like [p_theyve()] lost the will to live.</span>", \
+						"<span class='userdanger'>[src] begins to fall down. It looks like [p_theyve()] lost the will to live.</span>")
 
 		suicide_log()
 
-		death(FALSE)
+		death(0)
 
-/mob/living/proc/suicide_log()
-	log_message("committed suicide as [src.type]", LOG_ATTACK)
+/mob/living/proc/suicide_log(ghosting)
+	log_game("[key_name(src)] [ghosting ? "ghosted" : "committed suicide"] at [AREACOORD(src)] as [src.type].")
+	message_admins("[key_name(src)] [ghosting ? "ghosted" : "committed suicide"] at [AREACOORD(src)].")
 
-/mob/living/carbon/human/suicide_log()
-	log_message("(job: [src.job ? "[src.job]" : "None"]) committed suicide", LOG_ATTACK)
+/mob/living/carbon/human/suicide_log(ghosting)
+	log_game("[key_name(src)] (job: [src.job ? "[src.job]" : "None"]) [is_special_character(src) ? "(ANTAG!) " : ""][ghosting ? "ghosted" : "committed suicide"] at [AREACOORD(src)].")
+	message_admins("[key_name(src)] (job: [src.job ? "[src.job]" : "None"]) [is_special_character(src) ? "(ANTAG!) " : ""][ghosting ? "ghosted" : "committed suicide"] at [AREACOORD(src)].")
 
 /mob/living/proc/canSuicide()
+	if(!CONFIG_GET(flag/suicide_allowed))
+		to_chat(src, "Suicide is not enabled in the config.")
+		return FALSE
 	switch(stat)
 		if(CONSCIOUS)
 			return TRUE
 		if(SOFT_CRIT)
-			to_chat(src, span_warning("I can't commit suicide while in a critical condition!"))
+			to_chat(src, "You can't commit suicide while in a critical condition!")
 		if(UNCONSCIOUS)
-			to_chat(src, span_warning("I need to be conscious to commit suicide!"))
+			to_chat(src, "You need to be conscious to commit suicide!")
 		if(DEAD)
-			to_chat(src, span_warning("You're already dead!"))
+			to_chat(src, "You're already dead!")
 	return
 
 /mob/living/carbon/canSuicide()
 	if(!..())
 		return
-	if(!(mobility_flags & MOBILITY_USE))	//just while I finish up the new 'fun' suiciding verb. This is to prevent metagaming via suicide
-		to_chat(src, span_warning("I can't commit suicide whilst immobile! ((You can type Ghost instead however.))"))
+	if(!CHECK_MULTIPLE_BITFIELDS(mobility_flags, MOBILITY_MOVE|MOBILITY_USE))	//just while I finish up the new 'fun' suiciding verb. This is to prevent metagaming via suicide
+		to_chat(src, "You can't commit suicide while stunned! ((You can type Ghost instead however.))")
+		return
+	if(restrained())
+		to_chat(src, "You can't commit suicide while restrained! ((You can type Ghost instead however.))")
 		return
 	return TRUE

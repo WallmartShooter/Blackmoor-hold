@@ -50,17 +50,11 @@
 
 // taken from /mob/living/carbon/human/interactive/
 /mob/living/carbon/monkey/proc/IsDeadOrIncap(checkDead = TRUE)
-	if(!(mobility_flags & MOBILITY_FLAGS_INTERACTION))
-		return 1
+	if(!CHECK_MOBILITY(src, MOBILITY_MOVE))
+		return TRUE
 	if(health <= 0 && checkDead)
-		return 1
-	if(IsUnconscious())
-		return 1
-	if(IsStun() || IsParalyzed())
-		return 1
-	if(stat)
-		return 1
-	return 0
+		return TRUE
+	return FALSE
 
 /mob/living/carbon/monkey/proc/battle_screech()
 	if(next_battle_screech < world.time)
@@ -69,41 +63,25 @@
 			M.next_battle_screech = world.time + battle_screech_cooldown
 
 /mob/living/carbon/monkey/proc/equip_item(obj/item/I)
+
 	if(I.loc == src)
 		return TRUE
 
-	if(I.anchored)
+	if(I.anchored || !put_in_hands(I))
 		blacklistItems[I] ++
 		return FALSE
 
-	// WEAPONS
-	if(istype(I, /obj/item))
-		var/obj/item/W = I
-		if(W.force >= best_force)
-			put_in_hands(W)
-			best_force = W.force
-			return TRUE
-
-	// CLOTHING
-	else if(istype(I, /obj/item/clothing))
-		var/obj/item/clothing/C = I
-		monkeyDrop(C)
-		addtimer(CALLBACK(src, PROC_REF(pickup_and_wear), C), 5)
-		return TRUE
-
-	// EVERYTHING ELSE
+	if(I.force >= best_force)
+		best_force = I.force
 	else
-		if(!get_item_for_held_index(1) || !get_item_for_held_index(2))
-			put_in_hands(I)
-			return TRUE
+		addtimer(CALLBACK(src, .proc/pickup_and_wear, I), 5)
 
-	blacklistItems[I] ++
-	return FALSE
+	return TRUE
 
-/mob/living/carbon/monkey/proc/pickup_and_wear(obj/item/clothing/C)
-	if(!equip_to_appropriate_slot(C))
-		monkeyDrop(get_item_by_slot(C)) // remove the existing item if worn
-		addtimer(CALLBACK(src, PROC_REF(equip_to_appropriate_slot), C), 5)
+/mob/living/carbon/monkey/proc/pickup_and_wear(obj/item/I)
+	if(QDELETED(I) || I.loc != src)
+		return
+	equip_to_appropriate_slot(I, TRUE)
 
 /mob/living/carbon/monkey/resist_restraints()
 	var/obj/item/I = null
@@ -112,8 +90,7 @@
 	else if(legcuffed)
 		I = legcuffed
 	if(I)
-		changeNext_move(CLICK_CD_BREAKOUT)
-		last_special = world.time + CLICK_CD_BREAKOUT
+		MarkResistTime()
 		cuff_resist(I)
 
 /mob/living/carbon/monkey/proc/should_target(mob/living/L)
@@ -131,16 +108,16 @@
 
 /mob/living/carbon/monkey/proc/handle_combat()
 	if(pickupTarget)
-		if(IsDeadOrIncap() || restrained() || blacklistItems[pickupTarget] || HAS_TRAIT(pickupTarget, TRAIT_NODROP))
+		if(restrained() || blacklistItems[pickupTarget] || HAS_TRAIT(pickupTarget, TRAIT_NODROP))
 			pickupTarget = null
-		else
+		else if(!isobj(loc) || istype(loc, /obj/item/clothing/head/mob_holder))
 			pickupTimer++
 			if(pickupTimer >= 4)
 				blacklistItems[pickupTarget] ++
 				pickupTarget = null
 				pickupTimer = 0
 			else
-				INVOKE_ASYNC(src, PROC_REF(walk2derpless), pickupTarget.loc)
+				INVOKE_ASYNC(src, .proc/walk2derpless, pickupTarget.loc)
 				if(Adjacent(pickupTarget) || Adjacent(pickupTarget.loc)) // next to target
 					drop_all_held_items() // who cares about these items, i want that one!
 					if(isturf(pickupTarget.loc)) // on floor
@@ -148,11 +125,13 @@
 						pickupTarget = null
 						pickupTimer = 0
 					else if(ismob(pickupTarget.loc)) // in someones hand
+						if(istype(pickupTarget, /obj/item/clothing/head/mob_holder))
+							return//dont let them pickpocket themselves or hold other monkys.
 						var/mob/M = pickupTarget.loc
 						if(!pickpocketing)
 							pickpocketing = TRUE
-							M.visible_message("<span class='warning'>[src] starts trying to take [pickupTarget] from [M]!</span>", "<span class='danger'>[src] tries to take [pickupTarget]!</span>")
-							INVOKE_ASYNC(src, PROC_REF(pickpocket), M)
+							M.visible_message("[src] starts trying to take [pickupTarget] from [M]", "[src] tries to take [pickupTarget]!")
+							INVOKE_ASYNC(src, .proc/pickpocket, M)
 			return TRUE
 
 	switch(mode)
@@ -165,6 +144,12 @@
 							battle_screech()
 							retaliate(L)
 							return TRUE
+						else
+							bodyDisposal = locate(/obj/machinery/disposal/) in around
+							if(bodyDisposal)
+								target = L
+								mode = MONKEY_DISPOSE
+								return TRUE
 
 			// pickup any nearby objects
 			if(!pickupTarget)
@@ -182,7 +167,7 @@
 				return TRUE
 
 			if(target != null)
-				INVOKE_ASYNC(src, PROC_REF(walk2derpless), target)
+				INVOKE_ASYNC(src, .proc/walk2derpless, target)
 
 			// pickup any nearby weapon
 			if(!pickupTarget && prob(MONKEY_WEAPON_PROB))
@@ -261,13 +246,13 @@
 		if(MONKEY_DISPOSE)
 
 			// if can't dispose of body go back to idle
-			if(!target  || frustration >= MONKEY_DISPOSE_FRUSTRATION_LIMIT)
+			if(!target || !bodyDisposal || frustration >= MONKEY_DISPOSE_FRUSTRATION_LIMIT)
 				back_to_idle()
 				return TRUE
 
 			if(target.pulledby != src && !istype(target.pulledby, /mob/living/carbon/monkey/))
 
-				INVOKE_ASYNC(src, PROC_REF(walk2derpless), target.loc)
+				INVOKE_ASYNC(src, .proc/walk2derpless, target.loc)
 
 				if(Adjacent(target) && isturf(target.loc))
 					a_intent = INTENT_GRAB
@@ -275,6 +260,20 @@
 				else
 					var/turf/olddist = get_dist(src, target)
 					if((get_dist(src, target)) >= (olddist))
+						frustration++
+					else
+						frustration = 0
+
+			else if(!disposing_body)
+				INVOKE_ASYNC(src, .proc/walk2derpless, bodyDisposal.loc)
+
+				if(Adjacent(bodyDisposal))
+					disposing_body = TRUE
+					addtimer(CALLBACK(src, .proc/stuff_mob_in), 5)
+
+				else
+					var/turf/olddist = get_dist(src, bodyDisposal)
+					if((get_dist(src, bodyDisposal)) >= (olddist))
 						frustration++
 					else
 						frustration = 0
@@ -287,15 +286,21 @@
 	if(do_mob(src, M, MONKEY_ITEM_SNATCH_DELAY) && pickupTarget)
 		for(var/obj/item/I in M.held_items)
 			if(I == pickupTarget)
-				M.visible_message("<span class='danger'>[src] snatches [pickupTarget] from [M].</span>", "<span class='danger'>[src] snatched [pickupTarget]!</span>")
-				if(M.temporarilyRemoveItemFromInventory(pickupTarget))
-					if(!QDELETED(pickupTarget) && !equip_item(pickupTarget))
-						pickupTarget.forceMove(drop_location())
+				M.visible_message("<span class='danger'>[src] snatches [pickupTarget] from [M].</span>", "<span class='userdanger'>[src] snatched [pickupTarget]!</span>")
+				if(M.temporarilyRemoveItemFromInventory(pickupTarget) && !QDELETED(pickupTarget))
+					if(!equip_item(pickupTarget))
+						dropItemToGround(pickupTarget)
 				else
-					M.visible_message("<span class='danger'>[src] tried to snatch [pickupTarget] from [M], but failed!</span>", "<span class='danger'>[src] tried to grab [pickupTarget]!</span>")
+					M.visible_message("<span class='danger'>[src] tried to snatch [pickupTarget] from [M], but failed!</span>", "<span class='userdanger'>[src] tried to grab [pickupTarget]!</span>")
 	pickpocketing = FALSE
 	pickupTarget = null
 	pickupTimer = 0
+
+/mob/living/carbon/monkey/proc/stuff_mob_in()
+	if(bodyDisposal && target && Adjacent(bodyDisposal))
+		bodyDisposal.stuff_mob_in(target, src)
+	disposing_body = FALSE
+	back_to_idle()
 
 /mob/living/carbon/monkey/proc/back_to_idle()
 
@@ -344,21 +349,38 @@
 	if(L != src)
 		enemies[L] += MONKEY_HATRED_AMOUNT
 
-	if(used_intent.type != INTENT_HARM)
+	if(a_intent != INTENT_HARM)
 		battle_screech()
 		a_intent = INTENT_HARM
 
-/mob/living/carbon/monkey/attack_hand(mob/living/L)
-	if(L.used_intent.type == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
+/mob/living/carbon/monkey/on_attack_hand(mob/living/L)
+	if(L.a_intent == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
 		retaliate(L)
-	else if(L.used_intent.type == INTENT_DISARM && prob(MONKEY_RETALIATE_DISARM_PROB))
+	else if(L.a_intent == INTENT_DISARM && prob(MONKEY_RETALIATE_DISARM_PROB))
 		retaliate(L)
 	return ..()
 
-/mob/living/carbon/monkey/attack_paw(mob/living/L)
-	if(L.used_intent.type == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
+/mob/living/carbon/monkey/attack_alien(mob/living/carbon/alien/humanoid/M)
+	if(M.a_intent == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
+		retaliate(M)
+	else if(M.a_intent == INTENT_DISARM && prob(MONKEY_RETALIATE_DISARM_PROB))
+		retaliate(M)
+	return ..()
+
+/mob/living/carbon/monkey/attack_larva(mob/living/carbon/alien/larva/L)
+	if(L.a_intent == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
 		retaliate(L)
-	else if(L.used_intent.type == INTENT_DISARM && prob(MONKEY_RETALIATE_DISARM_PROB))
+	return ..()
+
+/mob/living/carbon/monkey/attack_hulk(mob/living/carbon/human/user, does_attack_animation = FALSE)
+	if(user.a_intent == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
+		retaliate(user)
+	return ..()
+
+/mob/living/carbon/monkey/attack_paw(mob/living/L)
+	if(L.a_intent == INTENT_HARM && prob(MONKEY_RETALIATE_HARM_PROB))
+		retaliate(L)
+	else if(L.a_intent == INTENT_DISARM && prob(MONKEY_RETALIATE_DISARM_PROB))
 		retaliate(L)
 	return ..()
 
@@ -367,14 +389,14 @@
 	if((W.force) && (!target) && (W.damtype != STAMINA) )
 		retaliate(user)
 
-/mob/living/carbon/monkey/bullet_act(obj/projectile/Proj)
-	if(istype(Proj, /obj/projectile/bullet))
+/mob/living/carbon/monkey/bullet_act(obj/item/projectile/Proj)
+	if(istype(Proj , /obj/item/projectile/beam)||istype(Proj, /obj/item/projectile/bullet))
 		if((Proj.damage_type == BURN) || (Proj.damage_type == BRUTE))
 			if(!Proj.nodamage && Proj.damage < src.health && isliving(Proj.firer))
 				retaliate(Proj.firer)
-	. = ..()
+	return ..()
 
-/mob/living/carbon/monkey/hitby(atom/movable/AM, skipcatch = FALSE, hitpush = TRUE, blocked = FALSE, datum/thrownthing/throwingdatum, damage_flag = "blunt")
+/mob/living/carbon/monkey/hitby(atom/movable/AM, skipcatch = FALSE, hitpush = TRUE, blocked = FALSE, datum/thrownthing/throwingdatum)
 	if(istype(AM, /obj/item))
 		var/obj/item/I = AM
 		if(I.throwforce < src.health && I.thrownby && ishuman(I.thrownby))
@@ -396,7 +418,7 @@
 		dropItemToGround(A, TRUE)
 		update_icons()
 
-/mob/living/carbon/monkey/grabbedby(mob/living/carbon/user, supress_message = FALSE, item_override)
+/mob/living/carbon/monkey/grabbedby(mob/living/carbon/user)
 	. = ..()
 	if(!IsDeadOrIncap() && pulledby && (mode != MONKEY_IDLE || prob(MONKEY_PULL_AGGRO_PROB))) // nuh uh you don't pull me!
 		if(Adjacent(pulledby))

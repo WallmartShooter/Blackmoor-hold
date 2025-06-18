@@ -6,6 +6,13 @@ SUBSYSTEM_DEF(input)
 	priority = FIRE_PRIORITY_INPUT
 	runlevels = RUNLEVELS_DEFAULT | RUNLEVEL_LOBBY
 
+	/// KEEP THIS UP TO DATE!
+	var/static/list/all_macrosets = list(
+		SKIN_MACROSET_HOTKEYS,
+		SKIN_MACROSET_CLASSIC_HOTKEYS,
+		SKIN_MACROSET_CLASSIC_INPUT
+	)
+
 	/// Classic mode input focused macro set. Manually set because we can't define ANY or ANY+UP for classic.
 	var/static/list/macroset_classic_input
 	/// Classic mode map focused macro set. Manually set because it needs to be clientside and go to macroset_classic_input.
@@ -13,22 +20,21 @@ SUBSYSTEM_DEF(input)
 	/// New hotkey mode macro set. All input goes into map, game keeps incessently setting your focus to map, we can use ANY all we want here; we don't care about the input bar, the user has to force the input bar every time they want to type.
 	var/static/list/macroset_hotkey
 
-
 	/// Macro set for hotkeys
 	var/list/hotkey_mode_macros
 	/// Macro set for classic.
 	var/list/input_mode_macros
 
-	/// currentrun list of clients
-	var/list/client/currentrun
-
 /datum/controller/subsystem/input/Initialize()
 	setup_macrosets()
+
+	initialized = TRUE
+
 	refresh_client_macro_sets()
 
 	return ..()
 
-// This is for when macro sets are eventualy datumized
+/// Sets up the key list for classic mode for when badmins screw up vv's.
 /datum/controller/subsystem/input/proc/setup_macrosets()
 	// First, let's do the snowflake keyset!
 	macroset_classic_input = list()
@@ -80,14 +86,12 @@ SUBSYSTEM_DEF(input)
 	"Back" = "\".winset \\\"input.text=\\\"\\\"\\\"\"",
 	)
 
-
 // Badmins just wanna have fun ♪
 /datum/controller/subsystem/input/proc/refresh_client_macro_sets()
 	var/list/clients = GLOB.clients
 	for(var/i in 1 to clients.len)
 		var/client/user = clients[i]
-		user.set_macros()
-		user.update_movement_keys()
+		user.full_macro_assert()
 
 /datum/controller/subsystem/input/fire()
 	var/list/clients = GLOB.clients // Let's sing the list cache song
@@ -96,7 +100,7 @@ SUBSYSTEM_DEF(input)
 		C.keyLoop()
 
 #define NONSENSICAL_VERB "NONSENSICAL_VERB_THAT_DOES_NOTHING"
-/// A verb that does nothing, used for clearing keybinds faster.
+/// *sigh
 /client/verb/NONSENSICAL_VERB_THAT_DOES_NOTHING()
-	set name = "NONSENSICAL_VERB_THAT_DOES_NOTHING"
+	set name = ".NONSENSICAL_VERB_THAT_DOES_NOTHING"
 	set hidden = TRUE

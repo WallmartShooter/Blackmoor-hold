@@ -9,12 +9,25 @@
 
 /mob/living/carbon/can_speak_vocal(message)
 	if(silent)
-		return FALSE
+		return 0
 	return ..()
 
-/mob/living/carbon/could_speak_in_language(datum/language/dt)
+/mob/living/carbon/could_speak_language(datum/language/language)
 	var/obj/item/organ/tongue/T = getorganslot(ORGAN_SLOT_TONGUE)
 	if(T)
-		. = T.could_speak_in_language(dt)
+		return T.could_speak_language(language)
 	else
-		. = initial(dt.flags) & TONGUELESS_SPEECH
+		return initial(language.flags) & TONGUELESS_SPEECH
+
+/mob/living/carbon/get_spans()
+	. = ..()
+	var/obj/item/organ/tongue/T = getorganslot(ORGAN_SLOT_TONGUE)
+	if(T)
+		. |= T.get_spans()
+
+	var/obj/item/I = get_active_held_item()
+	if(I)
+		. |= I.get_held_item_speechspans(src)
+
+	if(head)
+		. |= head.get_head_speechspans(src)

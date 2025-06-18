@@ -2,7 +2,6 @@
 	name = "valentine"
 	roundend_category = "valentines" //there's going to be a ton of them so put them in separate category
 	show_in_antagpanel = FALSE
-	prevent_roundtype_conversion = FALSE
 	var/datum/mind/date
 
 /datum/antagonist/valentine/proc/forge_objectives()
@@ -27,11 +26,29 @@
 		var/mob/living/L = owner
 		L.remove_status_effect(STATUS_EFFECT_INLOVE)
 
+
 /datum/antagonist/valentine/greet()
-	to_chat(owner, span_warning("<B>You're on a date with [date.name]! Protect [date.p_them()] at all costs. This takes priority over all other loyalties.</B>"))
+	to_chat(owner, "<span class='warning'><B>You're on a date with [date.name]! Protect [date.p_them()] at all costs. This takes priority over all other loyalties.</B></span>")
 
 //Squashed up a bit
 /datum/antagonist/valentine/roundend_report()
+	var/objectives_complete = TRUE
+	if(objectives.len)
+		for(var/datum/objective/objective in objectives)
+			if(objective.completable && !objective.check_completion())
+				objectives_complete = FALSE
+				break
+
+	if(objectives_complete)
+		return "<span class='greentext big'>[owner.name] protected [owner.p_their()] date</span>"
+	else
+		return "<span class='redtext big'>[owner.name] date failed!</span>"
+
+//Just so it's distinct, basically.
+/datum/antagonist/valentine/chem/greet()
+	to_chat(owner, "<span class='warning'><B>You're in love with [date.name]! Protect [date.p_them()] at all costs. This takes priority over all other loyalties.</B></span>")
+
+/datum/antagonist/valentine/chem/roundend_report()
 	var/objectives_complete = TRUE
 	if(objectives.len)
 		for(var/datum/objective/objective in objectives)
@@ -40,6 +57,6 @@
 				break
 
 	if(objectives_complete)
-		return span_greentextbig("[owner.name] protected [owner.p_their()] date")
+		return "<span class='greentext big'>[owner.name] protected [owner.p_their()] love: [date.name]! <i>What a cutie!</i></span>"
 	else
-		return span_redtextbig("[owner.name] date failed!")
+		return "<span class='redtext big'>[owner.name] date failed!</span>"

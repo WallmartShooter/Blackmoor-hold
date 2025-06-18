@@ -1,7 +1,7 @@
 /*
-	Miauw's big Say() rewrite.
-	This file has the basic atom/movable level speech procs.
-	And the base of the send_speech() proc, which is the core of saycode.
+Miauw's big Say() rewrite.
+This file has the basic atom/movable level speech procs.
+And the base of the send_speech() proc, which is the core of saycode.
 */
 GLOBAL_LIST_INIT(freqtospan, list(
 	"[FREQ_SCIENCE]" = "sciradio",
@@ -15,7 +15,16 @@ GLOBAL_LIST_INIT(freqtospan, list(
 	"[FREQ_SYNDICATE]" = "syndradio",
 	"[FREQ_CENTCOM]" = "centcomradio",
 	"[FREQ_CTF_RED]" = "redteamradio",
-	"[FREQ_CTF_BLUE]" = "blueteamradio"
+	"[FREQ_CTF_BLUE]" = "blueteamradio",
+	"[FREQ_VAULT]" = "vaultradio",
+	"[FREQ_NCR]" = "ncrradio",
+	"[FREQ_BOS]" = "bosradio",
+	"[FREQ_ENCLAVE]" = "enclaveradio",
+	"[FREQ_TOWN]" = "townradio",
+	"[FREQ_LEGION]" = "legionradio",
+	"[FREQ_DEN]" = "denradio",
+	"[FREQ_RANGER]" = "rangerradio",
+	"[FREQ_KHANS]" = "khansradio"
 	))
 
 /atom/movable/proc/say(message, bubble_type, list/spans = list(), sanitize = TRUE, datum/language/language = null, ignore_spam = FALSE, forced = null)
@@ -25,104 +34,48 @@ GLOBAL_LIST_INIT(freqtospan, list(
 		return
 	spans |= speech_span
 	if(!language)
-		language = get_default_language()
+		language = get_selected_language()
 	send_speech(message, 7, src, , spans, message_language=language)
 
-/atom/movable/proc/Hear(message, atom/movable/speaker, message_language, raw_message, radio_freq, list/spans, message_mode)
+/atom/movable/proc/Hear(message, atom/movable/speaker, message_language, raw_message, radio_freq, list/spans, message_mode, atom/movable/source)
 	SEND_SIGNAL(src, COMSIG_MOVABLE_HEAR, args)
 
 /atom/movable/proc/can_speak()
-	return TRUE
+	return 1
 
-/atom/movable/proc/send_speech(message, range = 7, obj/source = src, bubble_type, list/spans, datum/language/message_language = null, message_mode)
-	var/rendered = compose_message(src, message_language, message, , spans, message_mode)
+/atom/movable/proc/send_speech(message, range = 7, atom/movable/source = src, bubble_type, list/spans, datum/language/message_language = null, message_mode)
+	var/rendered = compose_message(src, message_language, message, , spans, message_mode, source)
 	for(var/_AM in get_hearers_in_view(range, source))
 		var/atom/movable/AM = _AM
-		AM.Hear(rendered, src, message_language, message, , spans, message_mode)
+		AM.Hear(rendered, src, message_language, message, , spans, message_mode, source)
 
-/atom/movable/proc/compose_message(atom/movable/speaker, datum/language/message_language, raw_message, radio_freq, list/spans, message_mode, face_name = FALSE)
+/atom/movable/proc/compose_message(atom/movable/speaker, datum/language/message_language, raw_message, radio_freq, list/spans, message_mode, face_name = FALSE, atom/movable/source)
+	if(!source)
+		source = speaker
 	//This proc uses text() because it is faster than appending strings. Thanks BYOND.
 	//Basic span
-	var/spanpart1 = "<span class='[radio_freq ? get_radio_span(radio_freq) : "say"]'>"
+	var/spanpart1 = "<span class='[radio_freq ? get_radio_span(radio_freq) : "game say"]'>"
 	//Start name span.
 	var/spanpart2 = "<span class='name'>"
 	//Radio freq/name display
 	var/freqpart = radio_freq ? "\[[get_radio_name(radio_freq)]\] " : ""
 	//Speaker name
-	var/namepart = "[speaker.GetVoice()]"
-	if(speaker.get_alt_name())
-		namepart = "[speaker.get_alt_name()]"
-	var/colorpart = "<span style='text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'>"
-	if(ishuman(speaker))
+	var/namepart = "[speaker.GetVoice()][speaker.get_alt_name()]"
+	if(face_name && ishuman(speaker))
 		var/mob/living/carbon/human/H = speaker
-		if(face_name)
-			namepart = "[H.get_face_name()]" //So "fake" speaking like in hallucinations does not give the speaker away if disguised
-		if(H.voice_color)
-			colorpart = "<span style='color:#[H.voice_color];text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'>"
-	if(speaker.voicecolor_override)
-		colorpart = "<span style='color:#[speaker.voicecolor_override];text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;'>"
+		namepart = "[H.get_face_name()]" //So "fake" speaking like in hallucinations does not give the speaker away if disguised
 	//End name span.
-	var/endspanpart = "</span></span>"
+	var/endspanpart = "</span>"
 
 	//Message
 	var/messagepart = " <span class='message'>[lang_treat(speaker, message_language, raw_message, spans, message_mode)]</span></span>"
-
-	var/arrowpart = ""
-
-	if(istype(src,/mob/living))
-		var/turf/speakturf = get_turf(speaker)
-		var/turf/sourceturf = get_turf(src)
-		if(istype(speakturf) && istype(sourceturf) && !(speakturf in get_hear(7, sourceturf)))
-			switch(get_dir(src,speaker))
-				if(NORTH)
-					arrowpart = " ⇑"
-				if(SOUTH)
-					arrowpart = " ⇓"
-				if(EAST)
-					arrowpart = " ⇒"
-				if(WEST)
-					arrowpart = " ⇐"
-				if(NORTHWEST)
-					arrowpart = " ⇖"
-				if(NORTHEAST)
-					arrowpart = " ⇗"
-				if(SOUTHWEST)
-					arrowpart = " ⇙"
-				if(SOUTHEAST)
-					arrowpart = " ⇘"
-			if(speakturf.z > sourceturf.z)
-				arrowpart += " ⇈"
-			if(speakturf.z < sourceturf.z)
-				arrowpart += " ⇊"
-			
-			var/hidden = TRUE
-			if(HAS_TRAIT(src, TRAIT_KEENEARS))
-				if(ishuman(speaker) && ishuman(src))
-					var/mob/living/carbon/human/HS = speaker
-					var/mob/living/carbon/human/HL = src
-					if(length(HL.mind?.known_people))
-						if(HS.real_name in HL.mind?.known_people)	//We won't recognise people we don't know w/ Keen Ears
-							hidden = FALSE
-					else
-						hidden = TRUE
-				else
-					hidden = FALSE
-			else
-				hidden = TRUE
-			if(hidden)
-				if(istype(speaker, /mob/living))
-					var/mob/living/L = speaker
-					namepart = "Unknown [(L.gender == FEMALE) ? "Woman" : "Man"]"
-				else
-					namepart = "Unknown"
-			spanpart1 = "<span class='smallyell'>"
 
 	var/languageicon = ""
 	var/datum/language/D = GLOB.language_datum_instances[message_language]
 	if(istype(D) && D.display_icon(src))
 		languageicon = "[D.get_icon()] "
 
-	return "[spanpart1][spanpart2][colorpart][freqpart][languageicon][compose_track_href(speaker, namepart)][namepart][compose_job(speaker, message_language, raw_message, radio_freq)][arrowpart][endspanpart][messagepart]"
+	return "[spanpart1][spanpart2][freqpart][languageicon][compose_track_href(speaker, namepart)][namepart][compose_job(speaker, message_language, raw_message, radio_freq)][endspanpart][messagepart]"
 
 /atom/movable/proc/compose_track_href(atom/movable/speaker, message_langs, raw_message, radio_freq)
 	return ""
@@ -131,8 +84,8 @@ GLOBAL_LIST_INIT(freqtospan, list(
 	return ""
 
 /atom/movable/proc/say_mod(input, message_mode)
-	var/ending = copytext(input, length(input))
-	if(copytext(input, length(input) - 1) == "!!")
+	var/ending = copytext_char(input, -1)
+	if(copytext_char(input, -2) == "!!")
 		return verb_yell
 	else if(ending == "?")
 		return verb_ask
@@ -145,28 +98,38 @@ GLOBAL_LIST_INIT(freqtospan, list(
 	if(!input)
 		input = "..."
 
-	if(copytext(input, length(input) - 1) == "!!")
+	if(copytext_char(input, -2) == "!!")
 		spans |= SPAN_YELL
 
-	input = parsemarkdown_basic(input, limited = TRUE, barebones = TRUE)
 	var/spanned = attach_spans(input, spans)
-	if(isliving(src))
-		var/mob/living/L = src
-		if(L.cmode)
-			return "— \"[spanned]\""
-	return "[say_mod(input, message_mode)], \"[spanned]\""
+	return "[say_mod(input, message_mode)][spanned ? ", \"[spanned]\"" : ""]"
+	// Citadel edit [spanned ? ", \"[spanned]\"" : ""]"
 
+#define ENCODE_HTML_EPHASIS(input, char, html, varname) \
+	var/static/regex/##varname = regex("[char]{2}(.+?)[char]{2}", "g");\
+	input = varname.Replace_char(input, "<[html]>$1</[html]>")
+
+/// Converts specific characters, like +, |, and _ to formatted output.
+/atom/movable/proc/say_emphasis(input)
+	var/static/regex/italics = regex(@"\|((?=\S)[\w\W]*?(?<=\S))\|", "g")
+	input = italics.Replace_char(input, "<i>$1</i>")
+	var/static/regex/bold = regex(@"\+((?=\S)[\w\W]*?(?<=\S))\+", "g")
+	input = bold.Replace_char(input, "<b>$1</b>")
+	var/static/regex/underline = regex(@"_((?=\S)[\w\W]*?(?<=\S))_", "g")
+	input = underline.Replace_char(input, "<u>$1</u>")
+	return input
+
+/// Quirky citadel proc for our custom sayverbs to strip the verb out. Snowflakey as hell, say rewrite 3.0 when?
 /atom/movable/proc/quoteless_say_quote(input, list/spans = list(speech_span), message_mode)
-	input = parsemarkdown_basic(input, limited = TRUE, barebones = TRUE)
+	if((input[1] == "!") && (length_char(input) > 1))
+		return ""
 	var/pos = findtext(input, "*")
 	return pos? copytext(input, pos + 1) : input
 
-/atom/movable/proc/check_language_hear(language)
-	return FALSE
-
 /atom/movable/proc/lang_treat(atom/movable/speaker, datum/language/language, raw_message, list/spans, message_mode, no_quote = FALSE)
-	if(has_language(language) || check_language_hear(language))
+	if(has_language(language))
 		var/atom/movable/AM = speaker.GetSource()
+		raw_message = say_emphasis(raw_message)
 		if(AM) //Basically means "if the speaker is virtual"
 			return no_quote ? AM.quoteless_say_quote(raw_message, spans, message_mode) : AM.say_quote(raw_message, spans, message_mode)
 		else
@@ -189,14 +152,21 @@ GLOBAL_LIST_INIT(freqtospan, list(
 	return "radio"
 
 /proc/get_radio_name(freq)
-	return freq
-/* 	var/returntext = GLOB.reverseradiochannels["[freq]"]
+	var/returntext = GLOB.reverseradiochannels["[freq]"]
 	if(returntext)
 		return returntext
-	return "[copytext("[freq]", 1, 4)].[copytext("[freq]", 4, 5)]" */
+	return "[copytext_char("[freq]", 1, 4)].[copytext_char("[freq]", 4, 5)]"
 
-/proc/attach_spans(input, list/spans)
-	return "[message_spans_start(spans)][input]</span>"
+/atom/movable/proc/attach_spans(input, list/spans)
+	if((input[1] == "!") && (length(input) > 2))
+		return
+	var/customsayverb = findtext(input, "*")
+	if(customsayverb)
+		input = capitalize(copytext(input, customsayverb + length(input[customsayverb])))
+	if(input)
+		return "[message_spans_start(spans)][input]</span>"
+	else
+		return
 
 /proc/message_spans_start(list/spans)
 	var/output = "<span class='"
@@ -206,12 +176,10 @@ GLOBAL_LIST_INIT(freqtospan, list(
 	return output
 
 /proc/say_test(text)
-	if(copytext(text, length(text) - 1) == "!!")
-		return "3"
-	var/ending = copytext(text, length(text))
+	var/ending = copytext_char(text, -1)
 	if (ending == "?")
 		return "1"
-	if (ending == "!")
+	else if (ending == "!")
 		return "2"
 	return "0"
 
@@ -261,6 +229,13 @@ INITIALIZE_IMMEDIATE(/atom/movable/virtualspeaker)
 			job = "Unknown"
 	else if(iscarbon(M))  // Carbon nonhuman
 		job = "No ID"
+	else if(isAI(M))  // AI
+		job = "AI"
+	else if(iscyborg(M))  // Cyborg
+		var/mob/living/silicon/robot/B = M
+		job = "[B.designation] Cyborg"
+	else if(istype(M, /mob/living/silicon/pai))  // Personal AI (pAI)
+		job = "Personal AI"
 	else if(isobj(M))  // Cold, emotionless machines
 		job = "Machine"
 	else  // Unidentifiable mob
@@ -271,3 +246,10 @@ INITIALIZE_IMMEDIATE(/atom/movable/virtualspeaker)
 
 /atom/movable/virtualspeaker/GetSource()
 	return source
+
+/atom/movable/virtualspeaker/GetRadio()
+	return radio
+
+//To get robot span classes, stuff like that.
+/atom/movable/proc/get_spans()
+	return list()

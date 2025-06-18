@@ -1,13 +1,13 @@
-
+//TODO: someone please get rid of this shit
 /datum/datacore
-	var/medical[] = list()
+	var/list/medical = list()
 	var/medicalPrintCount = 0
-	var/general[] = list()
-	var/security[] = list()
+	var/list/general = list()
+	var/list/security = list()
 	var/securityPrintCount = 0
 	var/securityCrimeCounter = 0
-	//This list tracks characters spawned in the world and cannot be modified in-game. Currently referenced by respawn_character().
-	var/locked[] = list()
+	///This list tracks characters spawned in the world and cannot be modified in-game. Currently referenced by respawn_character().
+	var/list/locked = list()
 
 /datum/data
 	var/name = "data"
@@ -33,47 +33,16 @@
 	var/crimeDetails = ""
 	var/author = ""
 	var/time = ""
-	var/fine = 0
-	var/paid = 0
 	var/dataId = 0
 
-/datum/datacore/proc/createCrimeEntry(cname = "", cdetails = "", author = "", time = "", fine = 0)
+/datum/datacore/proc/createCrimeEntry(cname = "", cdetails = "", author = "", time = "")
 	var/datum/data/crime/c = new /datum/data/crime
 	c.crimeName = cname
 	c.crimeDetails = cdetails
 	c.author = author
 	c.time = time
-	c.fine = fine
-	c.paid = 0
 	c.dataId = ++securityCrimeCounter
 	return c
-
-/datum/datacore/proc/addCitation(id = "", datum/data/crime/crime)
-	for(var/datum/data/record/R in security)
-		if(R.fields["id"] == id)
-			var/list/crimes = R.fields["citation"]
-			crimes |= crime
-			return
-
-/datum/datacore/proc/removeCitation(id, cDataId)
-	for(var/datum/data/record/R in security)
-		if(R.fields["id"] == id)
-			var/list/crimes = R.fields["citation"]
-			for(var/datum/data/crime/crime in crimes)
-				if(crime.dataId == text2num(cDataId))
-					crimes -= crime
-					return
-
-/datum/datacore/proc/payCitation(id, cDataId, amount)
-	for(var/datum/data/record/R in security)
-		if(R.fields["id"] == id)
-			var/list/crimes = R.fields["citation"]
-			for(var/datum/data/crime/crime in crimes)
-				if(crime.dataId == text2num(cDataId))
-					crime.paid = crime.paid + amount
-					var/datum/bank_account/D = SSeconomy.get_dep_account(ACCOUNT_SEC)
-					D.adjust_money(amount)
-					return
 
 /datum/datacore/proc/addMinorCrime(id = "", datum/data/crime/crime)
 	for(var/datum/data/record/R in security)
@@ -107,64 +76,183 @@
 			crimes |= crime
 			return
 
-GLOBAL_LIST_EMPTY(fake_ckeys)
-
-/client
-	var/fake_key
-
-/proc/get_fake_key(ckey)
-	if(!ckey)
-		return
-	var/client/CL
-	for (var/client/C in GLOB.clients)
-		if(C.ckey == ckey)
-			CL = C
-	if(CL)
-		if(CL.fake_key)
-			return CL.fake_key
-	for(var/X in GLOB.fake_ckeys)
-		if(GLOB.fake_ckeys[X] == ckey)
-			if(CL)
-				CL.fake_key = X
-			return X
-	var/foundname
-	while(!foundname)
-		var/looker = "[capitalize(pick(GLOB.first_names))] [pick(GLOB.ooctitle)]"
-		var/found
-		for(var/X in GLOB.fake_ckeys)
-			if(X == looker)
-				found = TRUE
-		if(!found)
-			foundname = looker
-	if(foundname)
-		if(CL)
-			CL.fake_key = foundname
-		GLOB.fake_ckeys[foundname] = ckey
-		return foundname
-
 /datum/datacore/proc/manifest()
-	for(var/i in GLOB.new_player_list)
-		var/mob/dead/new_player/N = i
+	for(var/mob/dead/new_player/N in GLOB.player_list)
+		if(!N?.client)
+			continue
 		if(N.new_character)
 			log_manifest(N.ckey,N.new_character.mind,N.new_character)
 		if(ishuman(N.new_character))
-//			manifest_inject(N.new_character, N.client)
-			var/fakekey = N.ckey
-			if(N.ckey in GLOB.anonymize)
-				fakekey = get_fake_key(N.ckey)
-			if(N.new_character.real_name)
-				GLOB.character_list[N.new_character.mobid] = "[fakekey] was [N.new_character.real_name] ([N.new_character.mind.assigned_role])<BR>"
-				GLOB.character_ckey_list[N.new_character.real_name] = N.ckey
-			else
-				log_game("GAME SETUP: MANIFEST BIG ERROR")
-			log_character("[N.ckey] ([fakekey]) - [N.new_character.real_name] - [N.new_character.mind.assigned_role]")
-//		add_roundplayed(N.ckey)
+			manifest_inject(N.new_character, N.client, N.client.prefs)
 		CHECK_TICK
 
 /datum/datacore/proc/manifest_modify(name, assignment)
 	var/datum/data/record/foundrecord = find_record("name", name, GLOB.data_core.general)
 	if(foundrecord)
 		foundrecord.fields["rank"] = assignment
+
+/datum/datacore/proc/get_manifest_dr(monochrome, OOC)
+	var/list/command = list()
+	var/list/bos = list()	
+	var/list/enclave = list()
+	var/list/oasis = list()
+	var/list/leg = list()
+	var/list/ncr = list()
+	var/list/vault = list()
+	var/list/flw = list()
+	var/list/tribe = list()
+	var/list/was = list()
+	var/list/misc = list()
+	var/dat = {"
+	<head><style>
+		.manifest {border-collapse:collapse;}
+		.manifest td, th {border:1px solid [monochrome?"black":"#DEF; background-color:white; color:black"]; padding:.25em}
+		.manifest th {height: 2em; [monochrome?"border-top-width: 3px":"background-color: #48C; color:white"]}
+		.manifest tr.head th { [monochrome?"border-top-width: 1px":"background-color: #488;"] }
+		.manifest td:first-child {text-align:right}
+		.manifest tr.alt td {[monochrome?"border-top-width: 2px":"background-color: #DEF"]}
+	</style></head>
+	<table class="manifest" width='350px'>
+	<tr class='head'><th>Name</th><th>Occupation</th></tr>
+	"}
+	var/even = 0
+	// sort mobs
+	for(var/datum/data/record/t in GLOB.data_core.general)
+		var/name = t.fields["name"]
+		var/rank = t.fields["rank"]
+		var/department = 0
+		if(rank in GLOB.command_positions)
+			command[name] = rank
+			department = 1
+		if(rank in GLOB.ncr_rangervet_positions)
+			command[name] = rank
+			department = 1
+		if(rank in GLOB.brotherhood_positions)
+			bos[name] = rank
+			department = 1		
+		if(rank in GLOB.enclave_positions)
+			enclave[name] = rank
+			department = 1
+		if(rank in GLOB.oasis_positions)
+			oasis[name] = rank
+			department = 1
+		if(rank in GLOB.legion_positions)
+			leg[name] = rank
+			department = 1
+		if(rank in GLOB.ncr_positions)
+			ncr[name] = rank
+			department = 1
+		if(rank in GLOB.followers_positions)
+			flw[name] = rank
+			department = 1
+		if(rank in GLOB.tribal_positions)
+			tribe[name] = rank
+			department = 1
+		if(rank in GLOB.vault_positions)
+			vault[name] = rank
+			department = 1
+		if(rank in GLOB.wasteland_positions)
+			was[name] = rank
+			department = 1
+		if(!department && !(name in command))
+			misc[name] = rank
+	if(length(command))
+		dat += "<tr><th colspan=3>Leaders</th></tr>"
+		for(var/name in command)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[command[name]]</td></tr>"
+			even = !even
+	if(length(bos))
+		dat += "<tr><th colspan=3>Brotherhood of Steel</th></tr>"
+		for(var/name in bos)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[bos[name]]</td></tr>"
+			even = !even
+	if(length(enclave))
+		dat += "<tr><th colspan=3>Enclave</th></tr>"
+		for(var/name in enclave)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[enclave[name]]</td></tr>"
+			even = !even
+	if(length(oasis))
+		dat += "<tr><th colspan=3>Oasis</th></tr>"
+		for(var/name in oasis)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[oasis[name]]</td></tr>"
+			even = !even
+	if(length(leg))
+		dat += "<tr><th colspan=3>Caesar's Legion</th></tr>"
+		for(var/name in leg)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[leg[name]]</td></tr>"
+			even = !even
+	if(length(ncr))
+		dat += "<tr><th colspan=3>New California Republic</th></tr>"
+		for(var/name in ncr)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[ncr[name]]</td></tr>"
+			even = !even
+	if(length(flw))
+		dat += "<tr><th colspan=3>Followers of the Apocalypse</th></tr>"
+		for(var/name in flw)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[flw[name]]</td></tr>"
+			even = !even
+	if(length(tribe))
+		dat += "<tr><th colspan=3>Wayfarer Tribe</th></tr>"
+		for(var/name in tribe)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[tribe[name]]</td></tr>"
+			even = !even
+	if(length(vault))
+		dat += "<tr><th colspan=3>Vault</th></tr>"
+		for(var/name in vault)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[vault[name]]</td></tr>"
+			even = !even
+	if(length(was))
+		dat += "<tr><th colspan=3>Wasteland</th></tr>"
+		for(var/name in was)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[was[name]]</td></tr>"
+			even = !even
+	// misc guys
+	if(length(misc))
+		dat += "<tr><th colspan=3>Miscellaneous</th></tr>"
+		for(var/name in misc)
+			dat += "<tr[even ? " class='alt'" : ""]><td>[name]</td><td>[misc[name]]</td></tr>"
+			even = !even
+
+	dat += "</table>"
+	dat = replacetext(dat, "\n", "")
+	dat = replacetext(dat, "\t", "")
+	return dat
+
+/datum/datacore/proc/get_manifest_tg() //copypasted from tg, renamed to avoid namespace conflicts
+	var/list/manifest_out = list()
+	var/list/departments = list(
+		"Command" = GLOB.command_positions,
+		"Security" = GLOB.security_positions,
+		"Engineering" = GLOB.engineering_positions,
+		"Medical" = GLOB.medical_positions,
+		"Science" = GLOB.science_positions,
+		"Supply" = GLOB.supply_positions,
+		"Service" = GLOB.civilian_positions,
+		"Silicon" = GLOB.nonhuman_positions
+	)
+	for(var/datum/data/record/t in GLOB.data_core.general)
+		var/name = t.fields["name"]
+		var/rank = t.fields["rank"]
+		var/has_department = FALSE
+		for(var/department in departments)
+			var/list/jobs = departments[department]
+			if(rank in jobs)
+				if(!manifest_out[department])
+					manifest_out[department] = list()
+				manifest_out[department] += list(list(
+					"name" = name,
+					"rank" = rank
+				))
+				has_department = TRUE
+				break
+		if(!has_department)
+			if(!manifest_out["Misc"])
+				manifest_out["Misc"] = list()
+			manifest_out["Misc"] += list(list(
+				"name" = name,
+				"rank" = rank
+			))
+	return manifest_out
 
 /datum/datacore/proc/get_manifest(monochrome, OOC)
 	var/list/heads = list()
@@ -182,6 +270,7 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 		.manifest td, th {border:1px solid [monochrome?"black":"#DEF; background-color:white; color:black"]; padding:.25em}
 		.manifest th {height: 2em; [monochrome?"border-top-width: 3px":"background-color: #48C; color:white"]}
 		.manifest tr.head th { [monochrome?"border-top-width: 1px":"background-color: #488;"] }
+		.manifest td:first-child {text-align:right}
 		.manifest tr.alt td {[monochrome?"border-top-width: 2px":"background-color: #DEF"]}
 	</style></head>
 	<table class="manifest" width='350px'>
@@ -273,7 +362,7 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 	return dat
 
 
-/datum/datacore/proc/manifest_inject(mob/living/carbon/human/H, client/C)
+/datum/datacore/proc/manifest_inject(mob/living/carbon/human/H, client/C, datum/preferences/prefs)
 	set waitfor = FALSE
 	var/static/list/show_directions = list(SOUTH, WEST)
 	if(H.mind && (H.mind.assigned_role != H.mind.special_role))
@@ -294,10 +383,12 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 		var/datum/picture/ps = new
 		pf.picture_name = "[H]"
 		ps.picture_name = "[H]"
-		pf.picture_desc = ""
-		ps.picture_desc = ""
+		pf.picture_desc = "This is [H]."
+		ps.picture_desc = "This is [H]."
 		pf.picture_image = icon(image, dir = SOUTH)
 		ps.picture_image = icon(image, dir = WEST)
+		var/obj/item/photo/photo_front = new(null, pf)
+		var/obj/item/photo/photo_side = new(null, ps)
 
 		//These records should ~really~ be merged or something
 		//General Record
@@ -310,13 +401,14 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 		G.fields["fingerprint"]	= md5(H.dna.uni_identity)
 		G.fields["p_stat"]		= "Active"
 		G.fields["m_stat"]		= "Stable"
-		G.fields["gender"]			= H.gender
-		if(H.gender == "male")
+		if(H.gender == MALE)
 			G.fields["gender"]  = "Male"
-		else if(H.gender == "female")
+		else if(H.gender == FEMALE)
 			G.fields["gender"]  = "Female"
 		else
 			G.fields["gender"]  = "Other"
+		G.fields["photo_front"]	= photo_front
+		G.fields["photo_side"]	= photo_side
 		general += G
 
 		//Medical Record
@@ -333,6 +425,7 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 		M.fields["alg_d"]		= "No allergies have been detected in this patient."
 		M.fields["cdi"]			= "None"
 		M.fields["cdi_d"]		= "No diseases have been diagnosed at the moment."
+		M.fields["notes"]		= "Trait information as of shift start: [H.get_trait_string(medical)]<br>[prefs.medical_records]"
 		medical += M
 
 		//Security Record
@@ -340,10 +433,9 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 		S.fields["id"]			= id
 		S.fields["name"]		= H.real_name
 		S.fields["criminal"]	= "None"
-		S.fields["citation"]	= list()
 		S.fields["mi_crim"]		= list()
 		S.fields["ma_crim"]		= list()
-		S.fields["notes"]		= "No notes."
+		S.fields["notes"]		= prefs.security_records || "No notes."
 		security += S
 
 		//Locked Record
@@ -352,10 +444,9 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 		L.fields["name"]		= H.real_name
 		L.fields["rank"] 		= H.mind.assigned_role
 		L.fields["age"]			= H.age
-		L.fields["gender"]			= H.gender
-		if(H.gender == "male")
+		if(H.gender == MALE)
 			G.fields["gender"]  = "Male"
-		else if(H.gender == "female")
+		else if(H.gender == FEMALE)
 			G.fields["gender"]  = "Female"
 		else
 			G.fields["gender"]  = "Other"
@@ -377,3 +468,20 @@ GLOBAL_LIST_EMPTY(fake_ckeys)
 	if(C)
 		P = C.prefs
 	return get_flat_human_icon(null, J, P, DUMMY_HUMAN_SLOT_MANIFEST, show_directions)
+
+/datum/datacore/proc/get_record_by_name(username)
+	for(var/i in general)
+		var/datum/data/record/to_check = i
+		if(username != to_check.fields["name"])
+			continue
+		return to_check
+
+/datum/datacore/proc/remove_record_by_name(username)
+	for(var/datacore_list in list(general, medical, security, locked))
+		for(var/j in datacore_list)
+			var/datum/data/record/to_remove = j
+			if(username != to_remove.fields["name"])
+				continue
+			datacore_list -= to_remove
+			qdel(to_remove)
+			break

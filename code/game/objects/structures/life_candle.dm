@@ -1,6 +1,6 @@
 /obj/structure/life_candle
 	name = "life candle"
-	desc = ""
+	desc = "You are dead. Insert quarter to continue."
 	icon = 'icons/obj/candle.dmi'
 	icon_state = "candle1"
 	light_color = LIGHT_COLOR_FIRE
@@ -22,23 +22,20 @@
 	var/datum/outfit/outfit
 	// How long until we respawn them after their death.
 	var/respawn_time = 50
-	var/respawn_sound = 'sound/blank.ogg'
+	var/respawn_sound = 'sound/magic/staff_animation.ogg'
 
-/obj/structure/life_candle/attack_hand(mob/user)
-	. = ..()
-	if(.)
-		return
+/obj/structure/life_candle/on_attack_hand(mob/user, act_intent = user.a_intent, unarmed_attack_flags)
 	if(!user.mind)
 		return
 	if(user.mind in linked_minds)
-		user.visible_message(span_notice("[user] reaches out and pinches the flame of [src]."), span_warning("I sever the connection between myself and [src]."))
+		user.visible_message("<span class='notice'>[user] reaches out and pinches the flame of [src].</span>", "<span class='warning'>You sever the connection between yourself and [src].</span>")
 		linked_minds -= user.mind
 	else
-		user.visible_message(span_notice("[user] touches [src]. It seems to respond to [user.p_their()] presence!"), span_warning("I create a connection between you and [src]."))
+		user.visible_message("<span class='notice'>[user] touches [src]. It seems to respond to [user.p_their()] presence!</span>", "<span class='warning'>You create a connection between you and [src].</span>")
 		linked_minds |= user.mind
 
 	update_icon()
-	float(linked_minds.len)
+	INVOKE_ASYNC(src, /atom/movable.proc/float, linked_minds.len)
 	if(linked_minds.len)
 		START_PROCESSING(SSobj, src)
 		set_light(lit_luminosity)
@@ -46,7 +43,7 @@
 		STOP_PROCESSING(SSobj, src)
 		set_light(0)
 
-/obj/structure/life_candle/update_icon()
+/obj/structure/life_candle/update_icon_state()
 	if(linked_minds.len)
 		icon_state = icon_state_active
 	else
@@ -67,7 +64,7 @@
 	for(var/m in linked_minds)
 		var/datum/mind/mind = m
 		if(!mind.current || (mind.current && mind.current.stat == DEAD))
-			addtimer(CALLBACK(src, PROC_REF(respawn), mind), respawn_time, TIMER_UNIQUE)
+			addtimer(CALLBACK(src, .proc/respawn, mind), respawn_time, TIMER_UNIQUE)
 
 /obj/structure/life_candle/proc/respawn(datum/mind/mind)
 	var/turf/T = get_turf(src)
@@ -85,10 +82,10 @@
 		mind.transfer_to(body)
 	else
 		body.forceMove(T)
-		body.revive(full_heal = TRUE, admin_revive = TRUE)
+		body.revive(1,1)
 	mind.grab_ghost(TRUE)
 	body.flash_act()
 
 	if(ishuman(body) && istype(outfit))
 		outfit.equip(body)
-	playsound(T, respawn_sound, 50, TRUE)
+	playsound(T, respawn_sound, 50, 1)

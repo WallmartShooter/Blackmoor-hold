@@ -12,6 +12,9 @@
 	sight = SEE_SELF
 	move_on_shuttle = FALSE
 
+/mob/camera/experience_pressure_difference()
+	return
+
 /mob/camera/forceMove(atom/destination)
 	var/oldloc = loc
 	loc = destination
@@ -20,5 +23,5 @@
 /mob/camera/canUseStorage()
 	return FALSE
 
-/mob/camera/emote(act, m_type = null, message = null, intentional = FALSE, forced = FALSE, targetted = FALSE, custom_me = FALSE)
+/mob/camera/emote(act, m_type=1, message = null, intentional = FALSE)
 	return

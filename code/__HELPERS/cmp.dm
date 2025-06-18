@@ -23,19 +23,9 @@ GLOBAL_VAR_INIT(cmp_field, "name")
 /proc/cmp_records_dsc(datum/data/record/a, datum/data/record/b)
 	return sorttext(a.fields[GLOB.cmp_field], b.fields[GLOB.cmp_field])
 
-// Datum cmp with vars is always slower than a specialist cmp proc, use your judgement.
-/proc/cmp_datum_numeric_asc(datum/a, datum/b, variable)
-	return cmp_numeric_asc(a.vars[variable], b.vars[variable])
+/proc/cmp_filter_data_priority(list/A, list/B)
+	return A["priority"] - B["priority"]
 
-/proc/cmp_datum_numeric_dsc(datum/a, datum/b, variable)
-	return cmp_numeric_dsc(a.vars[variable], b.vars[variable])
-
-/proc/cmp_datum_text_asc(datum/a, datum/b, variable)
-	return sorttext(b.vars[variable], a.vars[variable])
-
-/proc/cmp_datum_text_dsc(datum/a, datum/b, variable)
-	return sorttext(a.vars[variable], b.vars[variable])
-	
 /proc/cmp_ckey_asc(client/a, client/b)
 	return sorttext(b.ckey, a.ckey)
 
@@ -56,6 +46,9 @@ GLOBAL_VAR_INIT(cmp_field, "name")
 
 /proc/cmp_clientcolour_priority(datum/client_colour/A, datum/client_colour/B)
 	return B.priority - A.priority
+
+/proc/cmp_clockscripture_priority(datum/clockwork_scripture/A, datum/clockwork_scripture/B)
+	return initial(A.sort_priority) - initial(B.sort_priority)
 
 /proc/cmp_ruincost_priority(datum/map_template/ruin/A, datum/map_template/ruin/B)
 	return initial(A.cost) - initial(B.cost)
@@ -89,6 +82,56 @@ GLOBAL_VAR_INIT(cmp_field, "name")
 	else
 		return A.layer - B.layer
 
+/proc/cmp_advdisease_resistance_asc(datum/disease/advance/A, datum/disease/advance/B)
+	return A.totalResistance() - B.totalResistance()
+
+/proc/cmp_uplink_items_dsc(datum/uplink_item/A, datum/uplink_item/B)
+	return sorttext(initial(B.name), initial(A.name))
+
+/proc/cmp_numbered_displays_name_asc(datum/numbered_display/A, datum/numbered_display/B)
+	return sorttext(A.sample_object.name, B.sample_object.name)
+
+/proc/cmp_numbered_displays_name_dsc(datum/numbered_display/A, datum/numbered_display/B)
+	return sorttext(B.sample_object.name, A.sample_object.name)
+
+/proc/cmp_quirk_asc(datum/quirk/A, datum/quirk/B)
+	var/a_sign = num2sign(initial(A.value) * -1)
+	var/b_sign = num2sign(initial(B.value) * -1)
+
+	// Neutral traits go last
+	if(a_sign == 0)
+		a_sign = 2
+	if(b_sign == 0)
+		b_sign = 2
+
+	var/a_name = initial(A.name)
+	var/b_name = initial(B.name)
+
+	if(a_sign != b_sign)
+		return a_sign - b_sign
+	else
+		return sorttext(b_name, a_name)
+
+/proc/cmp_item_block_priority_asc(obj/item/A, obj/item/B)
+	return A.block_priority - B.block_priority
+
+/proc/cmp_skill_categories(datum/skill/A, datum/skill/B)
+	if(A.ui_category == B.ui_category)
+		return sorttext(A.name, B.name)
+	return sorttext(A.ui_category, B.ui_category)
+
+/proc/cmp_chemical_reactions_default(datum/chemical_reaction/A, datum/chemical_reaction/B)
+	if(A.priority != B.priority)
+		return B.priority - A.priority
+	else if(A.is_cold_recipe)
+		return A.required_temp - B.required_temp		//return coldest
+	else
+		return B.required_temp - A.required_temp		//return hottest
+
+
+/proc/cmp_mob_realname_dsc(mob/A,mob/B)
+	return sorttext(A.real_name,B.real_name)
+
 /proc/cmp_job_display_asc(datum/job/A, datum/job/B)
 	return A.display_order - B.display_order
 
@@ -97,23 +140,3 @@ GLOBAL_VAR_INIT(cmp_field, "name")
 
 /proc/cmp_typepaths_asc(A, B)
 	return sorttext("[B]","[A]")
-
-/proc/cmp_assignedrole_asc(mob/living/A, mob/living/B)
-	if(!GLOB.job_assignment_order)
-		GLOB.job_assignment_order = get_job_assignment_order()
-	return GLOB.job_assignment_order.Find(A.mind?.assigned_role) - GLOB.job_assignment_order.Find(B.mind?.assigned_role)
-
-/proc/cmp_assignedrole_dsc(mob/living/A, mob/living/B)
-	if(!GLOB.job_assignment_order)
-		GLOB.job_assignment_order = get_job_assignment_order()
-	return GLOB.job_assignment_order.Find(B.mind?.assigned_role) - GLOB.job_assignment_order.Find(A.mind?.assigned_role)
-
-/proc/cmp_wound_severity_asc(datum/wound/A, datum/wound/B)
-	return A.severity - B.severity
-
-/proc/cmp_wound_severity_dsc(datum/wound/A, datum/wound/B)
-	return B.severity - A.severity
-
-/proc/cmp_filter_priority_desc(list/A, list/B) // Compares two lists by their 'priority' key. Used for filters.
-    return (A["priority"] || 0) - (B["priority"] || 0)
-	

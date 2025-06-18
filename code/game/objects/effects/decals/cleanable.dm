@@ -6,47 +6,45 @@
 	var/bloodiness = 0 //0-100, amount of blood in this decal, used for making footprints and affecting the alpha of bloody footprints
 	var/mergeable_decal = TRUE //when two of these are on a same tile or do we need to merge them into just one?
 	var/beauty = 0
-	obj_flags = CAN_BE_HIT
 
-/obj/effect/decal/cleanable/Initialize(mapload)
+/obj/effect/decal/cleanable/Initialize(mapload, list/datum/disease/diseases)
 	. = ..()
+	LAZYINITLIST(blood_DNA) //Kinda needed
 	if (random_icon_states && (icon_state == initial(icon_state)) && length(random_icon_states) > 0)
 		icon_state = pick(random_icon_states)
-	create_reagents(300)
+	create_reagents(300, NONE, NO_REAGENTS_VALUE)
 	if(loc && isturf(loc))
 		for(var/obj/effect/decal/cleanable/C in loc)
 			if(C != src && C.type == type && !QDELETED(C))
 				if (replace_decal(C))
 					return INITIALIZE_HINT_QDEL
 
-//	addtimer(CALLBACK(src, TYPE_PROC_REF(/datum, AddComponent), /datum/component/beauty, beauty), 0)
+	if(LAZYLEN(diseases))
+		var/list/datum/disease/diseases_to_add = list()
+		for(var/datum/disease/D in diseases)
+			if(D.spread_flags & DISEASE_SPREAD_CONTACT_FLUIDS)
+				diseases_to_add += D
+		if(LAZYLEN(diseases_to_add))
+			AddComponent(/datum/component/infective, diseases_to_add)
 
-	var/turf/T = get_turf(src)
-	if(T && is_station_level(T.z))
-		SSblackbox.record_feedback("tally", "station_mess_created", 1, name)
-
-/obj/effect/decal/cleanable/Destroy()
-	var/turf/T = get_turf(src)
-	if(T && is_station_level(T.z))
-		SSblackbox.record_feedback("tally", "station_mess_destroyed", 1, name)
-	return ..()
+	addtimer(CALLBACK(src, /datum.proc/_AddElement, list(/datum/element/beauty, beauty)), 0)
 
 /obj/effect/decal/cleanable/proc/replace_decal(obj/effect/decal/cleanable/C) // Returns true if we should give up in favor of the pre-existing decal
 	if(mergeable_decal)
 		return TRUE
 
 /obj/effect/decal/cleanable/attackby(obj/item/W, mob/user, params)
-	if(istype(W, /obj/item/reagent_containers/glass))
+	if(istype(W, /obj/item/reagent_containers/glass) || istype(W, /obj/item/reagent_containers/food/drinks))
 		if(src.reagents && W.reagents)
 			. = 1 //so the containers don't splash their content on the src while scooping.
 			if(!src.reagents.total_volume)
-				to_chat(user, span_notice("[src] isn't thick enough to scoop up!"))
+				to_chat(user, "<span class='notice'>[src] isn't thick enough to scoop up!</span>")
 				return
 			if(W.reagents.total_volume >= W.reagents.maximum_volume)
-				to_chat(user, span_notice("[W] is full!"))
+				to_chat(user, "<span class='notice'>[W] is full!</span>")
 				return
-			to_chat(user, span_notice("I scoop up [src] into [W]!"))
-			reagents.trans_to(W, reagents.total_volume, transfered_by = user)
+			to_chat(user, "<span class='notice'>You scoop up [src] into [W]!</span>")
+			reagents.trans_to(W, reagents.total_volume)
 			if(!reagents.total_volume) //scooped up all of it
 				qdel(src)
 				return
@@ -56,7 +54,7 @@
 		else
 			var/hotness = W.get_temperature()
 			reagents.expose_temperature(hotness)
-			to_chat(user, span_notice("I heat [name] with [W]!"))
+			to_chat(user, "<span class='notice'>You heat [name] with [W]!</span>")
 	else
 		return ..()
 
@@ -66,9 +64,9 @@
 			R.on_ex_act()
 	..()
 
-/obj/effect/decal/cleanable/fire_act(added, maxstacks)
+/obj/effect/decal/cleanable/fire_act(exposed_temperature, exposed_volume)
 	if(reagents)
-		reagents.expose_temperature(added)
+		reagents.expose_temperature(exposed_temperature)
 	..()
 
 
@@ -80,8 +78,6 @@
 		var/mob/living/carbon/human/H = O
 		if(H.shoes && blood_state && bloodiness && !HAS_TRAIT(H, TRAIT_LIGHT_STEP))
 			var/obj/item/clothing/shoes/S = H.shoes
-			if(!S.can_be_bloody)
-				return
 			var/add_blood = 0
 			if(bloodiness >= BLOOD_GAIN_PER_STEP)
 				add_blood = BLOOD_GAIN_PER_STEP
@@ -89,7 +85,9 @@
 				add_blood = bloodiness
 			bloodiness -= add_blood
 			S.bloody_shoes[blood_state] = min(MAX_SHOE_BLOODINESS,S.bloody_shoes[blood_state]+add_blood)
-			S.add_blood_DNA(return_blood_DNA())
+			if(blood_DNA && blood_DNA.len)
+				S.add_blood_DNA(blood_DNA)
+				S.add_blood_overlay()
 			S.blood_state = blood_state
 			update_icon()
 			H.update_inv_shoes()
@@ -98,4 +96,4 @@
 	if((blood_state != BLOOD_STATE_OIL) && (blood_state != BLOOD_STATE_NOT_BLOODY))
 		return bloodiness
 	else
-		return 0
+		return FALSE

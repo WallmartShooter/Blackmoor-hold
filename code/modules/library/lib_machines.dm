@@ -20,12 +20,14 @@
 	icon_screen = "library"
 	icon_keyboard = null
 	circuit = /obj/item/circuitboard/computer/libraryconsole
-	desc = ""
+	desc = "Checked out books MUST be returned on time."
 	var/screenstate = 0
 	var/title
 	var/category = "Any"
 	var/author
 	var/SQLquery
+	clockwork = TRUE //it'd look weird
+	connectable = FALSE
 
 /obj/machinery/computer/libraryconsole/ui_interact(mob/user)
 	. = ..()
@@ -39,18 +41,18 @@
 			dat += "<A href='?src=[REF(src)];search=1'>\[Start Search\]</A><BR>"
 		if(1)
 			if (!SSdbcore.Connect())
-				dat += "<font color=red><b>ERROR</b>: Unable to contact External Archive. Please contact my system administrator for assistance.</font><BR>"
+				dat += "<font color=red><b>ERROR</b>: Unable to contact External Archive. Please contact your system administrator for assistance.</font><BR>"
 			else if(QDELETED(user))
 				return
 			else if(!SQLquery)
-				dat += "<font color=red><b>ERROR</b>: Malformed search request. Please contact my system administrator for assistance.</font><BR>"
+				dat += "<font color=red><b>ERROR</b>: Malformed search request. Please contact your system administrator for assistance.</font><BR>"
 			else
 				dat += "<table>"
 				dat += "<tr><td>AUTHOR</td><td>TITLE</td><td>CATEGORY</td><td>SS<sup>13</sup>BN</td></tr>"
 
-				var/datum/DBQuery/query_library_list_books = SSdbcore.NewQuery(SQLquery)
+				var/datum/db_query/query_library_list_books = SSdbcore.NewQuery(SQLquery)
 				if(!query_library_list_books.Execute())
-					dat += "<font color=red><b>ERROR</b>: Unable to retrieve book listings. Please contact my system administrator for assistance.</font><BR>"
+					dat += "<font color=red><b>ERROR</b>: Unable to retrieve book listings. Please contact your system administrator for assistance.</font><BR>"
 				else
 					while(query_library_list_books.NextRow())
 						var/author = query_library_list_books.item[1]
@@ -65,7 +67,6 @@
 			dat += "<A href='?src=[REF(src)];back=1'>\[Go Back\]</A><BR>"
 	var/datum/browser/popup = new(user, "publiclibrary", name, 600, 400)
 	popup.set_content(dat)
-	popup.set_title_image(user.browse_rsc_icon(src.icon, src.icon_state))
 	popup.open()
 
 /obj/machinery/computer/libraryconsole/Topic(href, href_list)
@@ -81,21 +82,18 @@
 			title = sanitize(newtitle)
 		else
 			title = null
-		title = sanitizeSQL(title)
 	if(href_list["setcategory"])
 		var/newcategory = input("Choose a category to search for:") in list("Any", "Fiction", "Non-Fiction", "Adult", "Reference", "Religion")
 		if(newcategory)
 			category = sanitize(newcategory)
 		else
 			category = "Any"
-		category = sanitizeSQL(category)
 	if(href_list["setauthor"])
 		var/newauthor = input("Enter an author to search for:") as text|null
 		if(newauthor)
 			author = sanitize(newauthor)
 		else
 			author = null
-		author = sanitizeSQL(author)
 	if(href_list["search"])
 		SQLquery = "SELECT author, title, category, id FROM [format_table_name("library")] WHERE isnull(deleted) AND "
 		if(category == "Any")
@@ -138,7 +136,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 	if(!SSdbcore.Connect())
 		return
 	GLOB.cachedbooks = list()
-	var/datum/DBQuery/query_library_cache = SSdbcore.NewQuery("SELECT id, author, title, category FROM [format_table_name("library")] WHERE isnull(deleted)")
+	var/datum/db_query/query_library_cache = SSdbcore.NewQuery("SELECT id, author, title, category FROM [format_table_name("library")] WHERE isnull(deleted)")
 	if(!query_library_cache.Execute())
 		qdel(query_library_cache)
 		return
@@ -164,7 +162,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 // It's December 25th, 2014, and this is STILL here, and it's STILL relevant. Kill me
 /obj/machinery/computer/libraryconsole/bookmanagement
 	name = "book inventory management console"
-	desc = ""
+	desc = "Librarian's command station."
 	screenstate = 0 // 0 - Main Menu, 1 - Inventory, 2 - Checked Out, 3 - Check Out a Book
 	verb_say = "beeps"
 	verb_ask = "beeps"
@@ -261,12 +259,12 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 			build_library_menu()
 
 			if(!GLOB.cachedbooks)
-				dat += "<font color=red><b>ERROR</b>: Unable to contact External Archive. Please contact my system administrator for assistance.</font>"
+				dat += "<font color=red><b>ERROR</b>: Unable to contact External Archive. Please contact your system administrator for assistance.</font>"
 			else
 				dat += "<A href='?src=[REF(src)];orderbyid=1'>(Order book by SS<sup>13</sup>BN)</A><BR><BR>"
 				dat += "<table>"
 				dat += "<tr><td>AUTHOR</td><td>TITLE</td><td>CATEGORY</td><td></td></tr>"
-				dat += libcomp_menu[CLAMP(page,1,libcomp_menu.len)]
+				dat += libcomp_menu[clamp(page,1,libcomp_menu.len)]
 				dat += "<tr><td><A href='?src=[REF(src)];page=[(max(1,page-1))]'>&lt;&lt;&lt;&lt;</A></td> <td></td> <td></td> <td><span style='text-align:right'><A href='?src=[REF(src)];page=[(min(libcomp_menu.len,page+1))]'>&gt;&gt;&gt;&gt;</A></span></td></tr>"
 				dat += "</table>"
 			dat += "<BR><A href='?src=[REF(src)];switchscreen=0'>(Return to main menu)</A><BR>"
@@ -313,7 +311,6 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 
 	var/datum/browser/popup = new(user, "library", name, 600, 400)
 	popup.set_content(dat)
-	popup.set_title_image(user.browse_rsc_icon(src.icon, src.icon_state))
 	popup.open()
 
 /obj/machinery/computer/libraryconsole/bookmanagement/proc/findscanner(viewrange)
@@ -322,22 +319,31 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 	return null
 
 /obj/machinery/computer/libraryconsole/bookmanagement/proc/print_forbidden_lore(mob/user)
-	new /obj/item/melee/cultblade/dagger(get_turf(src))
-	to_chat(user, span_warning("My sanity barely endures the seconds spent in the vault's browsing window. The only thing to remind you of this when you stop browsing is a sinister dagger sitting on the desk. You don't even remember where it came from..."))
-	user.visible_message(span_warning("[user] stares at the blank screen for a few moments, [user.p_their()] expression frozen in fear. When [user.p_they()] finally awaken[user.p_s()] from it, [user.p_they()] look[user.p_s()] a lot older."), 2)
+	var/spook = pick("blood", "brass")
+	var/turf/T = get_turf(src)
+	if(spook == "blood")
+		new /obj/item/melee/cultblade/dagger(T)
+	else
+		new /obj/item/clockwork/slab(T)
+
+	to_chat(user, "<span class='warning'>Your sanity barely endures the seconds spent in the vault's browsing window. The only thing to remind you of this when you stop browsing is a [spook == "blood" ? "sinister dagger" : "strange metal tablet"] sitting on the desk. You don't even remember where it came from...</span>")
+	user.visible_message("[user] stares at the blank screen for a few moments, [user.p_their()] expression frozen in fear. When [user.p_they()] finally awaken[user.p_s()] from it, [user.p_they()] look[user.p_s()] a lot older.", 2)
 
 /obj/machinery/computer/libraryconsole/bookmanagement/attackby(obj/item/W, mob/user, params)
 	if(istype(W, /obj/item/barcodescanner))
 		var/obj/item/barcodescanner/scanner = W
 		scanner.computer = src
-		to_chat(user, span_notice("[scanner]'s associated machine has been set to [src]."))
-		audible_message(span_hear("[src] lets out a low, short blip."))
+		to_chat(user, "[scanner]'s associated machine has been set to [src].")
+		audible_message("[src] lets out a low, short blip.")
 	else
 		return ..()
 
 /obj/machinery/computer/libraryconsole/bookmanagement/emag_act(mob/user)
-	if(density && !(obj_flags & EMAGGED))
-		obj_flags |= EMAGGED
+	. = ..()
+	if(!density || obj_flags & EMAGGED)
+		return
+	obj_flags |= EMAGGED
+	return TRUE
 
 /obj/machinery/computer/libraryconsole/bookmanagement/Topic(href, href_list)
 	if(..())
@@ -377,9 +383,9 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 		if(checkoutperiod < 1)
 			checkoutperiod = 1
 	if(href_list["editbook"])
-		buffer_book = copytext(sanitize(input("Enter the book's title:") as text|null),1,MAX_MESSAGE_LEN)
+		buffer_book = stripped_input(usr, "Enter the book's title:")
 	if(href_list["editmob"])
-		buffer_mob = copytext(sanitize(input("Enter the recipient's name:") as text|null),1,MAX_NAME_LEN)
+		buffer_mob = stripped_input(usr, "Enter the recipient's name:", max_length = MAX_NAME_LEN)
 	if(href_list["checkout"])
 		var/datum/borrowbook/b = new /datum/borrowbook
 		b.bookname = sanitize(buffer_book)
@@ -396,7 +402,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 		if(b && istype(b))
 			inventory.Remove(b)
 	if(href_list["setauthor"])
-		var/newauthor = copytext(sanitize(input("Enter the author's name: ") as text|null),1,MAX_MESSAGE_LEN)
+		var/newauthor = stripped_input(usr, "Enter the author's name: ")
 		if(newauthor)
 			scanner.cache.author = newauthor
 	if(href_list["setcategory"])
@@ -412,13 +418,8 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 						alert("Connection to Archive has been severed. Aborting.")
 					else
 
-						var/sqltitle = sanitizeSQL(scanner.cache.name)
-						var/sqlauthor = sanitizeSQL(scanner.cache.author)
-						var/sqlcontent = sanitizeSQL(scanner.cache.dat)
-						var/sqlcategory = sanitizeSQL(upload_category)
-						var/sqlckey = sanitizeSQL(usr.ckey)
 						var/msg = "[key_name(usr)] has uploaded the book titled [scanner.cache.name], [length(scanner.cache.dat)] signs"
-						var/datum/DBQuery/query_library_upload = SSdbcore.NewQuery("INSERT INTO [format_table_name("library")] (author, title, content, category, ckey, datetime, round_id_created) VALUES ('[sqlauthor]', '[sqltitle]', '[sqlcontent]', '[sqlcategory]', '[sqlckey]', Now(), '[GLOB.round_id]')")
+						var/datum/db_query/query_library_upload = SSdbcore.NewQuery("INSERT INTO [format_table_name("library")] (author, title, content, category, ckey, datetime, round_id_created) VALUES ('[scanner.cache.author]', '[scanner.cache.name]', '[scanner.cache.dat]', '[upload_category]', '[usr.ckey]', Now(), '[GLOB.round_id]')")
 						if(!query_library_upload.Execute())
 							qdel(query_library_upload)
 							alert("Database error encountered uploading to Archive")
@@ -431,7 +432,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 		if(!GLOB.news_network)
 			alert("No news network found on station. Aborting.")
 		var/channelexists = 0
-		for(var/datum/newscaster/feed_channel/FC in GLOB.news_network.network_channels)
+		for(var/datum/news/feed_channel/FC in GLOB.news_network.network_channels)
 			if(FC.channel_name == "Nanotrasen Book Club")
 				channelexists = 1
 				break
@@ -443,20 +444,19 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 		if(cooldown > world.time)
 			say("Printer unavailable. Please allow a short time before attempting to print.")
 		else
-			var/orderid = input("Enter my order:") as num|null
+			var/orderid = input("Enter your order:") as num|null
 			if(orderid)
 				if(isnum(orderid) && ISINTEGER(orderid))
 					href_list["targetid"] = num2text(orderid)
 
 	if(href_list["targetid"])
-		var/sqlid = sanitizeSQL(href_list["targetid"])
 		if (!SSdbcore.Connect())
 			alert("Connection to Archive has been severed. Aborting.")
 		if(cooldown > world.time)
 			say("Printer unavailable. Please allow a short time before attempting to print.")
 		else
 			cooldown = world.time + PRINTER_COOLDOWN
-			var/datum/DBQuery/query_library_print = SSdbcore.NewQuery("SELECT * FROM [format_table_name("library")] WHERE id=[sqlid] AND isnull(deleted)")
+			var/datum/db_query/query_library_print = SSdbcore.NewQuery("SELECT * FROM [format_table_name("library")] WHERE id=[href_list["targetid"]] AND isnull(deleted)")
 			if(!query_library_print.Execute())
 				qdel(query_library_print)
 				say("PRINTER ERROR! Failed to print document (0x0000000F)")
@@ -472,7 +472,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 					B.author = author
 					B.dat = content
 					B.icon_state = "book[rand(1,8)]"
-					visible_message(span_notice("[src]'s printer hums as it produces a completely bound book. How did it do that?"))
+					visible_message("[src]'s printer hums as it produces a completely bound book. How did it do that?")
 				break
 			qdel(query_library_print)
 	if(href_list["printbible"])
@@ -502,7 +502,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 	name = "scanner control interface"
 	icon = 'icons/obj/library.dmi'
 	icon_state = "bigscanner"
-	desc = ""
+	desc = "It servers the purpose of scanning stuff."
 	density = TRUE
 	var/obj/item/book/cache		// Last scanned book
 
@@ -513,10 +513,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 	else
 		return ..()
 
-/obj/machinery/libraryscanner/attack_hand(mob/user)
-	. = ..()
-	if(.)
-		return
+/obj/machinery/libraryscanner/on_attack_hand(mob/user, act_intent = user.a_intent, unarmed_attack_flags)
 	usr.set_machine(src)
 	var/dat = "" // <META HTTP-EQUIV='Refresh' CONTENT='10'>
 	if(cache)
@@ -530,7 +527,6 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 		dat += "<BR>"
 	var/datum/browser/popup = new(user, "scanner", name, 600, 400)
 	popup.set_content(dat)
-	popup.set_title_image(user.browse_rsc_icon(src.icon, src.icon_state))
 	popup.open()
 
 /obj/machinery/libraryscanner/Topic(href, href_list)
@@ -560,7 +556,7 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 	name = "book binder"
 	icon = 'icons/obj/library.dmi'
 	icon_state = "binder"
-	desc = ""
+	desc = "Only intended for binding paper products."
 	density = TRUE
 	var/busy = FALSE
 
@@ -576,18 +572,18 @@ GLOBAL_LIST(cachedbooks) // List of our cached book datums
 	if(stat)
 		return
 	if(busy)
-		to_chat(user, span_warning("The book binder is busy. Please wait for completion of previous operation."))
+		to_chat(user, "<span class='warning'>The book binder is busy. Please wait for completion of previous operation.</span>")
 		return
 	if(!user.transferItemToLoc(P, src))
 		return
-	user.visible_message(span_notice("[user] loads some paper into [src]."), span_notice("I load some paper into [src]."))
-	audible_message(span_hear("[src] begins to hum as it warms up its printing drums."))
+	user.visible_message("[user] loads some paper into [src].", "You load some paper into [src].")
+	audible_message("[src] begins to hum as it warms up its printing drums.")
 	busy = TRUE
 	sleep(rand(200,400))
 	busy = FALSE
 	if(P)
 		if(!stat)
-			visible_message(span_notice("[src] whirs as it prints and binds a new book."))
+			visible_message("[src] whirs as it prints and binds a new book.")
 			var/obj/item/book/B = new(src.loc)
 			B.dat = P.info
 			B.name = "Print Job #" + "[rand(100, 999)]"

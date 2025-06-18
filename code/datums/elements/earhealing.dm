@@ -1,16 +1,17 @@
+
 /datum/element/earhealing
-	element_flags = COMSIG_ELEMENT_ATTACH 
+	element_flags = ELEMENT_DETACH
 	var/list/user_by_item = list()
 
 /datum/element/earhealing/New()
-	START_PROCESSING(SSdcs, src)
+	START_PROCESSING(SSobj, src)
 
 /datum/element/earhealing/Attach(datum/target)
 	. = ..()
 	if(!isitem(target))
 		return ELEMENT_INCOMPATIBLE
 
-	RegisterSignal(target, list(COMSIG_ITEM_EQUIPPED, COMSIG_ITEM_DROPPED), PROC_REF(equippedChanged))
+	RegisterSignal(target, list(COMSIG_ITEM_EQUIPPED, COMSIG_ITEM_DROPPED), .proc/equippedChanged)
 
 /datum/element/earhealing/Detach(datum/target)
 	. = ..()
@@ -18,7 +19,7 @@
 	user_by_item -= target
 
 /datum/element/earhealing/proc/equippedChanged(datum/source, mob/living/carbon/user, slot)
-	if(slot == SLOT_HEAD && istype(user))
+	if(slot == SLOT_EARS && istype(user))
 		user_by_item[source] = user
 	else
 		user_by_item -= source

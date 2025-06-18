@@ -16,7 +16,7 @@
 	if(!F.check_variables() && !override_checks)
 		QDEL_NULL(F)
 	if(start_field && (F || override_checks))
-		F.Initialize()
+		F.begin_field()
 	return F
 
 /datum/proximity_monitor/advanced
@@ -82,7 +82,7 @@
 	if(requires_processing)
 		START_PROCESSING(SSfields, src)
 
-/datum/proximity_monitor/advanced/proc/Initialize()
+/datum/proximity_monitor/advanced/proc/begin_field() // shitty hack to get around initialize restrictions
 	setup_field()
 	post_setup_field()
 
@@ -126,7 +126,7 @@
 			setup_edge_turf(T)
 			CHECK_TICK
 
-/datum/proximity_monitor/advanced/proc/field_turf_canpass(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_turf/F, turf/entering)
+/datum/proximity_monitor/advanced/proc/field_turf_canpass(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_turf/F, border_dir)
 	return TRUE
 
 /datum/proximity_monitor/advanced/proc/field_turf_uncross(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_turf/F)
@@ -138,7 +138,7 @@
 /datum/proximity_monitor/advanced/proc/field_turf_uncrossed(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_turf/F)
 	return TRUE
 
-/datum/proximity_monitor/advanced/proc/field_edge_canpass(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_edge/F, turf/entering)
+/datum/proximity_monitor/advanced/proc/field_edge_canpass(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_edge/F, border_dir)
 	return TRUE
 
 /datum/proximity_monitor/advanced/proc/field_edge_uncross(atom/movable/AM, obj/effect/abstract/proximity_checker/advanced/field_edge/F)
@@ -278,7 +278,7 @@
 //DEBUG FIELD ITEM
 /obj/item/multitool/field_debug
 	name = "strange multitool"
-	desc = ""
+	desc = "Seems to project a colored field!"
 	var/list/field_params = list("field_shape" = FIELD_SHAPE_RADIUS_SQUARE, "current_range" = 5, "set_fieldturf_color" = "#aaffff", "set_edgeturf_color" = "#ffaaff")
 	var/field_type = /datum/proximity_monitor/advanced/debug
 	var/operating = FALSE
@@ -302,17 +302,17 @@
 
 /obj/item/multitool/field_debug/attack_self(mob/user)
 	operating = !operating
-	to_chat(user, span_notice("I turn [src] [operating? "on":"off"]."))
+	to_chat(user, "You turn [src] [operating? "on":"off"].")
 	UnregisterSignal(listeningTo, COMSIG_MOVABLE_MOVED)
 	listeningTo = null
 	if(!istype(current) && operating)
-		RegisterSignal(user, COMSIG_MOVABLE_MOVED, PROC_REF(on_mob_move))
+		RegisterSignal(user, COMSIG_MOVABLE_MOVED, .proc/on_mob_move)
 		listeningTo = user
 		setup_debug_field()
 	else if(!operating)
 		QDEL_NULL(current)
 
-/obj/item/multitool/field_debug/dropped()
+/obj/item/multitool/field_debug/dropped(mob/user)
 	. = ..()
 	if(listeningTo)
 		UnregisterSignal(listeningTo, COMSIG_MOVABLE_MOVED)

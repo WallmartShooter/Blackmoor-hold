@@ -1,6 +1,6 @@
 /obj/item/target
 	name = "shooting target"
-	desc = ""
+	desc = "A shooting target."
 	icon = 'icons/obj/objects.dmi'
 	icon_state = "target_h"
 	density = FALSE
@@ -26,27 +26,23 @@
 		pinnedLoc.forceMove(loc)
 
 /obj/item/target/welder_act(mob/living/user, obj/item/I)
-	..()
 	if(I.use_tool(src, user, 0, volume=40))
 		removeOverlays()
-		to_chat(user, "<span class='notice'>I slice off [src]'s uneven chunks of aluminium and scorch marks.</span>")
+		to_chat(user, "<span class='notice'>You slice off [src]'s uneven chunks of aluminium and scorch marks.</span>")
 	return TRUE
 
-/obj/item/target/attack_hand(mob/user)
-	. = ..()
-	if(.)
-		return
+/obj/item/target/on_attack_hand(mob/user, act_intent = user.a_intent, unarmed_attack_flags)
 	if(pinnedLoc)
 		pinnedLoc.removeTarget(user)
 
 /obj/item/target/syndicate
 	icon_state = "target_s"
-	desc = ""
+	desc = "A shooting target that looks like syndicate scum."
 	hp = 2600
 
 /obj/item/target/alien
 	icon_state = "target_q"
-	desc = ""
+	desc = "A shooting target that looks like a xenomorphic alien."
 	hp = 2350
 
 /obj/item/target/alien/anchored
@@ -54,23 +50,23 @@
 
 /obj/item/target/clown
 	icon_state = "target_c"
-	desc = ""
+	desc = "A shooting target that looks like a useless clown."
 	hp = 2000
 
 #define DECALTYPE_SCORCH 1
 #define DECALTYPE_BULLET 2
 
-/obj/item/target/clown/bullet_act(obj/projectile/P)
+/obj/item/target/clown/bullet_act(obj/item/projectile/P)
 	. = ..()
-	playsound(src.loc, 'sound/blank.ogg', 50, TRUE)
+	playsound(src.loc, 'sound/items/bikehorn.ogg', 50, 1)
 
-/obj/item/target/bullet_act(obj/projectile/P)
-	if(istype(P, /obj/projectile/bullet/reusable)) // If it's a foam dart, don't bother with any of this other shit
+/obj/item/target/bullet_act(obj/item/projectile/P)
+	if(istype(P, /obj/item/projectile/bullet/reusable)) // If it's a foam dart, don't bother with any of this other shit
 		return P.on_hit(src, 0)
 	var/p_x = P.p_x + pick(0,0,0,0,0,-1,1) // really ugly way of coding "sometimes offset P.p_x!"
 	var/p_y = P.p_y + pick(0,0,0,0,0,-1,1)
 	var/decaltype = DECALTYPE_SCORCH
-	if(istype(P, /obj/projectile/bullet))
+	if(istype(P, /obj/item/projectile/bullet))
 		decaltype = DECALTYPE_BULLET
 	var/icon/C = icon(icon,icon_state)
 	if(C.GetPixel(p_x, p_y) && P.original == src && overlays.len <= 35) // if the located pixel isn't blank (null)
@@ -83,7 +79,7 @@
 		bullet_hole.pixel_y = p_y - 1
 		if(decaltype == DECALTYPE_SCORCH)
 			bullet_hole.setDir(pick(NORTH,SOUTH,EAST,WEST))// random scorch design
-			if(P.damage >= 20)
+			if(P.damage >= 20 || istype(P, /obj/item/projectile/beam/practice))
 				bullet_hole.setDir(pick(NORTH,SOUTH,EAST,WEST))
 			else
 				bullet_hole.icon_state = "light_scorch"

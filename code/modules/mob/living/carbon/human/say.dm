@@ -1,11 +1,36 @@
 /mob/living/carbon/human/say_mod(input, message_mode)
 	verb_say = dna.species.say_mod
-	if(slurring)
-		return "slurs"
-	else
-		. = ..()
+	. = ..()
+	if(message_mode != MODE_CUSTOM_SAY && message_mode != MODE_WHISPER_CRIT)
+		switch(slurring)
+			if(10 to 25)
+				return "jumbles"
+			if(25 to 50)
+				return "slurs"
+			if(50 to INFINITY)
+				return "garbles"
 
 /mob/living/carbon/human/GetVoice()
+	if(istype(wear_mask, /obj/item/clothing/mask/chameleon))
+		var/obj/item/clothing/mask/chameleon/V = wear_mask
+		if(V.voice_change && wear_id)
+			var/obj/item/card/id/idcard = wear_id.GetID()
+			if(istype(idcard))
+				return idcard.registered_name
+			else
+				return real_name
+		else
+			return real_name
+	if(istype(wear_mask, /obj/item/clothing/mask/infiltrator))
+		var/obj/item/clothing/mask/infiltrator/V = wear_mask
+		if(V.voice_unknown)
+			return ("Unknown")
+		else
+			return real_name
+	if(mind)
+		var/datum/antagonist/changeling/changeling = mind.has_antag_datum(/datum/antagonist/changeling)
+		if(changeling && changeling.mimicing )
+			return changeling.mimicing
 	if(GetSpecialVoice())
 		return GetSpecialVoice()
 	return real_name
@@ -30,10 +55,18 @@
 /mob/living/carbon/human/proc/GetSpecialVoice()
 	return special_voice
 
+/mob/living/carbon/human/binarycheck()
+	if(ears)
+		var/obj/item/radio/headset/dongle = ears
+		if(!istype(dongle))
+			return FALSE
+		if(dongle.translate_binary)
+			return TRUE
+
 /mob/living/carbon/human/radio(message, message_mode, list/spans, language)
 	. = ..()
-	if(. != 0)
-		return .
+	if(.)
+		return
 
 	switch(message_mode)
 		if(MODE_HEADSET)
@@ -55,55 +88,28 @@
 
 /mob/living/carbon/human/get_alt_name()
 	if(name != GetVoice())
-		switch(voice_type)
-			if(VOICE_TYPE_FEM)
-				return "Unknown Woman"
-			if(VOICE_TYPE_MASC)
-				return "Unknown Man"
-			if(VOICE_TYPE_ANDR)
-				return "Unknown Person"
+		return " (as [get_id_name("Unknown")])"
 
 /mob/living/carbon/human/proc/forcesay(list/append) //this proc is at the bottom of the file because quote fuckery makes notepad++ cri
+	set waitfor = FALSE		// WINGET IS A SLEEP. DO. NOT. SLEEP.
 	if(stat == CONSCIOUS)
 		if(client)
-			var/virgin = 1	//has the text been modified yet?
 			var/temp = winget(client, "input", "text")
-			if(findtextEx_char(temp, "Say \"", 1, 7) && length(temp) > 5)	//"case sensitive means
+			var/say_starter = "Say \"" //"
+			if(findtextEx(temp, say_starter, 1, length(say_starter) + 1) && length(temp) > length(say_starter))	//case sensitive means
 
-				temp = replacetext(temp, ";", "")	//general radio
-
-				if(findtext_char(trim_left(temp), ":", 6, 7))	//dept radio
-					temp = copytext_char(trim_left(temp), 8)
-					virgin = 0
-
-				if(virgin)
-					temp = copytext_char(trim_left(temp), 6)	//normal speech
-					virgin = 0
-
-				while(findtext_char(trim_left(temp), ":", 1, 2))	//dept radio again (necessary)
+				temp = trim_left(copytext(temp, length(say_starter) + 1))
+				temp = replacetext(temp, ";", "", 1, 2)	//general radio
+				while(trim_left(temp)[1] == ":")	//dept radio again (necessary)
 					temp = copytext_char(trim_left(temp), 3)
 
-				if(findtext_char(temp, "*", 1, 2))	//emotes
+				if(temp[1] == "*")	//emotes
 					return
 
 				var/trimmed = trim_left(temp)
 				if(length(trimmed))
 					if(append)
-						temp += pick(append)
+						trimmed += pick(append)
 
-					say(temp)
+					say(trimmed)
 				winset(client, "input", "text=[null]")
-
-/mob/living/carbon/human/send_speech(message, message_range = 6, obj/source = src, bubble_type = bubble_icon, list/spans, datum/language/message_language=null, message_mode, original_message)
-	. = ..()
-	if(message_mode != MODE_WHISPER)
-		send_voice(message)
-
-/mob/living/carbon/human/proc/send_voice(message, skip_thingy)
-	if(!message || !length(message))
-		return
-	if(dna.species)
-		dna.species.send_voice(src)
-
-/datum/species/proc/send_voice(mob/living/carbon/human/H)
-	playsound(get_turf(H), 'sound/misc/talk.ogg', 100, FALSE, -1)

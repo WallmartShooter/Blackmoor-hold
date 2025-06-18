@@ -1,16 +1,15 @@
+GLOBAL_LIST_EMPTY(lighting_update_lights) // List of lighting sources  queued for update.
+GLOBAL_LIST_EMPTY(lighting_update_corners) // List of lighting corners  queued for update.
+GLOBAL_LIST_EMPTY(lighting_update_objects) // List of lighting objects queued for update.
+
 SUBSYSTEM_DEF(lighting)
 	name = "Lighting"
-	wait = 0
+	wait = 6
 	init_order = INIT_ORDER_LIGHTING
-	flags = SS_TICKER
-	priority = FIRE_PRIORITY_DEFAULT
-	var/static/list/sources_queue = list() // List of lighting sources queued for update.
-	var/static/list/corners_queue = list() // List of lighting corners queued for update.
-	var/static/list/objects_queue = list() // List of lighting objects queued for update.
-	processing_flag = PROCESSING_LIGHTING
 
-/datum/controller/subsystem/lighting/stat_entry()
-	..("L:[length(sources_queue)]|C:[length(corners_queue)]|O:[length(objects_queue)]")
+/datum/controller/subsystem/lighting/stat_entry(msg)
+	msg = "L:[length(GLOB.lighting_update_lights)]|C:[length(GLOB.lighting_update_corners)]|O:[length(GLOB.lighting_update_objects)]"
+	return ..()
 
 
 /datum/controller/subsystem/lighting/Initialize(timeofday)
@@ -32,59 +31,52 @@ SUBSYSTEM_DEF(lighting)
 	MC_SPLIT_TICK_INIT(3)
 	if(!init_tick_checks)
 		MC_SPLIT_TICK
-	var/list/queue = sources_queue
-	var/i = 0
-	for (i in 1 to length(queue))
-		var/datum/light_source/L = queue[i]
+	var/list/queue = GLOB.lighting_update_lights
+	while(length(queue))
+		var/datum/light_source/light_datum = queue[length(queue)]
+		queue.len--
 
-		L.update_corners()
+		light_datum.update_corners()
 
-		L.needs_update = LIGHTING_NO_UPDATE
+		light_datum.needs_update = LIGHTING_NO_UPDATE
 
 		if(init_tick_checks)
 			CHECK_TICK
 		else if (MC_TICK_CHECK)
 			break
-	if (i)
-		queue.Cut(1, i+1)
-		i = 0
 
 	if(!init_tick_checks)
 		MC_SPLIT_TICK
 
-	queue = corners_queue
-	for (i in 1 to length(queue))
-		var/datum/lighting_corner/C = queue[i]
+	queue = GLOB.lighting_update_corners
+	while(length(queue))
+		var/datum/lighting_corner/corner_datum = queue[length(queue)]
+		queue.len--
 
-		C.update_objects()
-		C.needs_update = FALSE
+		corner_datum.update_objects()
+		corner_datum.needs_update = FALSE
 		if(init_tick_checks)
 			CHECK_TICK
 		else if (MC_TICK_CHECK)
 			break
-	if (i)
-		queue.Cut(1, i+1)
-		i = 0
-
 
 	if(!init_tick_checks)
 		MC_SPLIT_TICK
 
-	queue = objects_queue
-	for (i in 1 to length(queue))
-		var/atom/movable/lighting_object/O = queue[i]
+	queue = GLOB.lighting_update_objects
+	while(length(queue))
+		var/atom/movable/lighting_object/lighting_object = queue[length(queue)]
+		queue.len--
 
-		if (QDELETED(O))
+		if (QDELETED(lighting_object))
 			continue
 
-		O.update()
-		O.needs_update = FALSE
+		lighting_object.update()
+		lighting_object.needs_update = FALSE
 		if(init_tick_checks)
 			CHECK_TICK
 		else if (MC_TICK_CHECK)
 			break
-	if (i)
-		queue.Cut(1, i+1)
 
 
 /datum/controller/subsystem/lighting/Recover()

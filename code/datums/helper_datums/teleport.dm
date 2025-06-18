@@ -5,16 +5,17 @@
 // effectout: effect to show right after teleportation
 // asoundin: soundfile to play before teleportation
 // asoundout: soundfile to play after teleportation
-// forceMove: if false, teleport will use Move() proc (dense objects will prevent teleportation)
 // no_effects: disable the default effectin/effectout of sparks
+// forceMove: if false, teleport will use Move() proc (dense objects will prevent teleportation)
 // forced: whether or not to ignore no_teleport
 /proc/do_teleport(atom/movable/teleatom, atom/destination, precision=null, forceMove = TRUE, datum/effect_system/effectin=null, datum/effect_system/effectout=null, asoundin=null, asoundout=null, no_effects=FALSE, channel=TELEPORT_CHANNEL_BLUESPACE, forced = FALSE)
 	// teleporting most effects just deletes them
 	var/static/list/delete_atoms = typecacheof(list(
 		/obj/effect,
 		)) - typecacheof(list(
+		/obj/effect/dummy/chameleon,
 		/obj/effect/wisp,
-		/obj/effect/mob_spawn,
+		/obj/effect/mob_spawn
 		))
 	if(delete_atoms[teleatom.type])
 		qdel(teleatom)
@@ -27,6 +28,17 @@
 
 	switch(channel)
 		if(TELEPORT_CHANNEL_BLUESPACE)
+			if(istype(teleatom, /obj/item/storage/backpack/holding))
+				precision = rand(1,100)
+
+			var/static/list/bag_cache = typecacheof(/obj/item/storage/backpack/holding)
+			var/list/bagholding = typecache_filter_list(teleatom.GetAllContents(), bag_cache)
+			if(bagholding.len)
+				precision = max(rand(1,100)*bagholding.len,100)
+				if(isliving(teleatom))
+					var/mob/living/MM = teleatom
+					to_chat(MM, "<span class='warning'>The bluespace interface on your bag of holding interferes with the teleport!</span>")
+
 			// if effects are not specified and not explicitly disabled, sparks
 			if ((!effectin || !effectout) && !no_effects)
 				var/datum/effect_system/spark_spread/sparks = new
@@ -65,6 +77,9 @@
 	if (success)
 		log_game("[key_name(teleatom)] has teleported from [loc_name(curturf)] to [loc_name(destturf)]")
 		tele_play_specials(teleatom, destturf, effectout, asoundout)
+		if(ismegafauna(teleatom))
+			message_admins("[teleatom] [ADMIN_FLW(teleatom)] has teleported from [ADMIN_VERBOSEJMP(curturf)] to [ADMIN_VERBOSEJMP(destturf)].")
+		SEND_SIGNAL(teleatom, COMSIG_MOVABLE_TELEPORTED, channel, curturf, destturf)
 
 	if(ismob(teleatom))
 		var/mob/M = teleatom
@@ -75,7 +90,7 @@
 /proc/tele_play_specials(atom/movable/teleatom, atom/location, datum/effect_system/effect, sound)
 	if (location && !isobserver(teleatom))
 		if (sound)
-			playsound(location, sound, 60, TRUE)
+			playsound(location, sound, 60, 1)
 		if (effect)
 			effect.attach(location)
 			effect.start()
@@ -98,6 +113,36 @@
 		if(!isfloorturf(random_location))
 			continue
 		var/turf/open/floor/F = random_location
+		if(!F.air)
+			continue
+
+		var/datum/gas_mixture/A = F.air
+		var/trace_gases
+		for(var/id in A.get_gases())
+			if(id in GLOB.hardcoded_gases)
+				continue
+			trace_gases = TRUE
+			break
+
+		// Can most things breathe?
+		if(trace_gases)
+			continue
+
+		var/oxy_moles = A.get_moles(GAS_O2)
+		if(oxy_moles < 16 || oxy_moles > 50)
+
+			continue
+		if(A.get_moles(GAS_PLASMA))
+			continue
+		if(A.get_moles(GAS_CO2) >= 10)
+			continue
+
+		// Aim for goldilocks temperatures and pressure
+		if((A.return_temperature() <= 270) || (A.return_temperature() >= 360))
+			continue
+		var/pressure = A.return_pressure()
+		if((pressure <= 20) || (pressure >= 550))
+			continue
 
 		if(extended_safety_checks)
 			if(islava(F)) //chasms aren't /floor, and so are pre-filtered
@@ -106,6 +151,27 @@
 					continue
 
 		// DING! You have passed the gauntlet, and are "probably" safe.
+		return F
+
+/proc/quick_safe_turf()
+	var/station_zlevel = SSmapping.levels_by_trait(ZTRAIT_STATION)
+	var/cycles = 1000
+	for(var/cycle in 1 to cycles)
+		// DRUNK DIALLING WOOOOOOOOO
+		var/x = rand(1, world.maxx)
+		var/y = rand(1, world.maxy)
+		var/z = pick(station_zlevel)
+		var/random_location = locate(x,y,z)
+
+		if(!isfloorturf(random_location) && !istype(random_location, /turf/open/indestructible/ground))
+			continue
+		var/turf/open/floor/F = random_location
+		if(locate(/obj/structure) in F.contents)
+			continue
+		if(locate(/obj/machinery) in F.contents)
+			continue
+		if(locate(/mob/living/carbon/human) in range(12, F))
+			continue
 		return F
 
 /proc/get_teleport_turfs(turf/center, precision = 0)

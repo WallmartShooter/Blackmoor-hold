@@ -1,7 +1,7 @@
 //CREATOR'S NOTE: DO NOT FUCKING GIVE THIS TO BOTANY!
 /obj/item/hot_potato
 	name = "hot potato"
-	desc = ""
+	desc = "A label on the side of this potato reads \"Product of DonkCo Service Wing. Activate far away from populated areas. Device will only attach to sapient creatures.\" <span class='boldnotice'>You can attack anyone with it to force it on them instead of yourself!</span>"
 	icon = 'icons/obj/hydroponics/harvest.dmi'
 	icon_state = "potato"
 	item_flags = NOBLUDGEON
@@ -50,7 +50,7 @@
 
 /obj/item/hot_potato/proc/detonate()
 	var/atom/location = loc
-	location.visible_message("<span class='danger'>[src] [detonate_explosion? "explodes" : "activates"]!</span>", "<span class='danger'>[src] activates! You've ran out of time!</span>")
+	location.visible_message("<span class='userdanger'>[src] [detonate_explosion? "explodes" : "activates"]!</span>", "<span class='userdanger'>[src] activates! You've ran out of time!</span>")
 	if(detonate_explosion)
 		explosion(src, detonate_dev_range, detonate_heavy_range, detonate_light_range, detonate_flash_range, flame_range = detonate_fire_range)
 	deactivate()
@@ -62,8 +62,8 @@
 
 /obj/item/hot_potato/attack_self(mob/user)
 	if(activate(timer, user))
-		user.visible_message("<span class='boldwarning'>[user] squeezes [src], which promptly starts to flash red-hot colors!</span>", "<span class='boldwarning'>I squeeze [src], activating its countdown and attachment mechanism!</span>",
-		"<span class='boldwarning'>I hear a mechanical click and a loud beeping!</span>")
+		user.visible_message("<span class='boldwarning'>[user] squeezes [src], which promptly starts to flash red-hot colors!</span>", "<span class='boldwarning'>You squeeze [src], activating its countdown and attachment mechanism!</span>",
+		"<span class='boldwarning'>You hear a mechanical click and a loud beeping!</span>")
 		return
 	return ..()
 
@@ -71,12 +71,10 @@
 	if(stimulant)
 		if(isliving(loc))
 			var/mob/living/L = loc
-			L.SetStun(0)
-			L.SetKnockdown(0)
+			L.SetAllImmobility(0)
 			L.SetSleeping(0)
-			L.SetImmobilized(0)
-			L.SetParalyzed(0)
 			L.SetUnconscious(0)
+			L.reagents.add_reagent(/datum/reagent/medicine/muscle_stimulant, clamp(5 - L.reagents.get_reagent_amount(/datum/reagent/medicine/muscle_stimulant), 0, 5))	//If you don't have legs or get bola'd, tough luck!
 			colorize(L)
 
 /obj/item/hot_potato/examine(mob/user)
@@ -89,7 +87,7 @@
 /obj/item/hot_potato/equipped(mob/user)
 	. = ..()
 	if(active)
-		to_chat(user, "<span class='danger'>I have a really bad feeling about [src]!</span>")
+		to_chat(user, "<span class='userdanger'>You have a really bad feeling about [src]!</span>")
 
 /obj/item/hot_potato/afterattack(atom/target, mob/user, adjacent, params)
 	. = ..()
@@ -119,11 +117,11 @@
 		. = TRUE
 	if(.)
 		log_combat(user, victim, "forced a hot potato with explosive variables ([detonate_explosion]-[detonate_dev_range]/[detonate_heavy_range]/[detonate_light_range]/[detonate_flash_range]/[detonate_fire_range]) onto")
-		user.visible_message("<span class='danger'>[user] forces [src] onto [victim]!</span>", "<span class='danger'>I force [src] onto [victim]!</span>", "<span class='boldwarning'>I hear a mechanical click and a beep.</span>")
+		user.visible_message("<span class='userdanger'>[user] forces [src] onto [victim]!</span>", "<span class='userdanger'>You force [src] onto [victim]!</span>", "<span class='boldwarning'>You hear a mechanical click and a beep.</span>")
 		colorize(null)
 	else
 		log_combat(user, victim, "tried to force a hot potato with explosive variables ([detonate_explosion]-[detonate_dev_range]/[detonate_heavy_range]/[detonate_light_range]/[detonate_flash_range]/[detonate_fire_range]) onto")
-		user.visible_message("<span class='boldwarning'>[user] tried to force [src] onto [victim], but it could not attach!</span>", "<span class='boldwarning'>I try to force [src] onto [victim], but it is unable to attach!</span>", "<span class='boldwarning'>I hear a mechanical click and two buzzes.</span>")
+		user.visible_message("<span class='boldwarning'>[user] tried to force [src] onto [victim], but it could not attach!</span>", "<span class='boldwarning'>You try to force [src] onto [victim], but it is unable to attach!</span>", "<span class='boldwarning'>You hear a mechanical click and two buzzes.</span>")
 		user.put_in_hands(src)
 
 /obj/item/hot_potato/dropped(mob/user)
@@ -138,12 +136,11 @@
 		ADD_TRAIT(src, TRAIT_NODROP, HOT_POTATO_TRAIT)
 	name = "primed [name]"
 	activation_time = timer + world.time
-	detonation_timerid = addtimer(CALLBACK(src, PROC_REF(detonate)), delay, TIMER_STOPPABLE)
+	detonation_timerid = addtimer(CALLBACK(src, .proc/detonate), delay, TIMER_STOPPABLE)
 	START_PROCESSING(SSfastprocess, src)
-	if(user)
-		log_bomber(user, "has primed a", src, "for detonation (Timer:[delay],Explosive:[detonate_explosion],Range:[detonate_dev_range]/[detonate_heavy_range]/[detonate_light_range]/[detonate_fire_range])")
-	else
-		log_bomber(null, null, src, "was primed for detonation (Timer:[delay],Explosive:[detonate_explosion],Range:[detonate_dev_range]/[detonate_heavy_range]/[detonate_light_range]/[detonate_fire_range])")
+	var/turf/T = get_turf(src)
+	message_admins("[user? "[ADMIN_LOOKUPFLW(user)] has primed [src]" : "A [src] has been primed"] (Timer:[delay],Explosive:[detonate_explosion],Range:[detonate_dev_range]/[detonate_heavy_range]/[detonate_light_range]/[detonate_fire_range]) for detonation at [ADMIN_VERBOSEJMP(T)]")
+	log_game("[user ? "[key_name(user)] has primed [src]" : "A [src] has been primed"] ([detonate_dev_range]/[detonate_heavy_range]/[detonate_light_range]/[detonate_fire_range]) for detonation at [AREACOORD(T)]")
 	active = TRUE
 
 /obj/item/hot_potato/proc/deactivate()
@@ -156,7 +153,7 @@
 	colorize(null)
 	active = FALSE
 
-/obj/item/hot_potato/update_icon()
+/obj/item/hot_potato/update_icon_state()
 	icon_state = active? icon_on : icon_off
 
 /obj/item/hot_potato/syndicate
@@ -167,7 +164,7 @@
 	detonate_explosion = FALSE
 
 /obj/item/hot_potato/harmless/toy
-	desc = ""
+	desc = "A label on the side of this potato reads \"Product of DonkCo Toys and Recreation department.\" <span class='boldnotice'>You can attack anyone with it to put it on them instead, if they have a free hand to take it!</span>"
 	sticky = FALSE
 	reusable = TRUE
 	forceful_attachment = FALSE

@@ -1,6 +1,3 @@
-#define MINIMUM_FLAVOR_TEXT		0
-#define MINIMUM_OOC_NOTES 		0 //Just put something in there
-
 
 //Preference toggles
 #define SOUND_ADMINHELP			(1<<0)
@@ -18,20 +15,10 @@
 #define DISABLE_DEATHRATTLE		(1<<12)
 #define DISABLE_ARRIVALRATTLE	(1<<13)
 #define COMBOHUD_LIGHTING		(1<<14)
+// Gap in prefs between tg and fortune13 prefs.
+#define SPLIT_ADMIN_TABS (1<<23)
 
-#define DEADMIN_ALWAYS			(1<<15)
-#define DEADMIN_ANTAGONIST		(1<<16)
-#define DEADMIN_POSITION_HEAD	(1<<17)
-#define DEADMIN_POSITION_SECURITY	(1<<18)
-#define DEADMIN_POSITION_SILICON	(1<<19)
-
-#define TOGGLE_FULLSCREEN		(1<<20)
-#define SCHIZO_VOICE			(1<<21)
-#define ROLEPLAY_ADS			(1<<22)
-#define CMODE_STRIPPING			(1<<23)
-#define RUN_MODE				(1<<23)
-
-#define TOGGLES_DEFAULT (SOUND_ADMINHELP|SOUND_MIDI|SOUND_AMBIENCE|SOUND_LOBBY|MEMBER_PUBLIC|INTENT_STYLE|MIDROUND_ANTAG|SOUND_INSTRUMENTS|SOUND_SHIP_AMBIENCE|SOUND_PRAYERS|SOUND_ANNOUNCEMENTS|TOGGLE_FULLSCREEN)
+#define TOGGLES_DEFAULT (SOUND_ADMINHELP|SOUND_MIDI|SOUND_AMBIENCE|SOUND_LOBBY|MEMBER_PUBLIC|INTENT_STYLE|MIDROUND_ANTAG|SOUND_INSTRUMENTS|SOUND_SHIP_AMBIENCE|SOUND_PRAYERS|SOUND_ANNOUNCEMENTS)
 
 //Chat toggles
 #define CHAT_OOC			(1<<0)
@@ -44,9 +31,10 @@
 #define CHAT_GHOSTWHISPER	(1<<7)
 #define CHAT_GHOSTPDA		(1<<8)
 #define CHAT_GHOSTRADIO 	(1<<9)
-#define CHAT_BANKCARD  (1<<10)
+#define CHAT_LOOC			(1<<10)
+#define CHAT_BANKCARD		(1<<11)
 
-#define TOGGLES_DEFAULT_CHAT (CHAT_OOC|CHAT_PRAYER|CHAT_RADIO|CHAT_PULLR|CHAT_GHOSTPDA|CHAT_BANKCARD)
+#define TOGGLES_DEFAULT_CHAT (CHAT_OOC|CHAT_DEAD|CHAT_GHOSTEARS|CHAT_GHOSTSIGHT|CHAT_PRAYER|CHAT_RADIO|CHAT_PULLR|CHAT_GHOSTWHISPER|CHAT_GHOSTPDA|CHAT_GHOSTRADIO|CHAT_LOOC|CHAT_BANKCARD)
 
 #define PARALLAX_INSANE -1 //for show offs
 #define PARALLAX_HIGH    0 //default.
@@ -80,63 +68,37 @@
 #define EXP_TYPE_SPECIAL		"Special"
 #define EXP_TYPE_GHOST			"Ghost"
 #define EXP_TYPE_ADMIN			"Admin"
-
+//f13 stuff
+#define EXP_TYPE_FALLOUT		"Fallout"
+#define EXP_TYPE_VAULT			"Vault"
+#define EXP_TYPE_BROTHERHOOD	"Bos"
+#define EXP_TYPE_NCR			"Ncr"
+#define EXP_TYPE_OASIS 			"Oasis"
+#define EXP_TYPE_LEGION			"Legion"
+#define EXP_TYPE_WASTELAND		"Wasteland"
+#define EXP_TYPE_ENCLAVE		"Enclave"
+#define EXP_TYPE_NCRCOMMAND     "NCRCommand"
+#define EXP_TYPE_RANGER         "Ranger"
+#define EXP_TYPE_SCRIBE         "Scribe"
+#define EXP_TYPE_DECANUS        "Decanus"
+#define EXP_TYPE_TRIBAL			"Tribal"
+#define EXP_TYPE_FOLLOWERS		"FoA"
+#define EXP_TYPE_OUTLAW			"Outlaw"
 //Flags in the players table in the db
-#define DB_FLAG_EXEMPT 1
+#define DB_FLAG_EXEMPT 							(1<<0)
+#define DB_FLAG_AGE_CONFIRMATION_INCOMPLETE		(1<<1)
+#define DB_FLAG_AGE_CONFIRMATION_COMPLETE		(1<<2)
 
 #define DEFAULT_CYBORG_NAME "Default Cyborg Name"
-
 
 //Job preferences levels
 #define JP_LOW 1
 #define JP_MEDIUM 2
 #define JP_HIGH 3
 
-//randomised elements
-#define RANDOM_NAME "random_name"
-#define RANDOM_NAME_ANTAG "random_name_antag"
-#define RANDOM_BODY "random_body"
-#define RANDOM_BODY_ANTAG "random_body_antag"
-#define RANDOM_SPECIES "random_species"
-#define RANDOM_GENDER "random_gender"
-#define RANDOM_GENDER_ANTAG "random_gender_antag"
-#define RANDOM_AGE "random_age"
-#define RANDOM_AGE_ANTAG "random_age_antag"
-#define RANDOM_UNDERWEAR "random_underwear"
-#define RANDOM_UNDERWEAR_COLOR "random_underwear_color"
-#define RANDOM_UNDERSHIRT "random_undershirt"
-#define RANDOM_SOCKS "random_socks"
-#define RANDOM_BACKPACK "random_backpack"
-#define RANDOM_JUMPSUIT_STYLE "random_jumpsuit_style"
-#define RANDOM_SKIN_TONE "random_skin_tone"
-#define RANDOM_EYE_COLOR "random_eye_color"
-
-//Age ranges
-#define AGE_ADULT			"Adult"
-#define AGE_MIDDLEAGED		"Middle-Aged"
-#define AGE_OLD				"Old"
-
-#define ALL_AGES_LIST list(AGE_ADULT, AGE_MIDDLEAGED, AGE_OLD)
-
-//Voice ranges
-#define MIN_VOICE_PITCH		0.8
-#define MAX_VOICE_PITCH		1.35
-
-// Pronouns (LETHALSTONE)
-#define HE_HIM			"he/him"
-#define SHE_HER			"she/her"
-#define THEY_THEM		"they/them (Masc Clothes)"
-#define THEY_THEM_F		"they/them (Femme Clothes)"
-#define IT_ITS			"it/its"
-#define HE_HIM_F		"he/him (Femme Clothes)"
-#define SHE_HER_M		"she/her (Masc Clothes)"
-
-GLOBAL_LIST_INIT(pronouns_list, list(HE_HIM, SHE_HER, THEY_THEM, THEY_THEM_F, IT_ITS, HE_HIM_F, SHE_HER_M))
-
-// Voice types (LETHALSTONE)
-
-#define VOICE_TYPE_MASC	"Masculine"
-#define VOICE_TYPE_FEM	"Feminine"
-#define VOICE_TYPE_ANDR	"Androgynous"
-
-GLOBAL_LIST_INIT(voice_types_list, list(VOICE_TYPE_MASC, VOICE_TYPE_FEM, VOICE_TYPE_ANDR))
+//Chaos levels for dynamic voting
+#define CHAOS_NONE "None (Extended)"
+#define CHAOS_LOW "Low"
+#define CHAOS_MED "Medium"
+#define CHAOS_HIGH "High"
+#define CHAOS_MAX "Maximum"

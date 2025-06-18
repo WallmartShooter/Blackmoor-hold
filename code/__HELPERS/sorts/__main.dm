@@ -83,18 +83,18 @@ GLOBAL_DATUM_INIT(sortInstance, /datum/sortInstance, new())
 	return L
 
 /*
-Sorts the specified portion of the specified array using a binary
-insertion sort.  This is the best method for sorting small numbers
-of elements.  It requires O(n log n) compares, but O(n^2) data
-movement (worst case).
+	Sorts the specified portion of the specified array using a binary
+	insertion sort.  This is the best method for sorting small numbers
+	of elements.  It requires O(n log n) compares, but O(n^2) data
+	movement (worst case).
 
-If the initial part of the specified range is already sorted,
-this method can take advantage of it: the method assumes that the
-elements in range [lo,start) are already sorted
+	If the initial part of the specified range is already sorted,
+	this method can take advantage of it: the method assumes that the
+	elements in range [lo,start) are already sorted
 
-lo		the index of the first element in the range to be sorted
-hi		the index after the last element in the range to be sorted
-start	the index of the first element in the range that is	not already known to be sorted
+	lo		the index of the first element in the range to be sorted
+	hi		the index after the last element in the range to be sorted
+	start	the index of the first element in the range that is	not already known to be sorted
 */
 /datum/sortInstance/proc/binarySort(lo, hi, start)
 	//ASSERT(lo <= start && start <= hi)
@@ -122,16 +122,16 @@ start	the index of the first element in the range that is	not already known to b
 		moveElement(L, start, left)	//move pivot element to correct location in the sorted range
 
 /*
-Returns the length of the run beginning at the specified position and reverses the run if it is back-to-front
+	Returns the length of the run beginning at the specified position and reverses the run if it is back-to-front
 
-A run is the longest ascending sequence with:
-	a[lo] <= a[lo + 1] <= a[lo + 2] <= ...
-or the longest descending sequence with:
-	a[lo] >  a[lo + 1] >  a[lo + 2] >  ...
+	A run is the longest ascending sequence with:
+		a[lo] <= a[lo + 1] <= a[lo + 2] <= ...
+	or the longest descending sequence with:
+		a[lo] >  a[lo + 1] >  a[lo + 2] >  ...
 
-For its intended use in a stable mergesort, the strictness of the
-definition of "descending" is needed so that the call can safely
-reverse a descending sequence without violating stability.
+	For its intended use in a stable mergesort, the strictness of the
+	definition of "descending" is needed so that the call can safely
+	reverse a descending sequence without violating stability.
 */
 /datum/sortInstance/proc/countRunAndMakeAscending(lo, hi)
 	//ASSERT(lo < hi)
@@ -312,9 +312,9 @@ reverse a descending sequence without violating stability.
  * @param len the length of the range; must be > 0
  * @param hint the index at which to begin the search, 0 <= hint < n.
  *	 The closer hint is to the result, the faster this method will run.
-	* @param c the comparator used to order the range, and to search
-	* @return the int k,  0 <= k <= n such that a[b + k - 1] <= key < a[b + k]
-	*/
+ * @param c the comparator used to order the range, and to search
+ * @return the int k,  0 <= k <= n such that a[b + k - 1] <= key < a[b + k]
+ */
 /datum/sortInstance/proc/gallopRight(key, base, len, hint)
 	//ASSERT(len > 0 && hint >= 0 && hint < len)
 

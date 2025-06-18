@@ -1,6 +1,12 @@
 /obj/effect/overlay
 	name = "overlay"
 
+/obj/effect/overlay/singularity_act()
+	return
+
+/obj/effect/overlay/singularity_pull()
+	return
+
 /obj/effect/overlay/beam//Not actually a projectile, just an effect.
 	name="beam"
 	icon='icons/effects/beam.dmi'
@@ -43,16 +49,6 @@
 /obj/effect/overlay/vis
 	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
 	anchored = TRUE
+	vis_flags = NONE
 	var/unused = 0 //When detected to be unused it gets set to world.time, after a while it gets removed
 	var/cache_expiration = 2 MINUTES // overlays which go unused for 2 minutes get cleaned up
-
-/obj/effect/overlay/light_visible
-	name = ""
-	icon = 'icons/effects/light_overlays/light_32.dmi'
-	icon_state = "light"
-	layer = O_LIGHTING_VISUAL_LAYER
-	plane = O_LIGHTING_VISUAL_PLANE
-	appearance_flags = RESET_COLOR | RESET_ALPHA | RESET_TRANSFORM
-	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
-	alpha = 0
-	vis_flags = NONE

@@ -1,7 +1,7 @@
 
 /obj/effect/abstract/proximity_checker/advanced
 	name = "field"
-	desc = ""
+	desc = "Why can you see energy fields?!"
 	icon = null
 	icon_state = null
 	alpha = 0
@@ -17,15 +17,15 @@
 
 /obj/effect/abstract/proximity_checker/advanced/center
 	name = "field anchor"
-	desc = ""
+	desc = "No."
 
 /obj/effect/abstract/proximity_checker/advanced/field_turf
 	name = "energy field"
-	desc = ""
+	desc = "Get off my turf!"
 
-/obj/effect/abstract/proximity_checker/advanced/field_turf/CanPass(atom/movable/AM, turf/target)
+/obj/effect/abstract/proximity_checker/advanced/field_turf/CanPass(atom/movable/AM, border_dir)
 	if(parent)
-		return parent.field_turf_canpass(AM, src, target)
+		return parent.field_turf_canpass(AM, src, border_dir)
 	return TRUE
 
 /obj/effect/abstract/proximity_checker/advanced/field_turf/Crossed(atom/movable/AM)
@@ -45,11 +45,11 @@
 
 /obj/effect/abstract/proximity_checker/advanced/field_edge
 	name = "energy field edge"
-	desc = ""
+	desc = "Edgy description here."
 
-/obj/effect/abstract/proximity_checker/advanced/field_edge/CanPass(atom/movable/AM, turf/target)
+/obj/effect/abstract/proximity_checker/advanced/field_edge/CanPass(atom/movable/AM, border_dir)
 	if(parent)
-		return parent.field_edge_canpass(AM, src, target)
+		return parent.field_edge_canpass(AM, src, border_dir)
 	return TRUE
 
 /obj/effect/abstract/proximity_checker/advanced/field_edge/Crossed(atom/movable/AM)

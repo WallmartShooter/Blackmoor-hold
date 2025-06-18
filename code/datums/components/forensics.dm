@@ -1,6 +1,5 @@
 /datum/component/forensics
 	dupe_mode = COMPONENT_DUPE_UNIQUE
-	can_transfer = TRUE
 	var/list/fingerprints		//assoc print = print
 	var/list/hiddenprints		//assoc ckey = realname/gloves/ckey
 	var/list/blood_DNA			//assoc dna = bloodtype
@@ -22,17 +21,7 @@
 	blood_DNA = new_blood_DNA
 	fibers = new_fibers
 	check_blood()
-
-/datum/component/forensics/RegisterWithParent()
-	check_blood()
-	RegisterSignal(parent, COMSIG_COMPONENT_CLEAN_ACT, PROC_REF(clean_act))
-
-/datum/component/forensics/UnregisterFromParent()
-    UnregisterSignal(parent, list(COMSIG_COMPONENT_CLEAN_ACT))
-
-/datum/component/forensics/PostTransfer()
-	if(!isatom(parent))
-		return COMPONENT_INCOMPATIBLE
+	RegisterSignal(parent, COMSIG_COMPONENT_CLEAN_ACT, .proc/clean_act)
 
 /datum/component/forensics/proc/wipe_fingerprints()
 	fingerprints = null
@@ -51,12 +40,12 @@
 	fibers = null
 	return TRUE
 
-/datum/component/forensics/proc/clean_act(datum/source, strength)
-	if(strength >= CLEAN_STRENGTH_FINGERPRINTS)
+/datum/component/forensics/proc/clean_act(strength)
+	if(strength >= CLEAN_IMPRESSIVE)
 		wipe_fingerprints()
-	if(strength >= CLEAN_STRENGTH_BLOOD)
+	if(strength >= CLEAN_WEAK)
 		wipe_blood_DNA()
-	if(strength >= CLEAN_STRENGTH_FIBERS)
+	if(strength >= CLEAN_IMPRESSIVE)
 		wipe_fibers()
 
 /datum/component/forensics/proc/add_fingerprint_list(list/_fingerprints)	//list(text)
@@ -68,21 +57,18 @@
 	return TRUE
 
 /datum/component/forensics/proc/add_fingerprint(mob/living/M, ignoregloves = FALSE)
-	if(!isliving(M))
-		if(!iscameramob(M))
-			return
+	if(!M)
+		return
 	add_hiddenprint(M)
 	if(ishuman(M))
 		var/mob/living/carbon/human/H = M
 		add_fibers(H)
-		if(H.gloves) //Check if the gloves (if any) hide fingerprints
-			if(!istype(H.gloves, /obj/item/clothing/gloves))
-				return
+		if(istype(H.gloves, /obj/item/clothing/gloves)) //Check if the gloves (if any) hide fingerprints
 			var/obj/item/clothing/gloves/G = H.gloves
 			if(G.transfer_prints)
 				ignoregloves = TRUE
 			if(!ignoregloves)
-				H.gloves.add_fingerprint(H, TRUE) //ignoregloves = 1 to avoid infinite loop.
+				G.add_fingerprint(H, TRUE) //ignoregloves = TRUE to avoid infinite loop.
 				return
 		var/full_print = md5(H.dna.uni_identity)
 		LAZYSET(fingerprints, full_print, full_print)
@@ -99,22 +85,22 @@
 /datum/component/forensics/proc/add_fibers(mob/living/carbon/human/M)
 	var/fibertext
 	var/item_multiplier = isitem(src)?1.2:1
-	if(M.wear_armor)
-		fibertext = "Material from \a [M.wear_armor]."
+	if(M.wear_suit)
+		fibertext = "Material from \a [M.wear_suit]."
 		if(prob(10*item_multiplier) && !LAZYACCESS(fibers, fibertext))
 			LAZYSET(fibers, fibertext, fibertext)
-		if(!(M.wear_armor.body_parts_covered & CHEST))
-			if(M.wear_pants)
-				fibertext = "Fibers from \a [M.wear_pants]."
+		if(!(M.wear_suit.body_parts_covered & CHEST))
+			if(M.w_uniform)
+				fibertext = "Fibers from \a [M.w_uniform]."
 				if(prob(12*item_multiplier) && !LAZYACCESS(fibers, fibertext)) //Wearing a suit means less of the uniform exposed.
 					LAZYSET(fibers, fibertext, fibertext)
-		if(!(M.wear_armor.body_parts_covered & HANDS))
+		if(!(M.wear_suit.body_parts_covered & HANDS))
 			if(M.gloves)
 				fibertext = "Material from a pair of [M.gloves.name]."
 				if(prob(20*item_multiplier) && !LAZYACCESS(fibers, fibertext))
 					LAZYSET(fibers, fibertext, fibertext)
-	else if(M.wear_pants)
-		fibertext = "Fibers from \a [M.wear_pants]."
+	else if(M.w_uniform)
+		fibertext = "Fibers from \a [M.w_uniform]."
 		if(prob(15*item_multiplier) && !LAZYACCESS(fibers, fibertext))
 			// "Added fibertext: [fibertext]"
 			LAZYSET(fibers, fibertext, fibertext)
@@ -136,11 +122,8 @@
 		hiddenprints[i] = _hiddenprints[i]
 	return TRUE
 
-/datum/component/forensics/proc/add_hiddenprint(mob/M)
-	if(!isliving(M))
-		if(!iscameramob(M))
-			return
-	if(!M.key)
+/datum/component/forensics/proc/add_hiddenprint(mob/living/M)
+	if(!M || !M.key)
 		return
 	var/hasgloves = ""
 	if(ishuman(M))

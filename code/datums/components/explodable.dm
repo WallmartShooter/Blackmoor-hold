@@ -10,16 +10,16 @@
 	if(!isatom(parent))
 		return COMPONENT_INCOMPATIBLE
 
-	RegisterSignal(parent, COMSIG_PARENT_ATTACKBY, PROC_REF(explodable_attack))
-	RegisterSignal(parent, COMSIG_TRY_STORAGE_INSERT, PROC_REF(explodable_insert_item))
-	RegisterSignal(parent, COMSIG_ATOM_EX_ACT, PROC_REF(detonate))
-	if(ismovableatom(parent))
-		RegisterSignal(parent, COMSIG_MOVABLE_IMPACT, PROC_REF(explodable_impact))
-		RegisterSignal(parent, COMSIG_MOVABLE_BUMP, PROC_REF(explodable_bump))
+	RegisterSignal(parent, COMSIG_PARENT_ATTACKBY, .proc/explodable_attack)
+	RegisterSignal(parent, COMSIG_TRY_STORAGE_INSERT, .proc/explodable_insert_item)
+	RegisterSignal(parent, COMSIG_ATOM_EX_ACT, .proc/detonate)
+	if(ismovable(parent))
+		RegisterSignal(parent, COMSIG_MOVABLE_IMPACT, .proc/explodable_impact)
+		RegisterSignal(parent, COMSIG_MOVABLE_BUMP, .proc/explodable_bump)
 		if(isitem(parent))
-			RegisterSignal(parent, list(COMSIG_ITEM_ATTACK, COMSIG_ITEM_ATTACK_OBJ, COMSIG_ITEM_HIT_REACT), PROC_REF(explodable_attack))
-			RegisterSignal(parent, COMSIG_ITEM_EQUIPPED, PROC_REF(on_equip))
-			RegisterSignal(parent, COMSIG_ITEM_DROPPED, PROC_REF(on_drop))
+			RegisterSignal(parent, list(COMSIG_ITEM_ATTACK, COMSIG_ITEM_ATTACK_OBJ, COMSIG_ITEM_HIT_REACT), .proc/explodable_attack)
+			RegisterSignal(parent, COMSIG_ITEM_EQUIPPED, .proc/on_equip)
+			RegisterSignal(parent, COMSIG_ITEM_DROPPED, .proc/on_drop)
 
 
 
@@ -56,7 +56,7 @@
 	detonate()
 
 /datum/component/explodable/proc/on_equip(datum/source, mob/equipper, slot)
-	RegisterSignal(equipper, COMSIG_MOB_APPLY_DAMGE,  PROC_REF(explodable_attack_zone), TRUE)
+	RegisterSignal(equipper, COMSIG_MOB_APPLY_DAMGE,  .proc/explodable_attack_zone, TRUE)
 
 /datum/component/explodable/proc/on_drop(datum/source, mob/user)
 	UnregisterSignal(user, COMSIG_MOB_APPLY_DAMGE)
@@ -77,7 +77,7 @@
 		equipment_items += list(C.head, C.wear_mask, C.back, C.gloves, C.shoes, C.glasses, C.ears)
 		if(ishuman(C))
 			var/mob/living/carbon/human/H = C
-			equipment_items += list(H.wear_armor, H.wear_pants, H.belt, H.s_store, H.wear_ring)
+			equipment_items += list(H.wear_suit, H.w_uniform, H.belt, H.s_store, H.wear_id)
 
 	for(var/bp in equipment_items)
 		if(!bp)
@@ -101,8 +101,5 @@
 /// Expldoe and remove the object
 /datum/component/explodable/proc/detonate()
 	var/atom/A = parent
-	var/log = TRUE
-	if(light_impact_range < 1)
-		log = FALSE
-	explosion(A, devastation_range, heavy_impact_range, light_impact_range, flash_range, log) //epic explosion time
+	explosion(A, devastation_range, heavy_impact_range, light_impact_range, flash_range) //epic explosion time
 	qdel(A)

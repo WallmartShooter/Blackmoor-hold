@@ -1,14 +1,15 @@
 /obj/effect/proc_holder/spell/targeted/summonitem
 	name = "Instant Summons"
-	desc = ""
+	desc = "This spell can be used to recall a previously marked item to your hand from anywhere in the universe."
 	school = "transmutation"
-	recharge_time = 100
-	clothes_req = FALSE
+	charge_max = 100
+	clothes_req = NONE
 	invocation = "GAR YOK"
 	invocation_type = "whisper"
 	range = -1
+	level_max = 0 //cannot be improved
 	cooldown_min = 100
-	include_user = TRUE
+	include_user = 1
 
 	var/obj/marked_item
 
@@ -24,8 +25,6 @@
 			for(var/obj/item/item in hand_items)
 				if(item.item_flags & ABSTRACT)
 					continue
-				if(SEND_SIGNAL(item, COMSIG_ITEM_MARK_RETRIEVAL) & COMPONENT_BLOCK_MARK_RETRIEVAL)
-					continue
 				if(HAS_TRAIT(item, TRAIT_NODROP))
 					message += "Though it feels redundant, "
 				marked_item = 		item
@@ -35,17 +34,17 @@
 
 			if(!marked_item)
 				if(hand_items)
-					message = span_warning("I'm not holding anything that can be marked for recall!")
+					message = "<span class='caution'>You aren't holding anything that can be marked for recall.</span>"
 				else
-					message = span_warning("I must hold the desired item in my hands to mark it for recall!")
+					message = "<span class='notice'>You must hold the desired item in your hands to mark it for recall.</span>"
 
 		else if(marked_item && (marked_item in hand_items)) //unlinking item to the spell
-			message = span_notice("I remove the mark on [marked_item] to use elsewhere.")
+			message = "<span class='notice'>You remove the mark on [marked_item] to use elsewhere.</span>"
 			name = "Instant Summons"
 			marked_item = 		null
 
 		else if(marked_item && QDELETED(marked_item)) //the item was destroyed at some point
-			message = span_warning("I sense my marked item has been destroyed!")
+			message = "<span class='warning'>You sense your marked item has been destroyed!</span>"
 			name = "Instant Summons"
 			marked_item = 		null
 
@@ -59,7 +58,7 @@
 					if(organ.owner)
 						// If this code ever runs I will be happy
 						log_combat(L, organ.owner, "magically removed [organ.name] from", addition="INTENT: [uppertext(L.a_intent)]")
-						organ.Remove(organ.owner)
+						organ.Remove()
 			else
 				while(!isturf(item_to_retrieve.loc) && infinite_recursion < 10) //if it's in something you get the whole thing.
 					if(isitem(item_to_retrieve.loc))
@@ -68,27 +67,38 @@
 							break
 					if(ismob(item_to_retrieve.loc)) //If its on someone, properly drop it
 						var/mob/M = item_to_retrieve.loc
+
+						if(issilicon(M)) //Items in silicons warp the whole silicon
+							M.loc.visible_message("<span class='warning'>[M] suddenly disappears!</span>")
+							M.forceMove(L.loc)
+							M.loc.visible_message("<span class='caution'>[M] suddenly appears!</span>")
+							item_to_retrieve = null
+							break
 						M.dropItemToGround(item_to_retrieve)
-						if(iscarbon(M)) //Edge case housekeeping
-							var/mob/living/carbon/C = M
-							for(var/X in C.bodyparts)
-								var/obj/item/bodypart/part = X
-								if(item_to_retrieve in part.embedded_objects)
-									part.remove_embedded_object(item_to_retrieve)
-									to_chat(C, span_warning("The [item_to_retrieve] that was embedded in your [L] has mysteriously vanished. How fortunate!"))
-									break
+
+					else
+						if(istype(item_to_retrieve.loc, /obj/machinery/portable_atmospherics/)) //Edge cases for moved machinery
+							var/obj/machinery/portable_atmospherics/P = item_to_retrieve.loc
+							P.disconnect()
+							P.update_icon()
+
 						item_to_retrieve = item_to_retrieve.loc
+
 					infinite_recursion += 1
+
 			if(!item_to_retrieve)
 				return
+
 			if(item_to_retrieve.loc)
-				item_to_retrieve.loc.visible_message(span_warning("The [item_to_retrieve.name] suddenly disappears!"))
-			if(!L.put_in_hands(item_to_retrieve))
+				item_to_retrieve.loc.visible_message("<span class='warning'>The [item_to_retrieve.name] suddenly disappears!</span>")
+			if(!isitem(item_to_retrieve) || !L.put_in_hands(item_to_retrieve))
 				item_to_retrieve.forceMove(L.drop_location())
-				item_to_retrieve.loc.visible_message(span_warning("The [item_to_retrieve.name] suddenly appears!"))
-				playsound(get_turf(L), 'sound/blank.ogg', 50, TRUE)
+				item_to_retrieve.loc.visible_message("<span class='caution'>The [item_to_retrieve.name] suddenly appears!</span>")
+				playsound(get_turf(L), 'sound/magic/summonitems_generic.ogg', 50, 1)
 			else
-				item_to_retrieve.loc.visible_message(span_warning("The [item_to_retrieve.name] suddenly appears in [L]'s hand!"))
-				playsound(get_turf(L), 'sound/blank.ogg', 50, TRUE)
+				item_to_retrieve.loc.visible_message("<span class='caution'>The [item_to_retrieve.name] suddenly appears in [L]'s hand!</span>")
+				playsound(get_turf(L), 'sound/magic/summonitems_generic.ogg', 50, 1)
+
+
 		if(message)
 			to_chat(L, message)

@@ -23,18 +23,15 @@
 #define WINDOW_IN_FRAME 1
 #define WINDOW_SCREWED_TO_FRAME 2
 
-//reinforced window construction states
-#define RWINDOW_FRAME_BOLTED 3
-#define RWINDOW_BARS_CUT 4
-#define RWINDOW_POPPED 5
-#define RWINDOW_BOLTS_OUT 6
-#define RWINDOW_BOLTS_HEATED 7
-#define RWINDOW_SECURE 8
-
 //airlock assembly construction states
 #define AIRLOCK_ASSEMBLY_NEEDS_WIRES 0
 #define AIRLOCK_ASSEMBLY_NEEDS_ELECTRONICS 1
 #define AIRLOCK_ASSEMBLY_NEEDS_SCREWDRIVER 2
+
+//blast door (de)construction states
+#define BLASTDOOR_NEEDS_WIRES 0
+#define BLASTDOOR_NEEDS_ELECTRONICS 1
+#define BLASTDOOR_FINISHED 2
 
 //default_unfasten_wrench() return defines
 #define CANT_UNFASTEN 0
@@ -67,8 +64,6 @@
 //let's just pretend fulltile windows being children of border windows is fine
 #define FULLTILE_WINDOW_DIR NORTHEAST
 
-//The amount of materials you get from a sheet of mineral like iron/diamond/glass etc
-#define MINERAL_MATERIAL_AMOUNT 2000
 //The maximum size of a stack object.
 #define MAX_STACK_SIZE 50
 //maximum amount of cable in a coil
@@ -76,6 +71,53 @@
 
 //tablecrafting defines
 #define CAT_NONE	""
+#define CAT_WEAPONRY	"Weaponry"
+#define CAT_WEAPON	"Ranged Weapons"
+#define CAT_MELEE	"Melee Weapons"
+#define CAT_AMMO	"Ammo & Cells"
+#define CAT_MISCWEP	"Weapons Misc"
+#define CAT_PARTS	"Weapon Parts"
+#define CAT_CRAFTING	"Crafting"
+#define CAT_ROBOT	"Electronics & Robots"
+#define CAT_FORGING	"Forging & Smithing"
+#define CAT_MISC	"Misc"
+#define CAT_SCAVENGING	"Scavenging & Tinkering"
+#define CAT_MISCELLANEOUS	"Miscellaneous"
+#define CAT_TOOL	"Tools & Workbench"
+#define CAT_FURNITURE	"Burial & Execution"
+#define CAT_FARMING	"Farming"
+#define CAT_PRIMAL	"Primal"
+#define CAT_TRIBAL "Tribal"
+#define CAT_CLOTHING	"Clothing"
+#define CAT_FOOD	"Foods"
+#define CAT_WASTEFOOD	"Food Wasteland"
+#define CAT_BREAD	"Food Bread"
+#define CAT_BURGER	"Food Old World"
+#define CAT_CAKE	"Food Cakes"
+#define CAT_DONUT	"Food Donuts"
+#define CAT_EGG	"Food Egg-Based"
+#define CAT_MEAT	"Food Meats"
+#define CAT_MEXICAN	"Food Mexican"
+#define CAT_MISCFOOD	"Food Misc"
+#define CAT_PASTRY	"Food Pastries"
+#define CAT_PIE	"Food Pies & Sweets"
+#define CAT_PIZZA	"Food Pizzas"
+#define CAT_SALAD	"Food Salads"
+#define CAT_SEAFOOD	"Food Seafood"
+#define CAT_SANDWICH	"Food Sandwiches"
+#define CAT_SOUP	"Food Soups"
+#define CAT_SPAGHETTI	"Food Spaghettis"
+#define CAT_ICE	"Food Frozen"
+#define CAT_MEDICAL "Medical"
+#define CAT_BOTTLE "Bottling"
+#define CAT_GENCLOTHES "General Clothing"
+#define CAT_ARMOR "Armor"
+#define CAT_BELTS	"Belts"
+#define CAT_WASTELAND	"Wasteland Clothing"
+#define CAT_SHOES "Shoes"
+#define CAT_MISCCLOTHING "Misc Clothing"
+#define CAT_DRINK "Drinks"
+#define CAT_EXPLOSIVE "Explosives"
 
 #define RCD_FLOORWALL 1
 #define RCD_AIRLOCK 2
@@ -84,6 +126,10 @@
 #define RCD_MACHINE 8
 #define RCD_COMPUTER 16
 
-#define RCD_UPGRADE_FRAMES	1
-#define RCD_UPGRADE_SIMPLE_CIRCUITS	2
-#define RCD_UPGRADE_SILO_LINK	4
+#define RCD_UPGRADE_FRAMES 1
+#define RCD_UPGRADE_SIMPLE_CIRCUITS 2
+
+//Electrochromatic window defines.
+#define NOT_ELECTROCHROMATIC		0
+#define ELECTROCHROMATIC_OFF		1
+#define ELECTROCHROMATIC_DIMMED		2

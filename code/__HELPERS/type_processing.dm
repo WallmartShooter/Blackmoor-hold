@@ -1,3 +1,4 @@
+
 /proc/make_types_fancy(list/types)
 	if (ispath(types))
 		types = list(types)
@@ -6,8 +7,16 @@
 		var/typename = "[type]"
 		var/static/list/TYPES_SHORTCUTS = list(
 			/obj/effect/decal/cleanable = "CLEANABLE",
+			/obj/item/radio/headset = "HEADSET",
+			/obj/item/clothing/head/helmet/space = "SPESSHELMET",
+			/obj/item/book/manual = "MANUAL",
+			/obj/item/reagent_containers/food/drinks = "DRINK", //longest paths comes first
 			/obj/item/reagent_containers/food = "FOOD",
 			/obj/item/reagent_containers = "REAGENT_CONTAINERS",
+			/obj/machinery/atmospherics = "ATMOS_MECH",
+			/obj/machinery/portable_atmospherics = "PORT_ATMOS",
+			/obj/item/mecha_parts/mecha_equipment/weapon/ballistic/missile_rack = "MECHA_MISSILE_RACK",
+			/obj/item/mecha_parts/mecha_equipment = "MECHA_EQUIP",
 			/obj/item/organ = "ORGAN",
 			/obj/item = "ITEM",
 			/obj/machinery = "MACHINERY",
@@ -48,4 +57,5 @@
 		var/value = L[key]
 		if(findtext("[key]", filter) || findtext("[value]", filter))
 			matches[key] = value
+			CHECK_TICK
 	return matches

@@ -23,7 +23,7 @@
 #define MODE_WHISPER "whisper"
 #define MODE_WHISPER_CRIT "whispercrit"
 
-#define MODE_SING "%"
+#define MODE_CUSTOM_SAY "custom_say"
 
 #define MODE_DEPARTMENT "department"
 #define MODE_KEY_DEPARTMENT "h"
@@ -35,6 +35,7 @@
 #define MODE_DEADMIN "deadmin"
 #define MODE_KEY_DEADMIN "d"
 
+#define MODE_ALIEN "alientalk"
 #define MODE_HOLOPAD "holopad"
 
 #define MODE_CHANGELING "changeling"
@@ -46,6 +47,8 @@
 
 #define MODE_MONKEY "monkeyhive"
 
+#define MODE_SING "%"
+
 //Spans. Robot speech, italics, etc. Applied in compose_message().
 #define SPAN_ROBOT "robot"
 #define SPAN_YELL "yell"
@@ -56,24 +59,6 @@
 #define SPAN_COMMAND "command_headset"
 #define SPAN_CLOWN "clown"
 #define SPAN_SINGING "singing"
-
-#define SPAN_GEN "say"
-#define SPAN_DWARF "dwarf"
-#define SPAN_ELF "elf"
-#define SPAN_SAND "sandspeak"
-#define SPAN_DELF "delf"
-#define SPAN_HELL "hellspeak"
-#define SPAN_GRENZELHOFTIAN "grenzelhoftian"
-#define SPAN_OTAVAN "otavan"
-#define SPAN_ETRUSCAN "etruscan"
-#define SPAN_GRONNIC "gronnic"
-#define SPAN_BEAST "beast"
-#define SPAN_ORC "orc"
-#define SPAN_DRACONIC "reptile"
-#define SPAN_KAZENGUNESE "kazengunese"
-#define SPAN_AAVNIC "aavnic"
-#define SPAN_UNDEAD "undead" //nyi but file found
-#define SPAN_CAT "cat"		 //nyi but file found
 
 //bitflag #defines for return value of the radio() proc.
 #define ITALICS 1
@@ -93,9 +78,14 @@
 #define LINGHIVE_LING 2
 #define LINGHIVE_LINK 3
 
+//whether the emote is visible or audible.
+#define EMOTE_VISIBLE 1
+#define EMOTE_AUDIBLE 2
+
 //Don't set this very much higher then 1024 unless you like inviting people in to dos your server with message spam
-#define MAX_MESSAGE_BIGME		4096
-#define MAX_MESSAGE_LEN			2048
+#define MAX_MESSAGE_LEN			4096		//Citadel edit: What's the WORST that could happen?
+#define MAX_FLAVOR_LEN			4096
+#define MAX_TASTE_LEN			40
 #define MAX_NAME_LEN			42
 #define MAX_BROADCAST_LEN		512
 #define MAX_CHARTER_LEN			80
@@ -107,7 +97,5 @@
 #define MSG_VISUAL (1<<0)
 #define MSG_AUDIBLE (1<<1)
 
-/// Removes characters incompatible with file names.
-#define SANITIZE_FILENAME(text) (GLOB.filename_forbidden_chars.Replace(text, ""))
-/// Simply removes the < and > characters, and limits the length of the message.
-#define STRIP_HTML_SIMPLE(text, limit) (GLOB.angular_brackets.Replace(copytext(text, 1, limit), ""))
+//Used in visible_message_flags, audible_message_flags and runechat_flags
+#define EMOTE_MESSAGE (1<<0)

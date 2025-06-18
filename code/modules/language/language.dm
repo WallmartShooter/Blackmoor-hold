@@ -6,11 +6,12 @@
 
 /datum/language
 	var/name = "an unknown language"  // Fluff name of language if any.
-	var/desc = ""          // Short description for 'Check Languages'.
+	var/desc = "A language."          // Short description for 'Check Languages'.
 	var/speech_verb = "says"          // 'says', 'hisses', 'farts'.
 	var/ask_verb = "asks"             // Used when sentence ends in a ?
 	var/exclaim_verb = "exclaims"     // Used when sentence ends in a !
 	var/whisper_verb = "whispers"     // Optional. When not specified speech_verb + quietly/softly is used instead.
+	var/sing_verb = "sings"			  // Used for singing.
 	var/list/signlang_verb = list("signs", "gestures") // list of emotes that might be displayed if this language has NONVERBAL or SIGNLANG flags
 	var/key                           // Character used to speak in language
 	// If key is null, then the language isn't real or learnable.
@@ -21,8 +22,6 @@
 	var/list/spans = list()
 	var/list/scramble_cache = list()
 	var/default_priority = 0          // the language that an atom knows with the highest "default_priority" is selected by default.
-
-
 
 	// if you are seeing someone speak popcorn language, then something is wrong.
 	var/icon = 'icons/misc/language.dmi'
@@ -37,7 +36,7 @@
 	return TRUE
 
 /datum/language/proc/get_icon()
-	var/datum/asset/spritesheet/sheet = get_asset_datum(/datum/asset/spritesheet/goonchat)
+	var/datum/asset/spritesheet/sheet = get_asset_datum(/datum/asset/spritesheet/chat)
 	return sheet.icon_tag("language-[icon_state]")
 
 /datum/language/proc/get_random_name(gender, name_count=2, syllable_count=4, syllable_divisor=2)
@@ -75,21 +74,18 @@
 /datum/language/proc/scramble(input)
 
 	if(!syllables || !syllables.len)
-		if(!signlang_verb || !signlang_verb.len)
-			return stars(input)
-		else
-			return "*[pick(signlang_verb)]"
+		return stars(input)
 
 	// If the input is cached already, move it to the end of the cache and return it
 	var/lookup = check_cache(input)
 	if(lookup)
 		return lookup
 
-	var/input_size = length(input)
+	var/input_size = length_char(input)
 	var/scrambled_text = ""
 	var/capitalize = TRUE
 
-	while(length(scrambled_text) < input_size)
+	while(length_char(scrambled_text) < input_size)
 		var/next = pick(syllables)
 		if(capitalize)
 			next = capitalize(next)
@@ -103,10 +99,10 @@
 			scrambled_text += " "
 
 	scrambled_text = trim(scrambled_text)
-	var/ending = copytext(scrambled_text, length(scrambled_text))
+	var/ending = copytext_char(scrambled_text, -1)
 	if(ending == ".")
-		scrambled_text = copytext(scrambled_text,1,length(scrambled_text)-1)
-	var/input_ending = copytext(input, input_size)
+		scrambled_text = copytext_char(scrambled_text, 1, -2)
+	var/input_ending = copytext_char(input, -1)
 	if(input_ending in list("!","?","."))
 		scrambled_text += input_ending
 

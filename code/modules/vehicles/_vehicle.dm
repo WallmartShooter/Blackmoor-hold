@@ -1,9 +1,10 @@
 /obj/vehicle
 	name = "generic vehicle"
-	desc = ""
+	desc = "Yell at coderbus."
+	icon = 'icons/obj/vehicles.dmi'
 	icon_state = "fuckyou"
 	max_integrity = 300
-	armor = list("blunt" = 30, "slash" = 30, "stab" = 30, "bullet" = 30, "laser" = 30, "energy" = 0, "bomb" = 30, "bio" = 0, "rad" = 0, "fire" = 60, "acid" = 60)
+	armor = list("melee" = 30, "bullet" = 30, "laser" = 30, "energy" = 0, "bomb" = 30, "bio" = 0, "rad" = 0, "fire" = 60, "acid" = 60)
 	density = TRUE
 	anchored = FALSE
 	var/list/mob/occupants				//mob = bitflags of their control level.
@@ -14,14 +15,14 @@
 	var/key_type
 	var/obj/item/key/inserted_key
 	var/key_type_exact = TRUE		//can subtypes work
-	var/canmove = TRUE //If this is false the vehicle cant drive. (thanks for making this actually functional kevinz :^) )
+	var/canmove = TRUE
 	var/emulate_door_bumps = TRUE	//when bumping a door try to make occupants bump them to open them.
 	var/default_driver_move = TRUE	//handle driver movement instead of letting something else do it like riding datums.
+	var/enclosed = FALSE	// is the rider protected from bullets? assume no
 	var/list/autogrant_actions_passenger	//plain list of typepaths
 	var/list/autogrant_actions_controller	//assoc list "[bitflag]" = list(typepaths)
 	var/list/mob/occupant_actions			//assoc list mob = list(type = action datum assigned to mob)
 	var/obj/vehicle/trailer
-	var/are_legs_exposed = FALSE
 
 /obj/vehicle/Initialize(mapload)
 	. = ..()
@@ -34,7 +35,7 @@
 /obj/vehicle/examine(mob/user)
 	. = ..()
 	if(resistance_flags & ON_FIRE)
-		. += span_warning("It's on fire!")
+		. += "<span class='warning'>It's on fire!</span>"
 	var/healthpercent = obj_integrity/max_integrity * 100
 	switch(healthpercent)
 		if(50 to 99)
@@ -42,7 +43,7 @@
 		if(25 to 50)
 			. += "It appears heavily damaged."
 		if(0 to 25)
-			. += span_warning("It's falling apart!")
+			. += "<span class='warning'>It's falling apart!</span>"
 
 /obj/vehicle/proc/is_key(obj/item/I)
 	return I? (key_type_exact? (I.type == key_type) : istype(I, key_type)) : FALSE
@@ -113,14 +114,11 @@
 
 /obj/vehicle/proc/driver_move(mob/user, direction)
 	if(key_type && !is_key(inserted_key))
-		to_chat(user, span_warning("[src] has no key inserted!"))
+		to_chat(user, "<span class='warning'>[src] has no key inserted!</span>")
 		return FALSE
 	if(!default_driver_move)
 		return
-	if(!canmove)
-		return
 	vehicle_move(direction)
-	return TRUE
 
 /obj/vehicle/proc/vehicle_move(direction)
 	if(lastmove + movedelay > world.time)
@@ -157,8 +155,21 @@
 			remove_controller_actions_by_flag(controller, i)
 	return TRUE
 
+/obj/vehicle/Bump(atom/movable/M)
+	. = ..()
+	if(emulate_door_bumps)
+		if(istype(M, /obj/machinery/door))
+			for(var/m in occupants)
+				M.Bumped(m)
+
 /obj/vehicle/Move(newloc, dir)
 	. = ..()
 	if(trailer && .)
 		var/dir_to_move = get_dir(trailer.loc, newloc)
 		step(trailer, dir_to_move)
+
+/obj/vehicle/bullet_act(obj/item/projectile/Proj) //wrapper
+	if (!enclosed && length(occupants) && !Proj.force_hit && (Proj.def_zone == BODY_ZONE_HEAD || Proj.def_zone == BODY_ZONE_CHEST)) //allows bullets to hit drivers
+		occupants[1].bullet_act(Proj) // driver dinkage
+		return BULLET_ACT_HIT
+	. = ..()

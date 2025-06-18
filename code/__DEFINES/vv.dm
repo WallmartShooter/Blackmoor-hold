@@ -21,6 +21,7 @@
 #define VV_BITFIELD "Bitfield"
 #define VV_TEXT_LOCATE "Custom Reference Locate"
 #define VV_PROCCALL_RETVAL "Return Value of Proccall"
+#define VV_HK_WEAKREF_RESOLVE "weakref_resolve"
 
 #define VV_MSG_MARKED "<br><font size='1' color='red'><b>Marked Object</b></font>"
 #define VV_MSG_EDITED "<br><font size='1' color='red'><b>Var Edited</b></font>"
@@ -75,6 +76,15 @@
 #define VV_HK_MARK "mark"
 #define VV_HK_ADDCOMPONENT "addcomponent"
 #define VV_HK_MODIFY_TRAITS "modtraits"
+#define VV_HK_VIEW_REFERENCES "viewreferences"
+#define VV_HK_MODIFY_RECIPES "modrecipes"
+
+// /datum/gas_mixture
+#define VV_HK_SET_MOLES "set_moles"
+#define VV_HK_EMPTY "empty"
+#define VV_HK_SET_TEMPERATURE "set_temp"
+#define VV_HK_PARSE_GASSTRING "parse_gasstring"
+#define VV_HK_SET_VOLUME "set_volume"
 
 // /atom
 #define VV_HK_MODIFY_TRANSFORM "atom_transform"
@@ -82,7 +92,6 @@
 #define VV_HK_TRIGGER_EMP "empulse"
 #define VV_HK_TRIGGER_EXPLOSION "explode"
 #define VV_HK_AUTO_RENAME "auto_rename"
-#define VV_HK_ADD_AI "add_ai"
 
 // /obj
 #define VV_HK_OSAY "osay"
@@ -112,18 +121,17 @@
 #define VV_HK_CURE_TRAUMA "cure_trauma"
 
 // /mob/living/carbon/human
-#define VV_HK_APPLY_SPECIAL "apply_special"
-#define VV_HK_REAPPLY_PREFS "reapply_prefs"
-#define VV_HK_PURGE_SLOT "purge_slot"
-#define VV_HK_PURGE_PARTOF_SLOT "purge_partof_slot"
 #define VV_HK_COPY_OUTFIT "copy_outfit"
-#define VV_HK_MOD_MUTATIONS "quirkmut"
 #define VV_HK_MOD_QUIRKS "quirkmod"
 #define VV_HK_MAKE_MONKEY "human_monkify"
 #define VV_HK_MAKE_CYBORG "human_cyborgify"
 #define VV_HK_MAKE_SLIME "human_slimeify"
+#define VV_HK_MAKE_ALIEN "human_alienify"
 #define VV_HK_SET_SPECIES "setspecies"
 #define VV_HK_PURRBATION "purrbation"
 
 // misc
 #define VV_HK_SPACEVINE_PURGE "spacevine_purge"
+
+// paintings
+#define VV_HK_REMOVE_PAINTING "remove_painting"

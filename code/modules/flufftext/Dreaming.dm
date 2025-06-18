@@ -1,7 +1,3 @@
-/mob/living/carbon/proc/handle_dreams()
-//	if(prob(10) && !dreaming)
-//		dream()
-
 /mob/living/carbon/proc/dream()
 	set waitfor = FALSE
 	var/list/dream_fragments = list()
@@ -62,8 +58,8 @@
 		return
 	var/next_message = dream_fragments[1]
 	dream_fragments.Cut(1,2)
-	to_chat(src, span_notice("<i>... [next_message] ...</i>"))
+	to_chat(src, "<span class='notice'><i>... [next_message] ...</i></span>")
 	if(LAZYLEN(dream_fragments))
-		addtimer(CALLBACK(src, PROC_REF(dream_sequence), dream_fragments), rand(10,30))
+		addtimer(CALLBACK(src, .proc/dream_sequence, dream_fragments), rand(10,30))
 	else
 		dreaming = FALSE

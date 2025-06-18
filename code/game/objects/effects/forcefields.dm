@@ -1,5 +1,5 @@
 /obj/effect/forcefield
-	desc = ""
+	desc = "A space wizard's magic wall."
 	name = "FORCEWALL"
 	icon_state = "m_shield"
 	anchored = TRUE
@@ -13,8 +13,11 @@
 	if(timeleft)
 		QDEL_IN(src, timeleft)
 
+/obj/effect/forcefield/singularity_pull()
+	return
+
 /obj/effect/forcefield/cult
-	desc = ""
+	desc = "An unholy shield that blocks all attacks."
 	name = "glowing wall"
 	icon = 'icons/effects/cult_effects.dmi'
 	icon_state = "cultshield"
@@ -26,10 +29,9 @@
 /obj/effect/forcefield/mime
 	icon_state = "nothing"
 	name = "invisible wall"
-	desc = ""
-	alpha = 0
+	desc = "You have a bad feeling about this."
 
 /obj/effect/forcefield/mime/advanced
 	name = "invisible blockade"
-	desc = ""
+	desc = "You're gonna be here awhile."
 	timeleft = 600

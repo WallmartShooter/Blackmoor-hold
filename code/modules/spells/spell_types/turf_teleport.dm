@@ -1,27 +1,26 @@
 /obj/effect/proc_holder/spell/targeted/turf_teleport
 	name = "Turf Teleport"
-	desc = ""
-	nonabstract_req = TRUE
+	desc = "This spell teleports the target to the turf in range."
+	mobs_blacklist = list(/mob/living/brain, /mob/living/silicon/pai)
 
 	var/inner_tele_radius = 1
 	var/outer_tele_radius = 2
 
-	var/include_space = FALSE //whether it includes space tiles in possible teleport locations
-	var/include_dense = FALSE //whether it includes dense tiles in possible teleport locations
-	var/include_teleport_restricted = FALSE //whether it includes tiles restricted from normal teleportation
-	var/sound1 = 'sound/blank.ogg'
-	var/sound2 = 'sound/blank.ogg'
+	var/include_space = 0 //whether it includes space tiles in possible teleport locations
+	var/include_dense = 0 //whether it includes dense tiles in possible teleport locations
+	var/sound1 = 'sound/weapons/zapbang.ogg'
+	var/sound2 = 'sound/weapons/zapbang.ogg'
 
 /obj/effect/proc_holder/spell/targeted/turf_teleport/cast(list/targets,mob/user = usr)
-	playsound(get_turf(user), sound1, 50,TRUE)
+	playsound(get_turf(user), sound1, 50,1)
 	for(var/mob/living/target in targets)
 		var/list/turfs = new/list()
 		for(var/turf/T in range(target,outer_tele_radius))
 			if(T in range(target,inner_tele_radius))
 				continue
-			if(T.density && !include_dense)
+			if(isspaceturf(T) && !include_space)
 				continue
-			if(T.teleport_restricted && !include_teleport_restricted)
+			if(T.density && !include_dense)
 				continue
 			if(T.x>world.maxx-outer_tele_radius || T.x<outer_tele_radius)
 				continue	//putting them at the edge is dumb
@@ -42,4 +41,4 @@
 			return
 
 		if(do_teleport(user, picked, forceMove = TRUE, channel = TELEPORT_CHANNEL_MAGIC))
-			playsound(get_turf(user), sound1, 50,TRUE)
+			playsound(get_turf(user), sound1, 50,1)

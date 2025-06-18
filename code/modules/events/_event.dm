@@ -8,7 +8,7 @@
 									//10 is the default weight. 20 is twice more likely; 5 is half as likely as this default.
 									//0 here does NOT disable the event, it just makes it extremely unlikely
 
-	var/earliest_start = 12 MINUTES	//The earliest world.time that an event can start (round-duration in deciseconds) default: 20 mins
+	var/earliest_start = 20 MINUTES	//The earliest world.time that an event can start (round-duration in deciseconds) default: 20 mins
 	var/min_players = 0				//The minimum amount of alive, non-AFK human players on server required to start the event.
 
 	var/occurrences = 0				//How many times this event has occured
@@ -18,75 +18,14 @@
 	var/holidayID = ""				//string which should be in the SSeventss.holidays list if you wish this event to be holiday-specific
 									//anything with a (non-null) holidayID which does not match holiday, cannot run.
 	var/wizardevent = FALSE
-	var/alert_observers = FALSE		//should we let the ghosts and admins know this event is firing
+	var/random = FALSE				//If the event has occured randomly, or if it was forced by an admin or in-game occurance
+	var/alert_observers = TRUE		//should we let the ghosts and admins know this event is firing
 									//should be disabled on events that fire a lot
 
 	var/list/gamemode_blacklist = list() // Event won't happen in these gamemodes
 	var/list/gamemode_whitelist = list() // Event will happen ONLY in these gamemodes if not empty
 
 	var/triggering	//admin cancellation
-
-	var/req_omen = FALSE
-	var/list/todreq
-
-	///do we check against the antag cap before attempting a spawn?
-	var/checks_antag_cap = FALSE
-	/// List of enemy roles, will check if x amount of these exist exist
-	var/list/enemy_roles
-	///required number of enemies in roles to exist
-	var/required_enemies = 0
-
-	/// The typepath to the event group this event is a part of.
-	var/datum/event_group/event_group = null
-	var/roundstart = FALSE
-	var/cost = 1
-	var/reoccurence_penalty_multiplier = 0.75
-	var/shared_occurence_type
-	var/track = EVENT_TRACK_MODERATE
-	/// Last calculated weight that the storyteller assigned this event
-	var/calculated_weight = 0
-	var/tags = list() 	/// Tags of the event
-	/// List of the shared occurence types.
-	var/list/shared_occurences = list()
-	/// Whether a roundstart event can happen post roundstart. Very important for events which override job assignments.
-	var/can_run_post_roundstart = TRUE
-	/// If set then the type or list of types of storytellers we are restricted to being trigged by
-	var/list/allowed_storytellers
-
-
-/datum/round_event_control/proc/valid_for_map()
-	return TRUE
-
-/datum/round_event_control/proc/return_failure_string(players_amt)
-	var/string
-	if(roundstart && (world.time-SSticker.round_start_time >= 2 MINUTES))
-		string += "Roundstart"
-	if(length(allowed_storytellers) && !(SSgamemode.current_storyteller.type in allowed_storytellers))
-		if(string)
-			string += ","
-		string += "Wrong God"
-	if(length(todreq) && !(GLOB.tod in todreq))
-		if(string)
-			string += ","
-		string += "Wrong Time of Day"
-	if(occurrences >= max_occurrences)
-		if(string)
-			string += ","
-		string += "Cap Reached"
-	if(earliest_start >= world.time-SSticker.round_start_time)
-		if(string)
-			string += ","
-		string +="Too Soon"
-	if(players_amt < min_players)
-		if(string)
-			string += ","
-		string += "Lack of players"
-	if(checks_antag_cap)
-		if(!roundstart && !SSgamemode.can_inject_antags())
-			if(string)
-				string += ","
-			string += "Too Many Villians"
-	return string
 
 /datum/round_event_control/New()
 	if(config && !wizardevent) // Magic is unaffected by configs
@@ -95,16 +34,11 @@
 
 /datum/round_event_control/wizard
 	wizardevent = TRUE
+	var/can_be_midround_wizard = TRUE
 
 // Checks if the event can be spawned. Used by event controller and "false alarm" event.
 // Admin-created events override this.
-/datum/round_event_control/proc/canSpawnEvent(players_amt, gamemode, fake_check = FALSE)
-	if(SSgamemode.current_storyteller?.disable_distribution || SSgamemode.halted_storyteller)
-		return FALSE
-	if(event_group && !GLOB.event_groups[event_group].can_run())
-		return FALSE
-	if(roundstart && (!SSgamemode.can_run_roundstart || (SSgamemode.ran_roundstart && !fake_check && !SSgamemode.current_storyteller?.ignores_roundstart)))
-		return FALSE
+/datum/round_event_control/proc/canSpawnEvent(players_amt, gamemode)
 	if(occurrences >= max_occurrences)
 		return FALSE
 	if(earliest_start >= world.time-SSticker.round_start_time)
@@ -113,17 +47,20 @@
 		return FALSE
 	if(players_amt < min_players)
 		return FALSE
-	if(length(todreq) && !(GLOB.tod in todreq))
+	if(gamemode_blacklist.len && (gamemode in gamemode_blacklist))
 		return FALSE
-	if(length(allowed_storytellers))
-		if(!(SSgamemode.current_storyteller.type in allowed_storytellers))
-			return FALSE
-	if(req_omen)
-		if(!GLOB.badomens.len)
-			return FALSE
-	if(!name)
+	if(gamemode_whitelist.len && !(gamemode in gamemode_whitelist))
+		return FALSE
+	if(holidayID && (!SSevents.holidays || !SSevents.holidays[holidayID]))
 		return FALSE
 	return TRUE
+
+/datum/round_event_control/wizard/canSpawnEvent(players_amt, gamemode)
+	if(istype(SSticker.mode, /datum/game_mode/dynamic))
+		var/datum/game_mode/dynamic/mode = SSticker.mode
+		if (locate(/datum/dynamic_ruleset/midround/from_ghosts/wizard) in mode.executed_rules)
+			return can_be_midround_wizard && ..()
+	return ..()
 
 /datum/round_event_control/proc/preRunEvent()
 	if(!ispath(typepath, /datum/round_event))
@@ -131,54 +68,43 @@
 
 	triggering = TRUE
 	if (alert_observers)
-		message_admins("Random Event triggering in 10 seconds: [name] (<a href='?src=[REF(src)];cancel=1'>CANCEL</a>)")
-		sleep(100)
+		message_admins("Random Event triggering in 30 seconds: [name] (<a href='?src=[REF(src)];cancel=1'>CANCEL</a>)")
+		sleep(300)
+		var/gamemode = SSticker.mode.config_tag
 		var/players_amt = get_active_player_count(alive_check = TRUE, afk_check = TRUE, human_check = TRUE)
-		if(!canSpawnEvent(players_amt, null, fake_check = TRUE))
+		if(!canSpawnEvent(players_amt, gamemode))
 			message_admins("Second pre-condition check for [name] failed, skipping...")
 			return EVENT_INTERRUPTED
 
 	if(!triggering)
 		return EVENT_CANCELLED	//admin cancelled
-
-	if(req_omen)
-		if(!GLOB.badomens.len)
-			return EVENT_CANCELLED
-		badomen(pick_n_take(GLOB.badomens))
-		testing("[name] has started")
-
 	triggering = FALSE
-
 	return EVENT_READY
 
 /datum/round_event_control/Topic(href, href_list)
 	..()
 	if(href_list["cancel"])
 		if(!triggering)
-			to_chat(usr, span_admin("I are too late to cancel that event"))
+			to_chat(usr, "<span class='admin'>You are too late to cancel that event</span>")
 			return
 		triggering = FALSE
 		message_admins("[key_name_admin(usr)] cancelled event [name].")
 		log_admin_private("[key_name(usr)] cancelled event [name].")
 		SSblackbox.record_feedback("tally", "event_admin_cancelled", 1, typepath)
 
-/datum/round_event_control/proc/runEvent(random = FALSE, admin_forced = TRUE)
-	var/datum/round_event/round_event = new typepath(TRUE, src)
-
-	round_event.setup()
-	round_event.current_players = get_active_player_count(alive_check = 1, afk_check = 1, human_check = 1)
-	round_event.control = src
+/datum/round_event_control/proc/runEvent()
+	var/datum/round_event/E = new typepath()
+	E.current_players = get_active_player_count(alive_check = 1, afk_check = 1, human_check = 1)
+	E.control = src
+	SSblackbox.record_feedback("tally", "event_ran", 1, "[E]")
 	occurrences++
 
-	triggering = FALSE
-	log_game("[random ? "Random" : "Forced"] Event triggering: [name] ([typepath]).")
-
-	if(event_group)
-		GLOB.event_groups[event_group].on_run(src)
-
-
-	SSblackbox.record_feedback("tally", "event_ran", 1, "[name]")
-	return round_event
+	testing("[time2text(world.time, "hh:mm:ss")] [E.type]")
+	if(random)
+		log_game("Random Event triggering: [name] ([typepath])")
+	if (alert_observers)
+		deadchat_broadcast("<span class='deadsay'><b>[name]</b> has just been[random ? " randomly" : ""] triggered!</span>") //STOP ASSUMING IT'S BADMINS!
+	return E
 
 //Special admins setup
 /datum/round_event_control/proc/admin_setup()
@@ -189,18 +115,13 @@
 	var/datum/round_event_control/control
 
 	var/startWhen		= 0	//When in the lifetime to call start().
-	var/announceWhen	= 0	//When in the lifetime to call announce(). If you don't want it to announce use announceChance, below.
-	var/announceChance	= 100 // Probability of announcing, used in prob(), 0 to 100, default 100. Used in ion storms currently.
+	var/announceWhen	= 0	//When in the lifetime to call announce(). Set an event's announceWhen to -1 if announcement should not be shown.
 	var/endWhen			= 0	//When in the lifetime the event should end.
 
 	var/activeFor		= 0	//How long the event has existed. You don't need to change this.
 	var/current_players	= 0 //Amount of of alive, non-AFK human players on server at the time of event start
-	var/fakeable = FALSE		//Can be faked by fake news event.
-
-	/// Whether the event called its start() yet or not.
-	var/has_started = FALSE
-	///have we finished setup?
-	var/setup = FALSE
+	var/threat			= 0
+	var/fakeable 		= TRUE //Can be faked by fake news event.
 
 //Called first before processing.
 //Allows you to setup your event, such as randomly
@@ -210,8 +131,6 @@
 //It will only have been overridden by the time we get to announce() start() tick() or end() (anything but setup basically).
 //This is really only for setting defaults which can be overridden later when New() finishes.
 /datum/round_event/proc/setup()
-	SHOULD_CALL_PARENT(FALSE)
-	setup = TRUE
 	return
 
 //Called when the tick is equal to the startWhen variable.
@@ -220,14 +139,15 @@
 /datum/round_event/proc/start()
 	return
 
-//Called after something followable has been spawned by an event
-//Provides ghosts a follow link to an atom if possible
-//Only called once.
+/**
+ * Called after something followable has been spawned by an event
+ * Provides ghosts a follow link to an atom if possible
+ * Only called once.
+ */
 /datum/round_event/proc/announce_to_ghosts(atom/atom_of_interest)
 	if(control.alert_observers)
 		if (atom_of_interest)
-//			notify_ghosts("[control.name] has an object of interest: [atom_of_interest]!", source=atom_of_interest, action=NOTIFY_ORBIT, header="Something's Interesting!")
-			return
+			notify_ghosts("[control.name] has an object of interest: [atom_of_interest]!", source=atom_of_interest, action=NOTIFY_ORBIT, header="Something's Interesting!")
 	return
 
 //Called when the tick is equal to the announceWhen variable.
@@ -252,7 +172,9 @@
 /datum/round_event/proc/end()
 	return
 
-
+// Returns threat; used for dynamic. Used for custom stuff, just returns the threat var by default.
+/datum/round_event/proc/threat()
+	return threat
 
 //Do not override this proc, instead use the appropiate procs.
 //This proc will handle the calls to the appropiate procs.
@@ -265,7 +187,7 @@
 		start()
 		processing = TRUE
 
-	if(activeFor == announceWhen && prob(announceChance))
+	if(activeFor == announceWhen)
 		processing = FALSE
 		announce(FALSE)
 		processing = TRUE
@@ -296,112 +218,8 @@
 
 
 //Sets up the event then adds the event to the the list of running events
-/datum/round_event/New(my_processing = TRUE, datum/round_event_control/source)
-	control = source
+/datum/round_event/New(my_processing = TRUE)
+	setup()
 	processing = my_processing
 	SSevents.running += src
 	return ..()
-
-/// This section of event processing is in a proc because roundstart events may get their start invoked.
-/datum/round_event/proc/try_start()
-	if(has_started)
-		return
-	has_started = TRUE
-	processing = FALSE
-	start()
-	processing = TRUE
-
-/datum/round_event_control/roundstart
-	roundstart = TRUE
-	earliest_start = 0
-
-///Adds an occurence. Has to use the setter to properly handle shared occurences
-/datum/round_event_control/proc/add_occurence()
-	if(shared_occurence_type)
-		if(!shared_occurences[shared_occurence_type])
-			shared_occurences[shared_occurence_type] = 0
-		shared_occurences[shared_occurence_type]++
-	occurrences++
-
-///Subtracts an occurence. Has to use the setter to properly handle shared occurences
-/datum/round_event_control/proc/subtract_occurence()
-	if(shared_occurence_type)
-		if(!shared_occurences[shared_occurence_type])
-			shared_occurences[shared_occurence_type] = 0
-		shared_occurences[shared_occurence_type]--
-	occurrences--
-
-///Gets occurences. Has to use the getter to properly handle shared occurences
-/datum/round_event_control/proc/get_occurences()
-	if(shared_occurence_type)
-		if(!shared_occurences[shared_occurence_type])
-			shared_occurences[shared_occurence_type] = 0
-		return shared_occurences[shared_occurence_type]
-	return occurrences
-
-/// Prints the action buttons for this event.
-/datum/round_event_control/proc/get_href_actions()
-	if(SSticker.HasRoundStarted())
-		if(roundstart)
-			if(!can_run_post_roundstart)
-				return "<a class='linkOff'>Fire</a> <a class='linkOff'>Schedule</a>"
-			return "<a href='byond://?src=[REF(src)];action=fire'>Fire</a> <a href='byond://?src=[REF(src)];action=schedule'>Schedule</a>"
-		else
-			return "<a href='byond://?src=[REF(src)];action=fire'>Fire</a> <a href='byond://?src=[REF(src)];action=schedule'>Schedule</a> <a href='byond://?src=[REF(src)];action=force_next'>Force Next</a>"
-	else
-		if(roundstart)
-			return "<a href='byond://?src=[REF(src)];action=schedule'>Add Roundstart</a> <a href='byond://?src=[REF(src)];action=force_next'>Force Roundstart</a>"
-		else
-			return "<a class='linkOff'>Fire</a> <a class='linkOff'>Schedule</a> <a class='linkOff'>Force Next</a>"
-
-
-/datum/round_event_control/Topic(href, href_list)
-	. = ..()
-	if(QDELETED(src))
-		return
-	switch(href_list["action"])
-		if("schedule")
-			message_admins("[key_name_admin(usr)] scheduled event [src.name].")
-			log_admin_private("[key_name(usr)] scheduled [src.name].")
-			SSgamemode.current_storyteller.buy_event(src, src.track)
-		if("force_next")
-			message_admins("[key_name_admin(usr)] forced scheduled event [src.name].")
-			log_admin_private("[key_name(usr)] forced scheduled event [src.name].")
-			SSgamemode.forced_next_events[src.track] = src
-		if("fire")
-			message_admins("[key_name_admin(usr)] fired event [src.name].")
-			log_admin_private("[key_name(usr)] fired event [src.name].")
-			runEvent(random = FALSE, admin_forced = TRUE)
-
-//GLOBAL_LIST_INIT(badomens, list("roundstart"))
-GLOBAL_LIST_INIT(badomens, list())
-
-/proc/hasomen(input)
-	return (input in GLOB.badomens)
-
-/proc/addomen(input)
-	if(!(input in GLOB.badomens))
-		testing("Omen added: [input]")
-		GLOB.badomens += input
-
-/proc/removeomen(input)
-	if(!hasomen(input))
-		return
-	testing("Omen removed: [input]")
-	GLOB.badomens -= input
-
-/datum/round_event_control/proc/badomen(eventreason)
-	var/used
-	switch(eventreason)
-		if(OMEN_ROUNDSTART)
-			used = "Zizo."
-		if(OMEN_NOPRIEST)
-			used = "The Priest has perished! The Ten are weakened..."
-		if(OMEN_SKELETONSIEGE)
-			used = "Unwelcome visitors!"
-		if(OMEN_NOLORD)
-			used = "The Monarch is dead! We need a new ruler."
-		if(OMEN_SUNSTEAL)
-			used = "The Sun, she is wounded!"
-	if(eventreason && used)
-		priority_announce(used, "Bad Omen", 'sound/misc/evilevent.ogg')

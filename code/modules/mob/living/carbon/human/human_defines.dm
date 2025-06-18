@@ -1,133 +1,125 @@
 /mob/living/carbon/human
-	name = "Unknown"
-	real_name = "Unknown"
-	icon = 'icons/mob/human.dmi'
-	icon_state = "human_basic"
-	appearance_flags = KEEP_TOGETHER|TILE_BOUND|PIXEL_SCALE
-	hud_possible = list(ANTAG_HUD)
+	hud_possible = list(HEALTH_HUD,STATUS_HUD,ID_HUD,WANTED_HUD,IMPLOYAL_HUD,IMPCHEM_HUD,IMPTRACK_HUD, NANITE_HUD, DIAG_NANITE_FULL_HUD,ANTAG_HUD,GLAND_HUD,SENTIENT_DISEASE_HUD,RAD_HUD,ONLINE_HUD)
 	hud_type = /datum/hud/human
-	base_intents = list(INTENT_HELP, INTENT_DISARM, INTENT_GRAB, INTENT_HARM)
-	possible_mmb_intents = list(INTENT_STEAL, INTENT_JUMP, INTENT_KICK, INTENT_BITE, INTENT_GIVE)
+	possible_a_intents = list(INTENT_HELP, INTENT_DISARM, INTENT_GRAB, INTENT_HARM)
+	pressure_resistance = 25
 	can_buckle = TRUE
 	buckle_lying = FALSE
 	mob_biotypes = MOB_ORGANIC|MOB_HUMANOID
+	/// Enable stamina combat
+	combat_flags = COMBAT_FLAGS_DEFAULT | COMBAT_FLAG_UNARMED_PARRY
+	status_flags = CANSTUN|CANKNOCKDOWN|CANUNCONSCIOUS|CANPUSH|CANSTAGGER
+	has_field_of_vision = FALSE //Handled by species.
 
-	ambushable = 1
+	blocks_emissive = EMISSIVE_BLOCK_UNIQUE
 
-	voice_pitch = 1
-
-	var/footstep_type = FOOTSTEP_MOB_HUMAN
-
-	var/last_sound //last emote so we have no doubles
+	block_parry_data = /datum/block_parry_data/unarmed/human
 
 	//Hair colour and style
 	var/hair_color = "000"
-	var/hairstyle = "Bald"
+	var/hair_style = "Bald"
 
 	//Facial hair colour and style
 	var/facial_hair_color = "000"
-	var/facial_hairstyle = "Shaved"
+	var/facial_hair_style = "Shaved"
 
 	//Eye colour
-	var/eye_color = "000"
-
-	var/voice_color = "a0a0a0"
-	var/nickname = "Please Change Me"
-	var/highlight_color = "#FF0000"
-	var/detail_color = "000"
+	var/left_eye_color = "000"
+	var/right_eye_color = "000"
 
 	var/skin_tone = "caucasian1"	//Skin tone
 
 	var/lip_style = null	//no lipstick by default- arguably misleading, as it could be used for general makeup
 	var/lip_color = "white"
 
-	var/age = "Adult"		//Player's age
+	var/age = 30		//Player's age
 
-	var/accessory = "None"
-	var/detail = "None"
-	var/marking = "None"
-
-	var/shavelevel = 0
-
+	var/underwear = "Nude"	//Which underwear the player wants
+	var/undie_color = "FFFFFF"
+	var/undershirt = "Nude" //Which undershirt the player wants
+	var/shirt_color = "FFFFFF"
 	var/socks = "Nude" //Which socks the player wants
-	var/backpack = DBACKPACK		//Which backpack type the player has chosen.
-	var/jumpsuit_style = PREF_SUIT		//suit/skirt
+	var/socks_color = "FFFFFF"
+
+	var/warpaint = null
+	var/warpaint_color = null
 
 	//Equipment slots
-	var/obj/item/clothing/skin_armor = null
-	var/obj/item/clothing/wear_armor = null
-	var/obj/item/clothing/wear_pants = null
+	var/obj/item/wear_suit = null
+	var/obj/item/w_uniform = null
 	var/obj/item/belt = null
-	var/obj/item/beltl = null
-	var/obj/item/beltr = null
-	var/obj/item/wear_ring = null
-	var/obj/item/wear_wrists = null
+	var/obj/item/wear_id = null
 	var/obj/item/r_store = null
 	var/obj/item/l_store = null
 	var/obj/item/s_store = null
-	var/obj/item/cloak = null
-	var/obj/item/clothing/wear_shirt = null
+
+/// When an braindead player has their equipment fiddled with, we log that info here for when they come back so they know who took their ID while they were DC'd for 30 seconds
+	var/list/afk_thefts
 
 	var/special_voice = "" // For changing our voice. Used by a symptom.
 
+	var/bleedsuppress = 0 //for stopping bloodloss, eventually this will be limb-based like bleeding
+
+	var/blood_state = BLOOD_STATE_NOT_BLOODY
+	var/list/blood_smear = list(BLOOD_STATE_BLOOD = 0, BLOOD_STATE_OIL = 0, BLOOD_STATE_NOT_BLOODY = 0)
+
 	var/name_override //For temporary visible name changes
+	var/genital_override = FALSE //Force genitals on things incase of chems
+
+	var/custom_species = null
 
 	var/datum/physiology/physiology
 
 	var/list/datum/bioware = list()
 
-	var/static/list/can_ride_typecache = typecacheof(list(/mob/living/carbon/human, /mob/living/simple_animal/hostile/rogue/ghost/wraith))
+	var/creamed = FALSE //to use with creampie overlays
+	var/static/list/can_ride_typecache = typecacheof(list(/mob/living/carbon/human, /mob/living/simple_animal/slime, /mob/living/simple_animal/parrot))
 	var/lastpuke = 0
-	var/last_fire_update
 	var/account_id
+	var/last_fire_update
 
-	canparry = TRUE
-	candodge = TRUE
+	var/busy= FALSE
 
-	dodgecd = FALSE
-	dodgetime = 0
+	var/thirst = THIRST_LEVEL_START
 
-	var/list/possibleclass
-	var/advsetup = 0
+/// Unarmed parry data for human
+/datum/block_parry_data/unarmed/human
+	parry_respect_clickdelay = TRUE
+	parry_stamina_cost = 4
+	parry_attack_types = ATTACK_TYPE_UNARMED
+	parry_flags = PARRY_DEFAULT_HANDLE_FEEDBACK | PARRY_LOCK_ATTACKING
 
+	parry_time_windup = 0
+	parry_time_spindown = 1
+	parry_time_active = 5
 
-//	var/alignment = ALIGNMENT_TN
+	parry_time_perfect = 1
+	parry_time_perfect_leeway = 1
+	parry_imperfect_falloff_percent = 20
+	parry_efficiency_perfect = 100
 
-	var/canseebandits = FALSE
+	parry_efficiency_considered_successful = 0.01
+	parry_efficiency_to_counterattack = 0.01
+	parry_max_attacks = 3
+	parry_cooldown = 30
+	parry_failed_stagger_duration = 0
+	parry_failed_clickcd_duration = 0.4
 
-	var/marriedto
+	parry_data = list(			// yeah it's snowflake
+		"HUMAN_PARRY_STAGGER" = 3 SECONDS,
+		"HUMAN_PARRY_PUNCH" = TRUE,
+		"HUMAN_PARRY_MININUM_EFFICIENCY" = 0.9
+	)
 
-	var/has_stubble = TRUE
-
-	var/original_name = null
-
-	var/buried = FALSE // Whether the body is buried or not.
-	var/funeral = FALSE // Whether the body has received rites or not.
-
-	var/datum/devotion/devotion = null // Used for cleric_holder for priests
-
-	var/headshot_link = null
-	var/flavortext = null
-	var/flavortext_display = null
-	var/ooc_notes = null
-	var/ooc_notes_display = null
-	var/ooc_extra_link
-	var/ooc_extra
-	var/is_legacy = FALSE
-	var/received_resident_key = FALSE
-
-	var/nsfw_headshot_link = null
-
-	possible_rmb_intents = list(/datum/rmb_intent/feint,\
-	/datum/rmb_intent/aimed,\
-	/datum/rmb_intent/strong,\
-	/datum/rmb_intent/swift,\
-	/datum/rmb_intent/riposte,\
-	/datum/rmb_intent/weak)
-
-	rot_type = /datum/component/rot/corpse
-
-	var/voice_type = null // LETHALSTONE EDIT: defines what sound pack we use. keep this null so mobs resort to their typical gender typing - preferences set this
-	var/datum/statpack/statpack = null // Lethalstone Port - statpacks for greater customization
-	var/second_voice	// Virtue-specific. Can be swapped to / from and changed.
-	var/original_voice
+/mob/living/carbon/human/on_active_parry(mob/living/owner, atom/object, damage, attack_text, attack_type, armour_penetration, mob/attacker, def_zone, list/block_return, parry_efficiency, parry_time)
+	var/datum/block_parry_data/D = return_block_parry_datum(block_parry_data)
+	if(!owner.Adjacent(attacker))
+		return ..()
+	if(parry_efficiency < D.parry_data["HUMAN_PARRY_MINIMUM_EFFICIENCY"])
+		return ..()
+	visible_message("<span class='warning'>[src] strikes back perfectly at [attacker], staggering them!</span>")
+	if(D.parry_data["HUMAN_PARRY_PUNCH"])
+		UnarmedAttack(attacker, TRUE, INTENT_HARM, ATTACK_IS_PARRY_COUNTERATTACK | ATTACK_IGNORE_ACTION | ATTACK_IGNORE_CLICKDELAY | NO_AUTO_CLICKDELAY_HANDLING)
+	var/mob/living/L = attacker
+	if(istype(L))
+		L.Stagger(D.parry_data["HUMAN_PARRY_STAGGER"])

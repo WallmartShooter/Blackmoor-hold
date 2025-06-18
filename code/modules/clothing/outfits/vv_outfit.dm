@@ -3,19 +3,18 @@
 /datum/outfit/varedit
 	var/list/vv_values
 	var/list/stored_access
-	var/update_id_name = FALSE //If the name of the human is same as the name on the id they're wearing we'll update provided id when equipping
 
-/datum/outfit/varedit/pre_equip(mob/living/carbon/human/H, visualsOnly)
+/datum/outfit/varedit/pre_equip(mob/living/carbon/human/H, visualsOnly = FALSE, client/preference_source)
 	H.delete_equipment() //Applying VV to wrong objects is not reccomended.
 	. = ..()
 
 /datum/outfit/varedit/proc/set_equipement_by_slot(slot,item_path)
 	switch(slot)
-		if(SLOT_PANTS)
+		if(SLOT_W_UNIFORM)
 			uniform = item_path
 		if(SLOT_BACK)
 			back = item_path
-		if(SLOT_ARMOR)
+		if(SLOT_WEAR_SUIT)
 			suit = item_path
 		if(SLOT_BELT)
 			belt = item_path
@@ -29,11 +28,11 @@
 			mask = item_path
 		if(SLOT_NECK)
 			neck = item_path
-		if(SLOT_HEAD)
+		if(SLOT_EARS)
 			ears = item_path
 		if(SLOT_GLASSES)
 			glasses = item_path
-		if(SLOT_RING)
+		if(SLOT_WEAR_ID)
 			id = item_path
 		if(SLOT_S_STORE)
 			suit_store = item_path
@@ -69,7 +68,7 @@
 
 	//Copy equipment
 	var/list/result = list()
-	var/list/slots_to_check = list(SLOT_PANTS,SLOT_BACK,SLOT_ARMOR,SLOT_BELT,SLOT_GLOVES,SLOT_SHOES,SLOT_HEAD,SLOT_WEAR_MASK,SLOT_NECK,SLOT_HEAD,SLOT_GLASSES,SLOT_RING,SLOT_WRISTS,SLOT_S_STORE,SLOT_L_STORE,SLOT_R_STORE)
+	var/list/slots_to_check = list(SLOT_W_UNIFORM,SLOT_BACK,SLOT_WEAR_SUIT,SLOT_BELT,SLOT_GLOVES,SLOT_SHOES,SLOT_HEAD,SLOT_WEAR_MASK,SLOT_NECK,SLOT_EARS,SLOT_GLASSES,SLOT_WEAR_ID,SLOT_S_STORE,SLOT_L_STORE,SLOT_R_STORE)
 	for(var/s in slots_to_check)
 		var/obj/item/I = get_item_by_slot(s)
 		var/vedits = collect_vv(I)
@@ -78,6 +77,11 @@
 		if(istype(I))
 			O.set_equipement_by_slot(s,I.type)
 
+	//Copy access
+	O.stored_access = list()
+	var/obj/item/id_slot = get_item_by_slot(SLOT_WEAR_ID)
+	if(id_slot)
+		O.stored_access |= id_slot.GetAccess()
 	//Copy hands
 	if(held_items.len >= 2) //Not in the mood to let outfits transfer amputees
 		var/obj/item/left_hand = held_items[1]
@@ -106,13 +110,17 @@
 				typecounts[I.type] = 1
 		O.backpack_contents = typecounts
 		//TODO : Copy varedits from backpack stuff too.
+	//Copy implants
+	O.implants = list()
+	for(var/obj/item/implant/I in implants)
+		O.implants |= I.type
 	//Copy to outfit cache
 	var/outfit_name = stripped_input(usr,"Enter the outfit name")
 	O.name = outfit_name
 	GLOB.custom_outfits += O
 	to_chat(usr,"Outfit registered, use select equipment to equip it.")
 
-/datum/outfit/varedit/post_equip(mob/living/carbon/human/H, visualsOnly)
+/datum/outfit/varedit/post_equip(mob/living/carbon/human/H, visualsOnly = FALSE, client/preference_source)
 	. = ..()
 	//Apply VV
 	for(var/slot in vv_values)
@@ -127,24 +135,9 @@
 				I = H.get_item_by_slot(text2num(slot))
 		for(var/vname in edits)
 			I.vv_edit_var(vname,edits[vname])
-
-/datum/outfit/varedit/get_json_data()
-	. = .. ()
-	.["stored_access"] = stored_access
-	.["update_id_name"] = update_id_name
-	var/list/stripped_vv = list()
-	for(var/slot in vv_values)
-		var/list/vedits = vv_values[slot]
-		var/list/stripped_edits = list()
-		for(var/edit in vedits)
-			if(istext(vedits[edit]) || isnum(vedits[edit]) || isnull(vedits[edit]))
-				stripped_edits[edit] = vedits[edit]
-		if(stripped_edits.len)
-			stripped_vv[slot] = stripped_edits
-	.["vv_values"] = stripped_vv
-
-/datum/outfit/varedit/load_from(list/outfit_data)
-	. = ..()
-	stored_access = outfit_data["stored_access"]
-	vv_values = outfit_data["vv_values"]
-	update_id_name = outfit_data["update_id_name"]
+	//Apply access
+	var/obj/item/id_slot = H.get_item_by_slot(SLOT_WEAR_ID)
+	if(id_slot)
+		var/obj/item/card/id/card = id_slot.GetID()
+		if(istype(card))
+			card.access |= stored_access

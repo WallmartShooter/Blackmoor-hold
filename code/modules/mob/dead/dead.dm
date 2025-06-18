@@ -18,13 +18,9 @@ INITIALIZE_IMMEDIATE(/mob/dead)
 	prepare_huds()
 
 	if(length(CONFIG_GET(keyed_list/cross_server)))
-		verbs += /mob/dead/proc/server_hop
+		add_verb(src, /mob/dead/proc/server_hop)
 	set_focus(src)
 	return INITIALIZE_HINT_NORMAL
-
-/mob/dead/Destroy()
-	GLOB.mob_list -= src
-	return ..()
 
 /mob/dead/canUseStorage()
 	return FALSE
@@ -47,104 +43,40 @@ INITIALIZE_IMMEDIATE(/mob/dead)
 	loc = destination
 	Moved(oldloc, NONE, TRUE)
 
-
-/mob/dead/new_player/proc/lobby_refresh()
-	set waitfor = 0
-//	src << browse(null, "window=lobby_window")
-
-	if(!client)
-		return
-
-	if(client.is_new_player())
-		return
+/mob/dead/get_status_tab_items()
+	. = ..()
+	. += ""
+	//. += "Game Mode: [SSticker.hide_mode ? "Secret" : "[GLOB.master_mode]"]"
 
 	if(SSticker.HasRoundStarted())
-		src << browse(null, "window=lobby_window")
 		return
-
-	var/list/dat = list("<center>")
 
 	var/time_remaining = SSticker.GetTimeLeft()
 	if(time_remaining > 0)
-		dat += "Time To Start: [round(time_remaining/10)]s<br>"
+		. += "Time To Start: [round(time_remaining/10)]s"
 	else if(time_remaining == -10)
-		dat += "Time To Start: DELAYED<br>"
+		. += "Time To Start: DELAYED"
 	else
-		dat += "Time To Start: SOON<br>"
+		. += "Time To Start: SOON"
 
-	dat += "Total players ready: [SSticker.totalPlayersReady]<br>"
-	dat += "<B>Classes:</B><br>"
-
-	dat += "</center>"
-
-	for(var/datum/job/job in SSjob.occupations)
-		if(istype(job, /datum/job/roguetown/adventurer/courtagent) || istype(job, /datum/job/roguetown/wretch))
-			continue
-		if(!job)
-			continue
-		var/readiedas = 0
-		var/list/PL = list()
-		for(var/mob/dead/new_player/player in GLOB.player_list)
-			if(!player)
-				continue
-			if(player.client.prefs.job_preferences[job.title] == JP_HIGH)
-				if(player.ready == PLAYER_READY_TO_PLAY)
-					readiedas++
-					if(!(player.client.ckey in GLOB.hiderole))
-						if(player.client.prefs.real_name)
-							var/thing = "[player.client.prefs.real_name]"
-							if(istype(job, /datum/job/roguetown/hand))
-								if(player != src)
-									if(client.prefs.job_preferences["Grand Duke"] == JP_HIGH)
-										thing = "<a href='byond://?src=[REF(src)];sethand=[player.client.ckey]'>[player.client.prefs.real_name]</a>"
-								for(var/mob/dead/new_player/Lord in GLOB.player_list)
-									if(Lord.client.prefs.job_preferences["Grand Duke"] == JP_HIGH)
-										if(Lord.brohand == player.ckey)
-											thing = "*[thing]*"
-											break
-							PL += thing
-
-		var/list/PL2 = list()
-		for(var/i in 1 to PL.len)
-			if(i == PL.len)
-				PL2 += "[PL[i]]"
-			else
-				PL2 += "[PL[i]], "
-
-		var/str_job = job.title
-
-		if(readiedas)
-			if(PL2.len)
-				dat += "<B>[str_job]</B> ([readiedas]) - [PL2.Join()]<br>"
-			else
-				dat += "<B>[str_job]</B> ([readiedas])<br>"
-	var/datum/browser/popup = new(src, "lobby_window", "<div align='center'>LOBBY</div>", 330, 430)
-	popup.set_window_options("can_close=1;can_minimize=0;can_maximize=0;can_resize=1;")
-	popup.set_content(dat.Join())
-	if(!client)
-		return
-	if(winexists(src, "lobby_window"))
-		src << browse(popup.get_content(), "window=lobby_window") //dont update the size or annoyingly refresh
-		qdel(popup)
-		return
-	else
-		popup.open(FALSE)
+	. += "Players: [SSticker.totalPlayers]"
+	if(client.holder)
+		. += "Players Ready: [SSticker.totalPlayersReady]"
 
 /mob/dead/proc/server_hop()
 	set category = "OOC"
 	set name = "Server Hop!"
 	set desc= "Jump to the other server"
-	set hidden = 1
-	if(notransform)
+	if(mob_transforming)
 		return
 	var/list/csa = CONFIG_GET(keyed_list/cross_server)
 	var/pick
 	switch(csa.len)
 		if(0)
-			verbs -= /mob/dead/proc/server_hop
-			to_chat(src, span_notice("Server Hop has been disabled."))
+			remove_verb(src, /mob/dead/proc/server_hop)
+			to_chat(src, "<span class='notice'>Server Hop has been disabled.</span>")
 		if(1)
-			pick = csa[1]
+			pick = csa[0]
 		else
 			pick = input(src, "Pick a server to jump to", "Server Hop") as null|anything in csa
 
@@ -157,12 +89,12 @@ INITIALIZE_IMMEDIATE(/mob/dead)
 		return
 
 	var/client/C = client
-	to_chat(C, span_notice("Sending you to [pick]."))
-	new /atom/movable/screen/splash(C)
+	to_chat(C, "<span class='notice'>Sending you to [pick].</span>")
+	new /obj/screen/splash(C)
 
-	notransform = TRUE
+	mob_transforming = TRUE
 	sleep(29)	//let the animation play
-	notransform = FALSE
+	mob_transforming = FALSE
 
 	if(!C)
 		return
@@ -187,9 +119,6 @@ INITIALIZE_IMMEDIATE(/mob/dead)
 	var/turf/T = get_turf(src)
 	if (isturf(T))
 		update_z(T.z)
-
-/mob/dead/auto_deadmin_on_login()
-	return
 
 /mob/dead/Logout()
 	update_z(null)

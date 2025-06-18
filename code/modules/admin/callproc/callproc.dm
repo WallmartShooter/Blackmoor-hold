@@ -1,3 +1,4 @@
+
 /client/proc/callproc()
 	set category = "Debug"
 	set name = "Advanced ProcCall"
@@ -20,7 +21,7 @@
 				return
 			target = value["value"]
 			if(!istype(target))
-				to_chat(usr, span_danger("Invalid target."))
+				to_chat(usr, "<span class='danger'>Invalid target.</span>")
 				return
 		if("No")
 			target = null
@@ -40,12 +41,12 @@
 
 	if(targetselected)
 		if(!hascall(target, procname))
-			to_chat(usr, span_warning("Error: callproc(): type [target.type] has no [proctype] named [procpath]."))
+			to_chat(usr, "<span class='warning'>Error: callproc(): type [target.type] has no [proctype] named [procpath].</span>")
 			return
 	else
 		procpath = "/[proctype]/[procname]"
 		if(!text2path(procpath))
-			to_chat(usr, span_warning("Error: callproc(): [procpath] does not exist."))
+			to_chat(usr, "<span class='warning'>Error: callproc(): [procpath] does not exist.</span>")
 			return
 
 	var/list/lst = get_callproc_args()
@@ -87,8 +88,8 @@ GLOBAL_LIST_EMPTY(AdminProcCallSpamPrevention)
 GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 
 /proc/WrapAdminProcCall(datum/target, procname, list/arguments)
-	if(target && procname == "Del")
-		to_chat(usr, "Calling Del() is not allowed")
+	if(target != GLOBAL_PROC && procname == "Del")
+		to_chat(usr, "<span class='warning'>Calling Del() is not allowed</span>")
 		return
 
 	if(target != GLOBAL_PROC && !target.CanProcCall(procname))
@@ -100,16 +101,16 @@ GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 		CRASH("WrapAdminProcCall with no ckey: [target] [procname] [english_list(arguments)]")
 	if(current_caller && current_caller != ckey)
 		if(!GLOB.AdminProcCallSpamPrevention[ckey])
-			to_chat(usr, span_adminnotice("Another set of admin called procs are still running, your proc will be run after theirs finish."))
+			to_chat(usr, "<span class='adminnotice'>Another set of admin called procs are still running, your proc will be run after theirs finish.</span>")
 			GLOB.AdminProcCallSpamPrevention[ckey] = TRUE
 			UNTIL(!GLOB.AdminProcCaller)
-			to_chat(usr, span_adminnotice("Running your proc"))
+			to_chat(usr, "<span class='adminnotice'>Running your proc</span>")
 			GLOB.AdminProcCallSpamPrevention -= ckey
 		else
 			UNTIL(!GLOB.AdminProcCaller)
 	GLOB.LastAdminCalledProc = procname
 	if(target != GLOBAL_PROC)
-		GLOB.LastAdminCalledTargetRef = REF(target)
+		GLOB.LastAdminCalledTargetRef = "[REF(target)]"
 	GLOB.AdminProcCaller = ckey	//if this runtimes, too bad for you
 	++GLOB.AdminProcCallCount
 	. = world.WrapAdminProcCall(target, procname, arguments)
@@ -119,11 +120,11 @@ GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 //adv proc call this, ya nerds
 /world/proc/WrapAdminProcCall(datum/target, procname, list/arguments)
 	if(target == GLOBAL_PROC)
-		return call(procname)(arglist(arguments))
+		return call(text2path("/proc/[procname]"))(arglist(arguments))
 	else if(target != world)
 		return call(target, procname)(arglist(arguments))
 	else
-		log_admin("[key_name(usr)] attempted to call world/proc/[procname] with arguments: [english_list(arguments)]")
+		log_admin_private("[key_name(usr)] attempted to call world/proc/[procname] with arguments: [english_list(arguments)]")
 
 /proc/IsAdminAdvancedProcCall()
 #ifdef TESTING
@@ -135,7 +136,7 @@ GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 /client/proc/callproc_datum(datum/A as null|area|mob|obj|turf)
 	set category = "Debug"
 	set name = "Atom ProcCall"
-	set waitfor = 0
+	set waitfor = FALSE
 
 	if(!check_rights(R_DEBUG))
 		return
@@ -144,17 +145,17 @@ GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 	if(!procname)
 		return
 	if(!hascall(A,procname))
-		to_chat(usr, "<font color='red'>Error: callproc_datum(): type [A.type] has no proc named [procname].</font>")
+		to_chat(usr, "<span class='warning'>Error: callproc_datum(): type [A.type] has no proc named [procname].</span>")
 		return
 	var/list/lst = get_callproc_args()
 	if(!lst)
 		return
 
 	if(!A || !IsValidSrc(A))
-		to_chat(usr, span_warning("Error: callproc_datum(): owner of proc no longer exists."))
+		to_chat(usr, "<span class='warning'>Error: callproc_datum(): owner of proc no longer exists.</span>")
 		return
-	log_admin("[key_name(src)] called [A]'s [procname]() with [lst.len ? "the arguments [list2params(lst)]":"no arguments"].")
 	var/msg = "[key_name(src)] called [A]'s [procname]() with [lst.len ? "the arguments [list2params(lst)]":"no arguments"]."
+	log_admin(msg)
 	message_admins(msg)
 	admin_ticket_log(A, msg)
 	SSblackbox.record_feedback("tally", "admin_verb", 1, "Atom ProcCall") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
@@ -187,7 +188,7 @@ GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 	. = ""
 	if(islist(returnval))
 		var/list/returnedlist = returnval
-		. = "<font color='blue'>"
+		. = "<span class='notice'>"
 		if(returnedlist.len)
 			var/assoc_check = returnedlist[1]
 			if(istext(assoc_check) && (returnedlist[assoc_check] != null))
@@ -201,7 +202,7 @@ GLOBAL_PROTECT(AdminProcCallSpamPrevention)
 					. += "\n[elem]"
 		else
 			. = "[procname] returned an empty list"
-		. += "</font>"
+		. += "</span>"
 
 	else
-		. = "<font color='blue'>[procname] returned: [!isnull(returnval) ? returnval : "null"]</font>"
+		. = "<span class='notice'>[procname] returned: [!isnull(returnval) ? returnval : "null"]</span>"

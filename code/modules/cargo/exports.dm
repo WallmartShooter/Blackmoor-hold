@@ -1,54 +1,35 @@
 /* How it works:
- The shuttle arrives at CentCom dock and calls sell(), which recursively loops through all the shuttle contents that are unanchored.
+The shuttle arrives at CentCom dock and calls sell(), which recursively loops through all the shuttle contents that are unanchored.
 
- Each object in the loop is checked for applies_to() of various export datums, except the invalid ones.
+Each object in the loop is checked for applies_to() of various export datums, except the invalid ones.
 */
 
 /* The rule in figuring out item export cost:
- Export cost of goods in the shipping crate must be always equal or lower than:
-  packcage cost - crate cost - manifest cost
- Crate cost is 500cr for a regular plasteel crate and 100cr for a large wooden one. Manifest cost is always 200cr.
- This is to avoid easy cargo points dupes.
+Export cost of goods in the shipping crate must be always equal or lower than:
+	packcage cost - crate cost - manifest cost
+Crate cost is 500cr for a regular plasteel crate and 100cr for a large wooden one. Manifest cost is always 200cr.
+This is to avoid easy cargo points dupes.
 
 Credit dupes that require a lot of manual work shouldn't be removed, unless they yield too much profit for too little work.
- For example, if some player buys metal and glass sheets and uses them to make and sell reinforced glass:
+For example, if some player buys metal and glass sheets and uses them to make and sell reinforced glass:
 
- 100 glass + 50 metal -> 100 reinforced glass
- (1500cr -> 1600cr)
+100 glass + 50 metal -> 100 reinforced glass
+(1500cr -> 1600cr)
 
- then the player gets the profit from selling his own wasted time.
+then the player gets the profit from selling his own wasted time.
 */
 
 // Simple holder datum to pass export results around
 /datum/export_report
-	var/list/exported_atoms = list()	//names of atoms sold/deleted by export
-	var/list/total_amount = list()		//export instance => total count of sold objects of its type, only exists if any were sold
-	var/list/total_value = list()		//export instance => total value of sold objects
-
-/atom/movable
-	var/sellprice = 0 //sanitize this somewhere so it cant be decimals
-	var/static_price = FALSE
-
-/atom/movable/proc/randomize_price()
-	if(sellprice)
-		if(!static_price)
-			var/na = max(round(sellprice * 0.13, 1), 1)
-			sellprice = max(rand(sellprice-na, sellprice+na), 1)
-	return sellprice
-
-/atom/movable/proc/get_real_price()
-	if(sellprice == initial(sellprice))
-		randomize_price()
-	return sellprice
-
-/atom/movable/proc/pre_sell()
-	return
-
-/atom/movable/proc/on_sold()
-	return
+	var/list/exported_atoms = list()//names of atoms sold/deleted by export
+	var/list/total_amount = list()  //export instance => total count of sold objects of its type, only exists if any were sold
+	var/list/total_value = list()   //export instance => total value of sold objects
+	var/list/reagents_volume = list()//export reagents => into the total volume of the object sold
+	var/list/reagents_value = list()//export reagents => into the reagent type total value.
+	var/list/exported_atoms_ref = list()	//if they're not deleted they go in here for use.
 
 // external_report works as "transaction" object, pass same one in if you're doing more than one export in single go
-/proc/export_item_and_contents(atom/movable/AM, allowed_categories = EXPORT_CARGO, apply_elastic = TRUE, delete_unsold = FALSE, dry_run=FALSE, datum/export_report/external_report)
+/proc/export_item_and_contents(atom/movable/AM, allowed_categories = EXPORT_CARGO, apply_elastic = TRUE, delete_unsold = TRUE, dry_run=FALSE, datum/export_report/external_report)
 	if(!GLOB.exports_list.len)
 		setupExports()
 
@@ -58,39 +39,36 @@ Credit dupes that require a lot of manual work shouldn't be removed, unless they
 	if(!report) //If we don't have any longer transaction going on
 		report = new
 
-	var/newbudget = 0
 	// We go backwards, so it'll be innermost objects sold first
 	for(var/i in reverseRange(contents))
 		var/atom/movable/thing = i
 		var/sold = FALSE
-		if(QDELETED(thing))
-			continue
-//		for(var/datum/export/E in GLOB.exports_list)
-//			if(!E)
-//				continue
-//			if(E.applies_to(thing, allowed_categories, apply_elastic))
-//				sold = E.sell_object(thing, report, dry_run, allowed_categories , apply_elastic)
-//				report.exported_atoms += " [thing.name]"
-//				break
-		if(thing.get_real_price() > 0)
-			newbudget += thing.sellprice
-			report.total_value[thing] += thing.sellprice
-			report.total_amount[thing] += 1
-			report.exported_atoms += " [thing.name]"
-			sold = TRUE
-			break
+		for(var/datum/export/E in GLOB.exports_list)
+			if(!E)
+				continue
+			if(E.applies_to(thing, allowed_categories, apply_elastic))
+				sold = E.sell_object(thing, report, dry_run, allowed_categories , apply_elastic)
+				report.exported_atoms += " [thing.name]"
+				break
+		if(thing.reagents?.value_multiplier)
+			for(var/A in thing.reagents.reagent_list)
+				var/datum/reagent/R = A
+				if(!R.value)
+					continue
+				report.reagents_volume[R.name] += R.volume
+				report.reagents_value[R.name] += round(R.volume * R.value * thing.reagents.value_multiplier)
 		if(!dry_run && (sold || delete_unsold))
 			if(ismob(thing))
 				thing.investigate_log("deleted through cargo export",INVESTIGATE_CARGO)
 			qdel(thing)
 
-	return newbudget
+	return report
 
 /datum/export
 	var/unit_name = ""				// Unit name. Only used in "Received [total_amount] [name]s [message]." message
 	var/message = ""
 	var/cost = 100					// Cost of item, in cargo credits. Must not alow for infinite price dupes, see above.
-	var/k_elasticity = 1/30			//coefficient used in marginal price calculation that roughly corresponds to the inverse of price elasticity, or "quantity elasticity"
+	var/k_elasticity = 1/100			//coefficient used in marginal price calculation that roughly corresponds to the inverse of price elasticity, or "quantity elasticity" - CIT EDIT 1/30 - > 100
 	var/list/export_types = list()	// Type of the exported object. If none, the export datum is considered base type.
 	var/include_subtypes = TRUE		// Set to FALSE to make the datum apply only to a strict type.
 	var/list/exclude_types = list()	// Types excluded from export
@@ -103,17 +81,19 @@ Credit dupes that require a lot of manual work shouldn't be removed, unless they
 
 /datum/export/New()
 	..()
-	SSprocessing.processing += src
+	START_PROCESSING(SSprocessing, src)
 	init_cost = cost
 	export_types = typecacheof(export_types)
 	exclude_types = typecacheof(exclude_types)
 
 /datum/export/Destroy()
-	SSprocessing.processing -= src
+	STOP_PROCESSING(SSprocessing, src)
 	return ..()
 
 /datum/export/process()
-	..()
+	. = ..()
+	if(!k_elasticity)
+		return PROCESS_KILL
 	cost *= NUM_E**(k_elasticity * (1/30))
 	if(cost > init_cost)
 		cost = init_cost
@@ -160,7 +140,10 @@ Credit dupes that require a lot of manual work shouldn't be removed, unless they
 
 	report.total_value[src] += the_cost
 
-	report.total_amount[src] += amount
+	if(istype(O, /datum/export/material))
+		report.total_amount[src] += amount*MINERAL_MATERIAL_AMOUNT
+	else
+		report.total_amount[src] += amount
 
 	if(!dry_run)
 		if(apply_elastic)

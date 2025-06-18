@@ -4,86 +4,76 @@
 // #define EAST 4
 // #define WEST 8
 
-#define CORNERDIRS			list(SOUTHWEST,NORTHWEST,SOUTHEAST,NORTHEAST)
-
 #define TEXT_NORTH			"[NORTH]"
 #define TEXT_SOUTH			"[SOUTH]"
 #define TEXT_EAST			"[EAST]"
 #define TEXT_WEST			"[WEST]"
 
-///Returns true if the dir is diagonal, false otherwise
-#define ISDIAGONALDIR(d) (d&(d-1))
+/// world.icon_size
+#define PIXELS 32
+
+//These get to go at the top, because they're special
+//You can use these defines to get the typepath of the currently running proc/verb (yes procs + verbs are objects)
+/* eg:
+/mob/living/carbon/human/death()
+	to_chat(world, THIS_PROC_TYPE_STR) //You can only output the string versions
+Will print: "/mob/living/carbon/human/death" (you can optionally embed it in a string with () (eg: the _WITH_ARGS defines) to make it look nicer)
+*/
+#define THIS_PROC_TYPE .....
+#define THIS_PROC_TYPE_STR "[THIS_PROC_TYPE]" //Because you can only obtain a string of THIS_PROC_TYPE using "[]", and it's nice to just +/+= strings
+#define THIS_PROC_TYPE_STR_WITH_ARGS "[THIS_PROC_TYPE]([args.Join(",")])"
+#define THIS_PROC_TYPE_WEIRD ...... //This one is WEIRD, in some cases (When used in certain defines? (eg: ASSERT)) THIS_PROC_TYPE will fail to work, but THIS_PROC_TYPE_WEIRD will work instead
+//define THIS_PROC_TYPE_WEIRD_STR "[THIS_PROC_TYPE_WEIRD]" //Included for completeness
+//define THIS_PROC_TYPE_WEIRD_STR_WITH_ARGS "[THIS_PROC_TYPE_WEIRD]([args.Join(",")])" //Ditto
+
+#define NOT_IMPLEMENTED "NOT_IMPLEMENTED"
 
 //Human Overlays Indexes/////////
-#define MUTATIONS_LAYER			50		//mutations. Tk headglows, cold resistance glow, etc
-#define CLOAK_BEHIND_LAYER		49
-#define HANDS_BEHIND_LAYER		48
-#define BELT_BEHIND_LAYER		47
-#define BACK_BEHIND_LAYER		46
-#define BODY_BEHIND_LAYER		45		//certain mutantrace features (tail when looking south) that must appear behind the body parts
-#define BODY_UNDER_LAYER		44		// Things under the bodyparts but above the "behind body" layer
-#define BODYPARTS_LAYER			43		//Initially "AUGMENTS", this was repurposed to be a catch-all bodyparts flag
-#define BODY_ADJ_LAYER			42		//certain mutantrace features (snout, body markings) that must appear above the body parts
-#define BODY_LAYER				41		//underwear, undershirts, socks, eyes, lips(makeup)
-#define FRONT_MUTATIONS_LAYER	40		//mutations that should appear above body, body_adj and bodyparts layer (e.g. laser eyes)
-#define DAMAGE_LAYER			39		//damage indicators (cuts and burns)
-#define LEG_PART_LAYER			38
-#define PANTS_LAYER				37
-#define SHOES_LAYER				36
-#define LEG_DAMAGE_LAYER		35
-#define LEGSLEEVE_LAYER			34
-#define SHOESLEEVE_LAYER		33
-#define SHIRT_LAYER				32
-#define WRISTS_LAYER			31
-#define ARMOR_LAYER				30
-#define TABARD_LAYER			29
-#define BELT_LAYER				28		//only when looking south
-#define UNDER_CLOAK_LAYER		27
-#define HANDS_PART_LAYER		26
-#define GLOVES_LAYER			25
-#define ARM_DAMAGE_LAYER		24
-#define SHIRTSLEEVE_LAYER		23
-#define WRISTSLEEVE_LAYER		22
-#define ARMORSLEEVE_LAYER		21
-#define GLOVESLEEVE_LAYER		20
-#define RING_LAYER				19
-#define GLASSES_LAYER			18
-#define NECK_LAYER				17
-#define CLOAK_LAYER				16		//only when looking north or west/east
-#define HOOD_LAYER				15
-#define HAIR_LAYER				14		//TODO: make part of head layer?
-#define MASK_LAYER				13
-#define HAIREXTRA_LAYER			12
-#define MOUTH_LAYER				11
-#define HEAD_LAYER				10
-#define BACK_LAYER				9		//only when looking north
-#define HANDS_LAYER				8
-#define HANDCUFF_LAYER			7
-#define LEGCUFF_LAYER			6
-#define BODY_FRONT_LAYER		5
-#define BODY_FRONT_FRONT_LAYER	4
-#define HALO_LAYER				3		//blood cult ascended halo, because there's currently no better solution for adding/removing
-#define FIRE_LAYER				2		//If you're on fire
-#define TURF_LAYER				1		//If you're on fire
-#define TOTAL_LAYERS			50		//KEEP THIS UP-TO-DATE OR SHIT WILL BREAK ;_;
-
-#define BACK_CLOAK_SOUTH_LAYER		(BODY_BEHIND_LAYER+1)
+//LOTS OF CIT CHANGES HERE. BE CAREFUL WHEN UPSTREAM ADDS MORE LAYERS
+#define MUTATIONS_LAYER			33		//mutations. Tk headglows, cold resistance glow, etc
+#define GENITALS_BEHIND_LAYER	32		//Some genitalia needs to be behind everything, such as with taurs (Taurs use body_behind_layer
+#define BODY_BEHIND_LAYER		31		//certain mutantrace features (tail when looking south) that must appear behind the body parts
+#define BODYPARTS_LAYER			30		//Initially "AUGMENTS", this was repurposed to be a catch-all bodyparts flag
+#define MARKING_LAYER			29		//Matrixed body markings because clashing with snouts?
+#define BODY_ADJ_LAYER			28		//certain mutantrace features (snout, body markings) that must appear above the body parts
+#define GENITALS_FRONT_LAYER	27		//Draws some genitalia above clothes and the TAUR body if need be.
+#define BODY_LAYER				26		//underwear, undershirts, socks, eyes, lips(makeup)
+#define BODY_ADJ_UPPER_LAYER	25
+#define FRONT_MUTATIONS_LAYER	24		//mutations that should appear above body, body_adj and bodyparts layer (e.g. laser eyes)
+#define DAMAGE_LAYER			23		//damage indicators (cuts and burns)
+#define UNIFORM_LAYER			22
+#define ID_LAYER				21
+#define HANDS_PART_LAYER		20
+#define SHOES_LAYER				19
+#define GLOVES_LAYER			18
+#define EARS_LAYER				17
+#define SUIT_LAYER				16
+#define GENITALS_EXPOSED_LAYER	15
+#define GLASSES_LAYER			14
+#define BELT_LAYER				13		//Possible make this an overlay of somethign required to wear a belt?
+#define SUIT_STORE_LAYER		12
+#define NECK_LAYER				11
+#define BACK_LAYER				10
+#define HAIR_LAYER				9		//TODO: make part of head layer?
+#define HORNS_LAYER				8
+#define FACEMASK_LAYER			7
+#define HEAD_LAYER				6
+#define HANDCUFF_LAYER			5
+#define LEGCUFF_LAYER			4
+#define HANDS_LAYER				3
+#define BODY_FRONT_LAYER		2
+#define FIRE_LAYER				1		//If you're on fire
+#define TOTAL_LAYERS			33		//KEEP THIS UP-TO-DATE OR SHIT WILL BREAK ;_;
 
 //Human Overlay Index Shortcuts for alternate_worn_layer, layers
 //Because I *KNOW* somebody will think layer+1 means "above"
 //IT DOESN'T OK, IT MEANS "UNDER"
-#define UNDER_ARMOR_LAYER			(ARMOR_LAYER+1)
-#define UNDER_HAT_LAYER			(HEAD_LAYER+1)
+#define UNDER_SUIT_LAYER			(SUIT_LAYER+1)
+#define UNDER_HEAD_LAYER			(HEAD_LAYER+1)
 
 //AND -1 MEANS "ABOVE", OK?, OK!?!
 #define ABOVE_SHOES_LAYER			(SHOES_LAYER-1)
 #define ABOVE_BODY_FRONT_LAYER		(BODY_FRONT_LAYER-1)
-
-//Security levels
-#define SEC_LEVEL_GREEN	0
-#define SEC_LEVEL_BLUE	1
-#define SEC_LEVEL_RED	2
-#define SEC_LEVEL_DELTA	3
 
 //some arbitrary defines to be used by self-pruning global lists. (see master_controller)
 #define PROCESS_KILL 26	//Used to trigger removal from a processing list
@@ -97,7 +87,7 @@
 #define TRANSITIONEDGE			7 //Distance from edge to move to another z-level
 
 #define BE_CLOSE TRUE		//in the case of a silicon, to select if they need to be next to the atom
-#define NO_DEXTERITY TRUE	//if other mobs (monkeys, aliens, etc) can use this // I had to change 20+ files because some non-dnd-playing fuckchumbis can't spell "dexterity"
+#define NO_DEXTERY TRUE	//if other mobs (monkeys, aliens, etc) can use this
 #define NO_TK TRUE
 //used by canUseTopic()
 
@@ -126,6 +116,7 @@
 #define CRAYON_FONT "Comic Sans MS"
 #define PRINTER_FONT "Times New Roman"
 #define SIGNFONT "Times New Roman"
+#define CHARCOAL_FONT "Candara"
 
 #define RESIZE_DEFAULT_SIZE 1
 
@@ -152,15 +143,23 @@ GLOBAL_LIST_EMPTY(bloody_footprints_cache)
 #define BLOOD_GAIN_PER_STEP			100
 #define BLOOD_LOSS_PER_STEP			5
 #define BLOOD_LOSS_IN_SPREAD		20
-#define BLOOD_AMOUNT_PER_DECAL		20
 
 //Bloody shoe blood states
-#define BLOOD_STATE_MUD				"mud"
-#define BLOOD_STATE_HUMAN			"blood"
-#define BLOOD_STATE_XENO			"xeno"
+#define BLOOD_STATE_BLOOD			"blood"
 #define BLOOD_STATE_OIL				"oil"
-#define BLOOD_STATE_GREEN			"green"
 #define BLOOD_STATE_NOT_BLOODY		"no blood whatsoever"
+#define BLOOD_AMOUNT_PER_DECAL		20
+
+//Blood Decal Colors
+#define BLOOD_COLOR_HUMAN			"#900000"
+#define BLOOD_COLOR_XENO			"#94a83c"
+#define BLOOD_COLOR_OIL				"#301d02"
+#define BLOOD_COLOR_SYNTHETIC		"#3f48aa"
+#define BLOOD_COLOR_SLIME			"#00ff90"
+#define BLOOD_COLOR_LIZARD			"#db004D"
+#define BLOOD_COLOR_UNIVERSAL		"#db3300"
+#define BLOOD_COLOR_BUG				"#a37c0f"
+
 
 //suit sensors: sensor_mode defines
 
@@ -177,17 +176,17 @@ GLOBAL_LIST_EMPTY(bloody_footprints_cache)
 #define LOCKED_SENSORS 2
 
 //Wet floor type flags. Stronger ones should be higher in number.
-#define TURF_DRY			(0)
-#define TURF_WET_WATER		(1<<0)
+#define TURF_DRY		(0)
+#define TURF_WET_WATER	(1<<0)
 #define TURF_WET_PERMAFROST	(1<<1)
-#define TURF_WET_ICE 		(1<<2)
-#define TURF_WET_LUBE		(1<<3)
+#define TURF_WET_ICE (1<<2)
+#define TURF_WET_LUBE	(1<<3)
 #define TURF_WET_SUPERLUBE	(1<<4)
 
 #define IS_WET_OPEN_TURF(O) O.GetComponent(/datum/component/wet_floor)
 
 //Maximum amount of time, (in deciseconds) a tile can be wet for.
-#define MAXIMUM_WET_TIME 12000
+#define MAXIMUM_WET_TIME 5 MINUTES
 
 //unmagic-strings for types of polls
 #define POLLTYPE_OPTION		"OPTION"
@@ -249,7 +248,12 @@ GLOBAL_LIST_INIT(ghost_others_options, list(GHOST_OTHERS_SIMPLE, GHOST_OTHERS_DE
 #define ORBITRON	"Orbitron"
 #define SHARE		"Share Tech Mono"
 
-GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
+GLOBAL_LIST_INIT(pda_styles, list(MONO, VT, ORBITRON, SHARE))
+
+//pda icon reskins
+#define PDA_SKIN_CLASSIC "Classic"
+
+GLOBAL_LIST_INIT(pda_reskins, list(PDA_SKIN_CLASSIC = 'icons/obj/pda.dmi'))
 
 /////////////////////////////////////
 // atom.appearence_flags shortcuts //
@@ -291,7 +295,7 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 #define MAP_MAXZ 6
 
 // Defib stats
-#define DEFIB_TIME_LIMIT 900
+#define DEFIB_TIME_LIMIT 1500
 #define DEFIB_TIME_LOSS 60
 
 // Diagonal movement
@@ -309,9 +313,9 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 #define SHELTER_DEPLOY_ANCHORED_OBJECTS "anchored objects"
 
 //debug printing macros
-#define debug_world(msg) if (GLOB.Debug2) to_chat(world, "DEBUG: [msg]")
-#define debug_usr(msg) if (GLOB.Debug2&&usr) to_chat(usr, "DEBUG: [msg]")
-#define debug_admins(msg) if (GLOB.Debug2) to_chat(GLOB.admins, "DEBUG: [msg]")
+#define debug_world(msg) if (GLOB.Debug2) to_chat(world, "<span class=\"filter_debuglog\">DEBUG: [msg]</span>")
+#define debug_usr(msg) if (GLOB.Debug2&&usr) to_chat(usr, "<span class=\"filter_debuglog\">DEBUG: [msg]</span>")
+#define debug_admins(msg) if (GLOB.Debug2) to_chat(GLOB.admins, "<span class=\"filter_debuglog\">DEBUG: [msg]</span>")
 #define debug_world_log(msg) if (GLOB.Debug2) log_world("DEBUG: [msg]")
 
 #define INCREMENT_TALLY(L, stat) if(L[stat]){L[stat]++}else{L[stat] = 1}
@@ -354,6 +358,7 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 #define CLOCK_SILICONS 22
 #define CLOCK_PROSELYTIZATION 23
 #define SHUTTLE_HIJACK 24
+#define GANG_VICTORY 25
 
 #define FIELD_TURF 1
 #define FIELD_EDGE 2
@@ -389,8 +394,11 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 
 //Dummy mob reserve slots
 #define DUMMY_HUMAN_SLOT_PREFERENCES "dummy_preference_preview"
+#define DUMMY_HUMAN_SLOT_HOLOFORM			"dummy_holoform_generation"
 #define DUMMY_HUMAN_SLOT_ADMIN "admintools"
 #define DUMMY_HUMAN_SLOT_MANIFEST "dummy_manifest_generation"
+#define DUMMY_HUMAN_SLOT_HALLUCINATION "dummy_hallucination"
+#define DUMMY_HUMAN_SLOT_EXAMINER "dummy_examiner"
 
 #define PR_ANNOUNCEMENTS_PER_ROUND 5 //The number of unique PR announcements allowed per round
 									//This makes sure that a single person can only spam 3 reopens and 3 closes before being ignored
@@ -418,11 +426,13 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 #define STACK_CHECK_ADJACENT "adjacent" //checks if there is an object of the result type within one tile
 
 //text files
-#define BRAIN_DAMAGE_FILE "traumas.json"
 #define ION_FILE "ion_laws.json"
-#define PIRATE_NAMES_FILE "pirates.json"
 #define REDPILL_FILE "redpill.json"
-#define ARCADE_FILE "arcade.json"
+#define PIRATE_NAMES_FILE "pirates.json"
+#define FLESH_SCAR_FILE "wounds/flesh_scar_desc.json"
+#define BONE_SCAR_FILE "wounds/bone_scar_desc.json"
+#define SCAR_LOC_FILE "wounds/scar_loc.json"
+
 
 //Fullscreen overlay resolution in tiles.
 #define FULLSCREEN_OVERLAY_RESOLUTION_X 15
@@ -438,23 +448,25 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 #define TELEPORT_CHANNEL_CULT "cult"			//Cult teleportation, does whatever it wants (unless there's holiness)
 #define TELEPORT_CHANNEL_FREE "free"			//Anything else
 
-//Run the world with this parameter to enable a single run though of the game setup and tear down process with unit tests in between
-#define TEST_RUN_PARAMETER "test-run"
 //Force the log directory to be something specific in the data/logs folder
 #define OVERRIDE_LOG_DIRECTORY_PARAMETER "log-directory"
-//Prevent the master controller from starting automatically, overrides TEST_RUN_PARAMETER
+//Prevent the master controller from starting automatically
 #define NO_INIT_PARAMETER "no-init"
 //Force the config directory to be something other than "config"
 #define OVERRIDE_CONFIG_DIRECTORY_PARAMETER "config-directory"
 
 #define EGG_LAYING_MESSAGES list("lays an egg.","squats down and croons.","begins making a huge racket.","begins clucking raucously.")
 
+// list of all null rod weapons
+#define HOLY_WEAPONS /obj/item/nullrod, /obj/item/dualsaber/hypereutactic/chaplain, /obj/item/multitool/chaplain, /obj/item/clothing/gloves/fingerless/pugilist/chaplain
+
 // Used by PDA and cartridge code to reduce repetitiveness of spritesheets
 #define PDAIMG(what) {"<span class="pda16x16 [#what]"></span>"}
 
 //Filters
-#define AMBIENT_OCCLUSION filter(type="drop_shadow", x=0, y=-0, size=1, offset = 0, color="#04080FAA")
-#define GAUSSIAN_BLUR(filter_size) filter(type="blur", size=filter_size)
+#define AMBIENT_OCCLUSION(_size, _color) list("type"="drop_shadow","x"=0,"y"=-2,"size"=_size,"color"=_color)
+#define EYE_BLUR(size) list("type"="blur", "size"=size)
+#define GRAVITY_MOTION_BLUR list("type"="motion_blur","x"=0,"y"=0)
 
 #define STANDARD_GRAVITY 1 //Anything above this is high gravity, anything below no grav
 #define GRAVITY_DAMAGE_TRESHOLD 3 //Starting with this value gravity will start to damage mobs
@@ -473,27 +485,55 @@ GLOBAL_LIST_INIT(pda_styles, sortList(list(MONO, VT, ORBITRON, SHARE)))
 #define VARSET_TO_LIST(L, V) if(L) L[#V] = V
 #define VARSET_TO_LIST_IF(L, V, C...) if(L && (C)) L[#V] = V
 
-#define DICE_NOT_RIGGED 1
-#define DICE_BASICALLY_RIGGED 2
-#define DICE_TOTALLY_RIGGED 3
+#define PREF_SAVELOAD_COOLDOWN 5
 
 #define VOMIT_TOXIC 1
 #define VOMIT_PURPLE 2
-
-//chem grenades defines
-#define GRENADE_EMPTY 1
-#define GRENADE_WIRED 2
-#define GRENADE_READY 3
-
-//Misc text define. Does 4 spaces. Used as a makeshift tabulator.
-#define FOURSPACES "&nbsp;&nbsp;&nbsp;&nbsp;"
-
-// art quality defines, used in datums/components/art.dm, elsewhere
-#define BAD_ART 12.5
-#define GOOD_ART 25
-#define GREAT_ART 50
 
 // possible bitflag return values of intercept_zImpact(atom/movable/AM, levels = 1) calls
 #define FALL_INTERCEPTED		(1<<0) //Stops the movable from falling further and crashing on the ground
 #define FALL_NO_MESSAGE			(1<<1) //Used to suppress the "[A] falls through [old_turf]" messages where it'd make little sense at all, like going downstairs.
 #define FALL_STOP_INTERCEPTING	(1<<2) //Used in situations where halting the whole "intercept" loop would be better, like supermatter dusting (and thus deleting) the atom.
+
+//Misc text define. Does 4 spaces. Used as a makeshift tabulator.
+#define FOURSPACES "&nbsp;&nbsp;&nbsp;&nbsp;"
+
+#define CRYOMOBS 'icons/obj/cryo_mobs.dmi'
+
+#define CUSTOM_HOLOFORM_DELAY		10 SECONDS			//prevents spamming to make lag. it's pretty expensive to do this.
+
+#define HOLOFORM_FILTER_AI		"FILTER_AI"
+#define HOLOFORM_FILTER_PAI		"FILTER_PAI"
+#define HOLOFORM_FILTER_STATIC	"FILTER_STATIC"
+
+#define CANT_REENTER_ROUND -1
+
+//Nightshift levels.
+#define NIGHTSHIFT_AREA_FORCED				0		//ALWAYS nightshift if nightshift is enabled
+#define NIGHTSHIFT_AREA_PUBLIC				1		//hallways
+#define NIGHTSHIFT_AREA_RECREATION			2		//dorms common areas, etc
+#define NIGHTSHIFT_AREA_DEPARTMENT_HALLS	3		//interior hallways, etc
+#define NIGHTSHIFT_AREA_NONE				4		//default/highest.
+
+#define UNTIL(X) while(!(X)) stoplag()
+
+
+//Scavenging element defines for special loot "events".
+#define SCAVENGING_FOUND_NOTHING	"found_nothing"
+#define SCAVENGING_SPAWN_MOUSE		"spawn_mouse"
+#define SCAVENGING_SPAWN_MICE		"spawn_mice"
+#define SCAVENGING_SPAWN_TOM		"spawn_tom_the_mouse"
+
+//Scavenging element defines for ckey/mind restrictions.
+#define NO_LOOT_RESTRICTION			0
+#define LOOT_RESTRICTION_MIND		1
+#define LOOT_RESTRICTION_CKEY		2
+#define LOOT_RESTRICTION_MIND_PILE	3 //limited to the current pile.
+#define LOOT_RESTRICTION_CKEY_PILE	4 //Idem
+
+//stages of shoe tying-ness
+#define SHOES_UNTIED 0
+#define SHOES_TIED 1
+#define SHOES_KNOTTED 2
+
+#define WANTED_FILE "wanted_message.json"

@@ -8,20 +8,18 @@
 	var/modifies_speech = FALSE
 	var/mask_adjusted = 0
 	var/adjusted_flags = null
-
-	grid_width = 64
-	grid_height = 32
+	var/datum/beepsky_fashion/beepsky_fashion //the associated datum for applying this to a secbot
 
 /obj/item/clothing/mask/attack_self(mob/user)
 	if(CHECK_BITFIELD(clothing_flags, VOICEBOX_TOGGLABLE))
 		TOGGLE_BITFIELD(clothing_flags, VOICEBOX_DISABLED)
 		var/status = !CHECK_BITFIELD(clothing_flags, VOICEBOX_DISABLED)
-		to_chat(user, span_notice("I turn the voice box in [src] [status ? "on" : "off"]."))
+		to_chat(user, "<span class='notice'>You turn the voice box in [src] [status ? "on" : "off"].</span>")
 
 /obj/item/clothing/mask/equipped(mob/M, slot)
 	. = ..()
 	if (slot == SLOT_WEAR_MASK && modifies_speech)
-		RegisterSignal(M, COMSIG_MOB_SAY, PROC_REF(handle_speech))
+		RegisterSignal(M, COMSIG_MOB_SAY, .proc/handle_speech)
 	else
 		UnregisterSignal(M, COMSIG_MOB_SAY)
 
@@ -31,16 +29,16 @@
 
 /obj/item/clothing/mask/proc/handle_speech()
 
-/obj/item/clothing/mask/worn_overlays(isinhands = FALSE)
-	. = list()
-//	if(!isinhands)
-//		if(body_parts_covered & HEAD)
-//			if(damaged_clothes)
-//				. += mutable_appearance('icons/effects/item_damage.dmi', "damagedmask")
-//			if(HAS_BLOOD_DNA(src))
-//				. += mutable_appearance('icons/effects/blood.dmi', "maskblood")
+/obj/item/clothing/mask/worn_overlays(isinhands = FALSE, icon_file, used_state, style_flags = NONE)
+	. = ..()
+	if(!isinhands)
+		if(body_parts_covered & HEAD)
+			if(damaged_clothes)
+				. += mutable_appearance('icons/effects/item_damage.dmi', "damagedmask")
+			if(blood_DNA)
+				. += mutable_appearance('icons/effects/blood.dmi', "maskblood", color = blood_DNA_to_color())
 
-/obj/item/clothing/mask/update_damaged_state()
+/obj/item/clothing/mask/update_clothes_damaged_state()
 	..()
 	if(ismob(loc))
 		var/mob/M = loc
@@ -58,11 +56,11 @@
 		clothing_flags |= visor_flags
 		flags_inv |= visor_flags_inv
 		flags_cover |= visor_flags_cover
-		to_chat(user, span_notice("I push \the [src] back into place."))
+		to_chat(user, "<span class='notice'>You push \the [src] back into place.</span>")
 		slot_flags = initial(slot_flags)
 	else
 		icon_state += "_up"
-		to_chat(user, span_notice("I push \the [src] out of the way."))
+		to_chat(user, "<span class='notice'>You push \the [src] out of the way.</span>")
 		gas_transfer_coefficient = null
 		permeability_coefficient = null
 		clothing_flags &= ~visor_flags

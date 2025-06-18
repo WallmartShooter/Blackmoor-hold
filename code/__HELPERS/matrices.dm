@@ -22,6 +22,7 @@
 		animate(src, transform = matrices[1], time = speed, loops , flags = ANIMATION_PARALLEL)
 	else
 		animate(src, transform = matrices[1], time = speed, loops)
+
 	for(var/i in 2 to segments) //2 because 1 is covered above
 		animate(transform = matrices[i], time = speed)
 		//doesn't have an object argument because this is "Stacking" with the animate call above
@@ -39,9 +40,9 @@
 
 //Dumps the matrix data in a matrix-grid format
 /*
-  a d 0
-  b e 0
-  c f 1
+	a d 0
+	b e 0
+	c f 1
 */
 /matrix/proc/togrid()
 	. = list()
@@ -177,5 +178,9 @@ round(cos_inv_third+sqrt3_sin, 0.001), round(cos_inv_third-sqrt3_sin, 0.001), ro
 			output[offset+x] = round(A[offset+1]*B[x] + A[offset+2]*B[x+4] + A[offset+3]*B[x+8] + A[offset+4]*B[x+12]+(y==5?B[x+16]:0), 0.001)
 	return output
 
+/**
+* Assembles a color matrix, defaulting to identity
+*/
 /proc/rgb_construct_color_matrix(rr = 1, rg, rb, gr, gg = 1, gb, br, bg, bb = 1, cr, cg, cb)
 	return list(rr, rg, rb, gr, gg, gb, br, bg, bb, cr, cg, cb)
+

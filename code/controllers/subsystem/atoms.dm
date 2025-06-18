@@ -10,12 +10,13 @@ SUBSYSTEM_DEF(atoms)
 
 	var/old_initialized
 
-	var/list/late_loaders = list()
+	var/list/late_loaders
 
 	var/list/BadInitializeCalls = list()
 
 /datum/controller/subsystem/atoms/Initialize(timeofday)
 	GLOB.fire_overlay.appearance_flags = RESET_COLOR
+	setupGenetics()
 	initialized = INITIALIZATION_INNEW_MAPLOAD
 	InitializeAtoms()
 	return ..()
@@ -25,6 +26,8 @@ SUBSYSTEM_DEF(atoms)
 		return
 
 	initialized = INITIALIZATION_INNEW_MAPLOAD
+
+	LAZYINITLIST(late_loaders)
 
 	var/count
 	var/list/mapload_arg = list(TRUE)
@@ -88,11 +91,7 @@ SUBSYSTEM_DEF(atoms)
 	else if(!(A.flags_1 & INITIALIZED_1))
 		BadInitializeCalls[the_type] |= BAD_INIT_DIDNT_INIT
 	else
-		SEND_SIGNAL(A, COMSIG_ATOM_AFTER_SUCCESSFUL_INITIALIZE)
-		var/atom/location = A.loc
-		if(location)
-			/// Sends a signal that the new atom `src`, has been created at `loc`
-			SEND_SIGNAL(location, COMSIG_ATOM_AFTER_SUCCESSFUL_INITIALIZED_ON, A, arguments[1])
+		SEND_SIGNAL(A,COMSIG_ATOM_AFTER_SUCCESSFUL_INITIALIZE)
 
 	return qdeleted || QDELING(A)
 
@@ -109,6 +108,29 @@ SUBSYSTEM_DEF(atoms)
 		InitializeAtoms()
 	old_initialized = SSatoms.old_initialized
 	BadInitializeCalls = SSatoms.BadInitializeCalls
+
+/datum/controller/subsystem/atoms/proc/setupGenetics()
+	var/list/mutations = subtypesof(/datum/mutation/human)
+	shuffle_inplace(mutations)
+	for(var/A in subtypesof(/datum/generecipe))
+		var/datum/generecipe/GR = A
+		GLOB.mutation_recipes[initial(GR.required)] = initial(GR.result)
+	for(var/i in 1 to LAZYLEN(mutations))
+		var/path = mutations[i] //byond gets pissy when we do it in one line
+		var/datum/mutation/human/B = new path ()
+		B.alias = "Mutation [i]"
+		GLOB.all_mutations[B.type] = B
+		GLOB.full_sequences[B.type] = generate_gene_sequence(B.blocks)
+		GLOB.alias_mutations[B.alias] = B.type
+		if(B.locked)
+			continue
+		if(B.quality == POSITIVE)
+			GLOB.good_mutations |= B
+		else if(B.quality == NEGATIVE)
+			GLOB.bad_mutations |= B
+		else if(B.quality == MINOR_NEGATIVE)
+			GLOB.not_good_mutations |= B
+		CHECK_TICK
 
 /datum/controller/subsystem/atoms/proc/InitLog()
 	. = ""

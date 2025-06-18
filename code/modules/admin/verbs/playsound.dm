@@ -1,14 +1,16 @@
 /client/proc/play_sound(S as sound)
-	set category = "-Fun-"
-	set name = "Sound - Global"
-	if(!check_rights(R_SOUND))
+	set category = "Admin.Fun"
+	set name = "Play Global Sound"
+	if(!check_rights(R_SOUNDS))
 		return
 
-	var/freq = 1
 	var/vol = input(usr, "What volume would you like the sound to play at?",, 100) as null|num
 	if(!vol)
 		return
-	vol = CLAMP(vol, 1, 100)
+	var/freq = input(usr, "What frequency would you like the sound to play at?",, 1) as null|num
+	if(!freq)
+		freq = 1
+	vol = clamp(vol, 1, 100)
 
 	var/sound/admin_sound = new()
 	admin_sound.file = S
@@ -23,7 +25,7 @@
 	var/res = alert(usr, "Show the title of this song to the players?",, "Yes","No", "Cancel")
 	switch(res)
 		if("Yes")
-			to_chat(world, span_boldannounce("An admin played: [S]"))
+			to_chat(world, "<span class='boldannounce'>An admin played: [S]</span>")
 		if("Cancel")
 			return
 
@@ -32,116 +34,33 @@
 
 	for(var/mob/M in GLOB.player_list)
 		if(M.client.prefs.toggles & SOUND_MIDI)
-			var/user_vol = M.client.prefs.musicvol
-			if(user_vol)
-				admin_sound.volume = vol * (user_vol / 100)
+			admin_sound.volume = vol * M.client.admin_music_volume
 			SEND_SOUND(M, admin_sound)
+			admin_sound.volume = vol
 
 	SSblackbox.record_feedback("tally", "admin_verb", 1, "Play Global Sound") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
-/client/verb/change_music_vol()
-	set category = "Options"
-	set name = "ChangeMusicPower"
-
-	if(prefs)
-/*		if(blacklisted() == 1)
-			var/vol = input(usr, "Current music power: [prefs.musicvol]",, 100) as null|num
-			vol = 100
-			prefs.musicvol = vol
-			prefs.save_preferences()
-			mob.update_music_volume(CHANNEL_MUSIC, prefs.musicvol)
-			mob.update_music_volume(CHANNEL_LOBBYMUSIC, prefs.musicvol)
-			mob.update_music_volume(CHANNEL_ADMIN, prefs.musicvol)
-		else*/
-		var/vol = input(usr, "Current music power: [prefs.musicvol]",, 100) as null|num
-		if(!vol)
-			if(vol != 0)
-				return
-		vol = min(vol, 100)
-		prefs.musicvol = vol
-		prefs.save_preferences()
-
-		mob.update_music_volume(CHANNEL_MUSIC, prefs.musicvol)
-		mob.update_music_volume(CHANNEL_LOBBYMUSIC, prefs.musicvol)
-		mob.update_music_volume(CHANNEL_ADMIN, prefs.musicvol)
-
-
-/client/verb/show_rolls()
-	set category = "Options"
-	set name = "ShowRolls"
-
-	if(prefs)
-		prefs.showrolls = !prefs.showrolls
-		prefs.save_preferences()
-		if(prefs.showrolls)
-			to_chat(src, "ShowRolls Enabled")
-		else
-			to_chat(src, "ShowRolls Disabled")
-
-/client/verb/change_master_vol()
-	set category = "Options"
-	set name = "ChangeVolPower"
-
-	if(prefs)
-		var/vol = input(usr, "Current volume power: [prefs.mastervol]",, 100) as null|num
-		if(!vol)
-			if(vol != 0)
-				return
-		vol = min(vol, 100)
-		prefs.mastervol = vol
-		prefs.save_preferences()
-
-		mob.update_channel_volume(CHANNEL_AMBIENCE, prefs.mastervol)
-/*
-/client/verb/help_rpguide()
-	set category = "Options"
-	set name = "zHelp-RPGuide"
-
-	src << link("https://cdn.discordapp.com/attachments/844865105040506891/938971395445112922/rpguide.jpg")
-
-/client/verb/help_uihelp()
-	set category = "Options"
-	set name = "zHelp-UIGuide"
-
-	src << link("https://cdn.discordapp.com/attachments/844865105040506891/938275090414579762/unknown.png")
-*/
 
 /client/proc/play_local_sound(S as sound)
-	set category = "-Fun-"
-	set name = "Sound - Local"
-	if(!check_rights(R_SOUND))
+	set category = "Admin.Fun"
+	set name = "Play Local Sound"
+	if(!check_rights(R_SOUNDS))
 		return
 
 	log_admin("[key_name(src)] played a local sound [S]")
 	message_admins("[key_name_admin(src)] played a local sound [S]")
-	playsound(get_turf(src.mob), S, 50, FALSE, FALSE)
-	SSblackbox.record_feedback("tally", "admin_verb", 1, "Play Local Sound") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-
-/client/proc/play_local_sound_variable(S as sound)
-	set category = "-Fun-"
-	set name = "Sound - Variable Dist"
-	if(!check_rights(R_SOUND))
-		return
-
-	var/dist = input(usr, "How far do you want this sound to extend?",, 50) as null|num
-	if(!dist)
-		return
-	dist = CLAMP(dist, 1, 100)
-
-	log_admin("[key_name(src)] played a local sound [S]")
-	message_admins("[key_name_admin(src)] played a local sound [S]")
-	playsound(get_turf(src.mob), S, dist, FALSE, FALSE)
+	playsound(get_turf(src.mob), S, 50, 0, 0)
 	SSblackbox.record_feedback("tally", "admin_verb", 1, "Play Local Sound") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/play_web_sound()
-	set category = "-Fun-"
-	set name = "Sound - Internet"
-	if(!check_rights(R_SOUND))
+	set category = "Admin.Fun"
+	set name = "Play Internet Sound"
+	if(!check_rights(R_SOUNDS))
 		return
 
 	var/ytdl = CONFIG_GET(string/invoke_youtubedl)
 	if(!ytdl)
-		to_chat(src, span_boldwarning("Youtube-dl was not configured, action unavailable")) //Check config.txt for the INVOKE_YOUTUBEDL value
+		to_chat(src, "<span class='boldwarning'>Youtube-dl was not configured, action unavailable</span>") //Check config.txt for the INVOKE_YOUTUBEDL value
 		return
 
 	var/web_sound_input = input("Enter content URL (supported sites only, leave blank to stop playing)", "Play Internet Sound via youtube-dl") as text|null
@@ -153,11 +72,11 @@
 
 			web_sound_input = trim(web_sound_input)
 			if(findtext(web_sound_input, ":") && !findtext(web_sound_input, GLOB.is_http_protocol))
-				to_chat(src, span_boldwarning("Non-http(s) URIs are not allowed."))
-				to_chat(src, span_warning("For youtube-dl shortcuts like ytsearch: please use the appropriate full url from the website."))
+				to_chat(src, "<span class='boldwarning'>Non-http(s) URIs are not allowed.</span>")
+				to_chat(src, "<span class='warning'>For youtube-dl shortcuts like ytsearch: please use the appropriate full url from the website.</span>")
 				return
 			var/shell_scrubbed_input = shell_url_scrub(web_sound_input)
-			var/list/output = world.shelleo("[ytdl] --geo-bypass --format \"bestaudio\[ext=mp3]/best\[ext=mp4]\[height<=360]/bestaudio\[ext=m4a]/bestaudio\[ext=aac]\" --dump-single-json --no-playlist -- \"[shell_scrubbed_input]\"")
+			var/list/output = world.shelleo("[ytdl] --format \"bestaudio\[ext=mp3]/best\[ext=mp4]\[height<=360]/bestaudio\[ext=m4a]/bestaudio\[ext=aac]\" --dump-single-json --no-playlist -- \"[shell_scrubbed_input]\"")
 			var/errorlevel = output[SHELLEO_ERRORLEVEL]
 			var/stdout = output[SHELLEO_STDOUT]
 			var/stderr = output[SHELLEO_STDERR]
@@ -166,8 +85,8 @@
 				try
 					data = json_decode(stdout)
 				catch(var/exception/e)
-					to_chat(src, span_boldwarning("Youtube-dl JSON parsing FAILED:"))
-					to_chat(src, span_warning("[e]: [stdout]"))
+					to_chat(src, "<span class='boldwarning'>Youtube-dl JSON parsing FAILED:</span>")
+					to_chat(src, "<span class='warning'>[e]: [stdout]</span>")
 					return
 
 				if (data["url"])
@@ -178,20 +97,21 @@
 						webpage_url = "<a href=\"[data["webpage_url"]]\">[title]</a>"
 					music_extra_data["start"] = data["start_time"]
 					music_extra_data["end"] = data["end_time"]
+					music_extra_data["link"] = data["webpage_url"]
+					music_extra_data["title"] = data["title"]
 
 					var/res = alert(usr, "Show the title of and link to this song to the players?\n[title]",, "No", "Yes", "Cancel")
 					switch(res)
 						if("Yes")
-							to_chat(world, span_boldannounce("An admin played: [webpage_url]"))
+							to_chat(world, "<span class='boldannounce'>An admin played: [webpage_url]</span>")
 						if("Cancel")
 							return
-
 					SSblackbox.record_feedback("nested tally", "played_url", 1, list("[ckey]", "[web_sound_input]"))
 					log_admin("[key_name(src)] played web sound: [web_sound_input]")
 					message_admins("[key_name(src)] played web sound: [web_sound_input]")
 			else
-				to_chat(src, span_boldwarning("Youtube-dl URL retrieval FAILED:"))
-				to_chat(src, span_warning("[stderr]"))
+				to_chat(src, "<span class='boldwarning'>Youtube-dl URL retrieval FAILED:</span>")
+				to_chat(src, "<span class='warning'>[stderr]</span>")
 
 		else //pressed ok with blank
 			log_admin("[key_name(src)] stopped web sound")
@@ -200,25 +120,71 @@
 			stop_web_sounds = TRUE
 
 		if(web_sound_url && !findtext(web_sound_url, GLOB.is_http_protocol))
-			to_chat(src, span_boldwarning("BLOCKED: Content URL not using http(s) protocol"))
-			to_chat(src, span_warning("The media provider returned a content URL that isn't using the HTTP or HTTPS protocol"))
+			to_chat(src, "<span class='boldwarning'>BLOCKED: Content URL not using http(s) protocol</span>")
+			to_chat(src, "<span class='warning'>The media provider returned a content URL that isn't using the HTTP or HTTPS protocol</span>")
 			return
 		if(web_sound_url || stop_web_sounds)
 			for(var/m in GLOB.player_list)
 				var/mob/M = m
 				var/client/C = M.client
-				if((C.prefs.toggles & SOUND_MIDI) && C.chatOutput && !C.chatOutput.broken && C.chatOutput.loaded)
+				if(C.prefs.toggles & SOUND_MIDI)
 					if(!stop_web_sounds)
-						C.chatOutput.sendMusic(web_sound_url, music_extra_data)
+						C.tgui_panel?.play_music(web_sound_url, music_extra_data)
 					else
-						C.chatOutput.stopMusic()
+						C.tgui_panel?.stop_music()
 
 	SSblackbox.record_feedback("tally", "admin_verb", 1, "Play Internet Sound")
 
+/client/proc/manual_play_web_sound()
+	set category = "Admin.Fun"
+	set name = "Manual Play Internet Sound"
+	if(!check_rights(R_SOUNDS))
+		return
+
+	var/web_sound_input = input("Enter content stream URL (must be a direct link)", "Play Internet Sound via direct URL") as text|null
+	if(istext(web_sound_input))
+		if(!length(web_sound_input))
+			log_admin("[key_name(src)] stopped web sound")
+			message_admins("[key_name(src)] stopped web sound")
+			var/mob/M
+			for(var/i in GLOB.player_list)
+				M = i
+				M?.client?.tgui_panel?.stop_music()
+			return
+
+		var/list/music_extra_data = list()
+		web_sound_input = trim(web_sound_input)
+		if(web_sound_input && (findtext(web_sound_input, ":") && !findtext(web_sound_input, GLOB.is_http_protocol)))
+			to_chat(src, "<span class='boldwarning'>Non-http(s) URIs are not allowed.</span>", confidential = TRUE)
+			return
+
+		var/list/explode = splittext(web_sound_input, "/") //if url=="https://fixthisshit.com/pogchamp.ogg"then title="pogchamp.ogg"
+		var/title = "[explode[explode.len]]"
+
+		if(!findtext(title, ".mp3") && !findtext(title, ".mp4")) // IE sucks.
+			to_chat(src, "<span class='warning'>The format is not .mp3/.mp4, IE 8 and above can only support the .mp3/.mp4 format, the music might not play.</span>", confidential = TRUE)
+
+		if(length(title) > 50) //kev no.
+			title = "Unknown.mp3"
+
+		music_extra_data["title"] = title
+
+		SSblackbox.record_feedback("nested tally", "played_url", 1, list("[ckey]", "[web_sound_input]"))
+		log_admin("[key_name(src)] played web sound: [web_sound_input]")
+		message_admins("[key_name(src)] played web sound: [web_sound_input]")
+
+		for(var/m in GLOB.player_list)
+			var/mob/M = m
+			var/client/C = M.client
+			if(C.prefs.toggles & SOUND_MIDI)
+				C.tgui_panel?.play_music(web_sound_input, music_extra_data)
+
+	SSblackbox.record_feedback("tally", "admin_verb", 1, "Manual Play Internet Sound")
+
 /client/proc/set_round_end_sound(S as sound)
-	set category = "-Fun-"
-	set name = "Sound - Round End"
-	if(!check_rights(R_SOUND))
+	set category = "Admin.Fun"
+	set name = "Set Round End Sound"
+	if(!check_rights(R_SOUNDS))
 		return
 
 	SSticker.SetRoundEndSound(S)
@@ -228,8 +194,8 @@
 	SSblackbox.record_feedback("tally", "admin_verb", 1, "Set Round End Sound") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/stop_sounds()
-	set category = "-Fun-"
-	set name = "Sound - Stop All Playing"
+	set category = "Debug"
+	set name = "Stop All Playing Sounds"
 	if(!src.holder)
 		return
 
@@ -238,36 +204,5 @@
 	for(var/mob/M in GLOB.player_list)
 		SEND_SOUND(M, sound(null))
 		var/client/C = M.client
-		if(C && C.chatOutput && !C.chatOutput.broken && C.chatOutput.loaded)
-			C.chatOutput.stopMusic()
+		C?.tgui_panel?.stop_music()
 	SSblackbox.record_feedback("tally", "admin_verb", 1, "Stop All Playing Sounds") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-
-GLOBAL_LIST_INIT(ambience_files, list(
-	'sound/music/area/bath.ogg',
-	'sound/music/area/bog.ogg',
-	'sound/music/area/catacombs.ogg',
-	'sound/music/area/caves.ogg',
-	'sound/music/area/church.ogg',
-	'sound/music/area/decap.ogg',
-	'sound/music/area/dungeon.ogg',
-	'sound/music/area/dwarf.ogg',
-	'sound/music/area/field.ogg',
-	'sound/music/area/forest.ogg',
-	'sound/music/area/magiciantower.ogg',
-	'sound/music/area/manorgarri.ogg',
-	'sound/music/area/sargoth.ogg',
-	'sound/music/area/septimus.ogg',
-	'sound/music/area/sewers.ogg',
-	'sound/music/area/shop.ogg',
-	'sound/music/area/spidercave.ogg',
-	'sound/music/area/towngen.ogg',
-	'sound/music/area/townstreets.ogg'
-	))
-
-/client/verb/preload_sounds()
-	set category = "Options"
-	set name = "Preload Ambience"
-
-	for(var/music in GLOB.ambience_files)
-		mob.playsound_local(mob, music, 0.1)
-		sleep(10)

@@ -4,8 +4,10 @@ SUBSYSTEM_DEF(pathfinder)
 	flags = SS_NO_FIRE
 	var/datum/flowcache/mobs
 	var/datum/flowcache/circuits
+	var/static/space_type_cache
 
 /datum/controller/subsystem/pathfinder/Initialize()
+	space_type_cache = typecacheof(/turf/open/space)
 	mobs = new(10)
 	circuits = new(3)
 	return ..()
@@ -29,7 +31,7 @@ SUBSYSTEM_DEF(pathfinder)
 		while(flow[free])
 			CHECK_TICK
 			free = (free % lcount) + 1
-		var/t = addtimer(CALLBACK(src, TYPE_PROC_REF(/datum/flowcache, toolong), free), 150, TIMER_STOPPABLE)
+		var/t = addtimer(CALLBACK(src, /datum/flowcache.proc/toolong, free), 150, TIMER_STOPPABLE)
 		flow[free] = t
 		flow[t] = M
 		return free

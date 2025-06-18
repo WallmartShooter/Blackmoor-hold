@@ -1,14 +1,38 @@
-/mob/living/proc/Life(seconds, times_fired)
-	set waitfor = FALSE
-	set invisibility = 0
+/**
+ * Called by SSmobs at an interval of 2 seconds.
+ * Splits off into PhysicalLife() and BiologicalLife(). Override those instead of this.
+ */
+/mob/living
+	var/SPECIAL_SET = FALSE
 
-	if((movement_type & FLYING) && !(movement_type & FLOATING))	//TODO: Better floating
-		float(on = TRUE)
+/mob/living/proc/Life(seconds, times_fired)
+
+	//if(!SPECIAL_SET)
+	//	src.maxHealth += (src.special_e*3)//SPECIAL Integration
+	//	src.health += (src.special_e*3)//SPECIAL Integration
+	//	update_special_speed((5-src.special_a)/20)//SPECIAL Integration
+	//	SPECIAL_SET = TRUE
+	
+	//SHOULD_NOT_SLEEP(TRUE)
+	if(mob_transforming)
+		return
+
+	. = SEND_SIGNAL(src, COMSIG_LIVING_LIFE, seconds, times_fired)
+	if(!(. & COMPONENT_INTERRUPT_LIFE_PHYSICAL))
+		PhysicalLife(seconds, times_fired)
+	if(!(. & COMPONENT_INTERRUPT_LIFE_BIOLOGICAL))
+		BiologicalLife(seconds, times_fired)
+
+	// CODE BELOW SHOULD ONLY BE THINGS THAT SHOULD HAPPEN NO MATTER WHAT AND CAN NOT BE SUSPENDED!
+	// Otherwise, it goes into one of the two split Life procs!
 
 	if (client)
 		var/turf/T = get_turf(src)
 		if(!T)
-			var/msg = "[ADMIN_LOOKUPFLW(src)] was found to have no .loc with an attached client, if the cause is unknown it would be wise to ask how this was accomplished."
+			for(var/obj/effect/landmark/error/E in GLOB.landmarks_list)
+				forceMove(E.loc)
+				break
+			var/msg = "[key_name_admin(src)] [ADMIN_JMP(src)] was found to have no .loc with an attached client, if the cause is unknown it would be wise to ask how this was accomplished."
 			message_admins(msg)
 			send2irc_adminless_only("Mob", msg, R_ADMIN)
 			log_game("[key_name(src)] was found to have no .loc with an attached client.")
@@ -16,7 +40,7 @@
 		// This is a temporary error tracker to make sure we've caught everything
 		else if (registered_z != T.z)
 #ifdef TESTING
-			message_admins("[ADMIN_LOOKUPFLW(src)] has somehow ended up in Z-level [T.z] despite being registered in Z-level [registered_z]. If you could ask them how that happened and notify coderbus, it would be appreciated.")
+			message_admins("[src] [ADMIN_FLW(src)] has somehow ended up in Z-level [T.z] despite being registered in Z-level [registered_z]. If you could ask them how that happened and notify coderbus, it would be appreciated.")
 #endif
 			log_game("Z-TRACKING: [src] has somehow ended up in Z-level [T.z] despite being registered in Z-level [registered_z].")
 			update_z(T.z)
@@ -24,146 +48,152 @@
 		log_game("Z-TRACKING: [src] of type [src.type] has a Z-registration despite not having a client.")
 		update_z(null)
 
-	if (notransform)
-		return
-	if(!loc)
-		return
+/**
+ * Handles biological life processes like chemical metabolism, breathing, etc
+ * Returns TRUE or FALSE based on if we were interrupted. This is used by overridden variants to check if they should stop.
+ */
+/mob/living/proc/BiologicalLife(seconds, times_fired)
+	SEND_SIGNAL(src,COMSIG_LIVING_BIOLOGICAL_LIFE, seconds, times_fired)
+	handle_diseases()// DEAD check is in the proc itself; we want it to spread even if the mob is dead, but to handle its disease-y properties only if you're not.
+
+	handle_wounds()
+
+	// Everything after this shouldn't process while dead (as of the time of writing)
+	if(stat == DEAD)
+		return FALSE
+
+	//Mutations and radiation
+	handle_mutations_and_radiation()
 
 	//Breathing, if applicable
 	handle_breathing(times_fired)
-	if(HAS_TRAIT(src, TRAIT_SIMPLE_WOUNDS))
-		handle_wounds()
-		handle_embedded_objects()
-		handle_blood()
-		//passively heal even wounds with no passive healing
-		for(var/datum/wound/wound as anything in get_wounds())
-			wound.heal_wound(1)
 
 	if (QDELETED(src)) // diseases can qdel the mob via transformations
-		return
+		return FALSE
 
-	handle_environment()
-	
 	//Random events (vomiting etc)
 	handle_random_events()
 
-	handle_gravity()
+	//stuff in the stomach
+	handle_stomach()
 
+	handle_block_parry(seconds)
+
+	// These two MIGHT need to be moved to base Life() if we get any in the future that's a "physical" effect that needs to fire even while in stasis.
 	handle_traits() // eye, ear, brain damages
 	handle_status_effects() //all special effects, stun, knockdown, jitteryness, hallucination, sleeping, etc
+	return TRUE
 
-	update_sneak_invis()
+/**
+ * Handles physical life processes like being on fire. Don't ask why this is considered "Life".
+ * Returns TRUE or FALSE based on if we were interrupted. This is used by overridden variants to check if they should stop.
+ */
+/mob/living/proc/PhysicalLife(seconds, times_fired)
+	SEND_SIGNAL(src,COMSIG_LIVING_PHYSICAL_LIFE, seconds, times_fired)
+	if(digitalinvis)
+		handle_diginvis() //AI becomes unable to see mob
+
+	if((movement_type & FLYING) && !(movement_type & FLOATING))	//TODO: Better floating
+		INVOKE_ASYNC(src, /atom/movable.proc/float, TRUE)
+
+	if(!loc)
+		return FALSE
+
+	var/datum/gas_mixture/environment = loc.return_air()
+
+	//Handle temperature/pressure differences between body and environment
+	if(environment)
+		handle_environment(environment)
+
 	handle_fire()
+
+	handle_gravity()
 
 	if(machine)
 		machine.check_eye(src)
-
-	if(istype(loc, /turf/open/water))
-		handle_inwater(loc)
-
-	if(stat != DEAD)
-		return 1
-
-/mob/living/proc/DeadLife()
-	set invisibility = 0
-	if (notransform)
-		return
-	if(!loc)
-		return
-	if(HAS_TRAIT(src, TRAIT_SIMPLE_WOUNDS))
-		handle_wounds()
-		handle_embedded_objects()
-		handle_blood()
-	update_sneak_invis()
-	handle_fire()
-	if(istype(loc, /turf/open/water))
-		handle_inwater(loc)
+	return TRUE
 
 /mob/living/proc/handle_breathing(times_fired)
 	return
 
-/mob/living/proc/handle_random_events()
-	//random painstun
-	if(!stat && !HAS_TRAIT(src, TRAIT_NOPAINSTUN))
-		if(world.time > mob_timers["painstun"] + 600)
-			if(getBruteLoss() + getFireLoss() >= (STACON * 10))
-				var/probby = 53 - (STACON * 2)
-				if(!(mobility_flags & MOBILITY_STAND))
-					probby = probby - 20
-				if(prob(probby))
-					mob_timers["painstun"] = world.time
-					Immobilize(10)
-					emote("painscream")
-					visible_message(span_warning("[src] freezes in pain!"),
-								span_warning("I'm frozen in pain!"))
-					sleep(10)
-					Stun(110)
-					Knockdown(110)
+/mob/living/proc/handle_mutations_and_radiation()
+	radiation = 0 //so radiation don't accumulate in simple animals
+	return
 
-/mob/living/proc/handle_environment()
+/mob/living/proc/handle_diseases()
+	return
+
+/mob/living/proc/handle_wounds()
+	return
+
+/mob/living/proc/handle_diginvis()
+	if(!digitaldisguise)
+		src.digitaldisguise = image(loc = src)
+	src.digitaldisguise.override = 1
+	for(var/mob/living/silicon/ai/AI in GLOB.player_list)
+		AI.client.images |= src.digitaldisguise
+
+
+/mob/living/proc/handle_random_events()
+	return
+
+/mob/living/proc/handle_environment(datum/gas_mixture/environment)
 	return
 
 /mob/living/proc/handle_fire()
 	if(fire_stacks < 0) //If we've doused ourselves in water to avoid fire, dry off slowly
 		fire_stacks = min(0, fire_stacks + 1)//So we dry ourselves back to default, nonflammable.
 	if(!on_fire)
-//		testing("handlefyre0 [src]")
-		return TRUE //the mob is no longer on fire, no need to do the rest.
-//	testing("handlefyre1 [src]")
+		return 1
 	if(fire_stacks > 0)
-		adjust_fire_stacks(-0.05) //the fire is slowly consumed
+		adjust_fire_stacks(-0.1) //the fire is slowly consumed
 	else
 		ExtinguishMob()
-		return TRUE //mob was put out, on_fire = FALSE via ExtinguishMob(), no need to update everything down the chain.
-	update_fire()
-	var/turf/location = get_turf(src)
-	location?.hotspot_expose(700, 50, 1)
-
-/mob/living/proc/handle_wounds()
-	if(stat >= DEAD)
-		for(var/datum/wound/wound as anything in get_wounds())
-			if(istype(wound, /datum/wound))
-				wound.on_death()
 		return
-	for(var/datum/wound/wound as anything in get_wounds())
-		if(istype(wound, /datum/wound))
-			wound.on_life()
+	var/datum/gas_mixture/G = loc.return_air() // Check if we're standing in an oxygenless environment
+	if(!G.get_moles(GAS_O2, 1))
+		ExtinguishMob() //If there's no oxygen in the tile we're on, put out the fire
+		return
+	var/turf/location = get_turf(src)
+	location.hotspot_expose(700, 10, 1)
 
-/obj/item/proc/on_embed_life(mob/living/user, obj/item/bodypart/bodypart)
+/mob/living/proc/handle_stomach()
 	return
 
-/mob/living/proc/handle_embedded_objects()
-	for(var/obj/item/embedded in simple_embedded_objects)
-		if(embedded.on_embed_life(src))
-			continue
-
-		if(prob(embedded.embedding.embedded_pain_chance))
-//			BP.receive_damage(I.w_class*I.embedding.embedded_pain_multiplier)
-			to_chat(src, span_danger("[embedded] in me hurts!"))
-
-		if(prob(embedded.embedding.embedded_fall_chance))
-//			BP.receive_damage(I.w_class*I.embedding.embedded_fall_pain_multiplier)
-			simple_remove_embedded_object(embedded)
-			to_chat(src,span_danger("[embedded] falls out of me!"))
+/**
+ * Check if the mob contains this reagent.
+ *
+ * This will validate the the reagent holder for the mob and any sub holders contain the requested reagent.
+ * Vars:
+ * * reagent (typepath) takes a PATH to a reagent.
+ * * amount (int) checks for having a specific amount of that chemical.
+ * * needs_metabolizing (bool) takes into consideration if the chemical is matabolizing when it's checked.
+ */
+/mob/living/proc/has_reagent(reagent, amount = -1, needs_metabolizing = FALSE)
+	return reagents.has_reagent(reagent, amount, needs_metabolizing)
 
 //this updates all special effects: knockdown, druggy, stuttering, etc..
 /mob/living/proc/handle_status_effects()
 	if(confused)
-		confused = max(confused - 1, 0)
-	if(slowdown)
-		slowdown = max(slowdown - 1, 0)
-	if(slowdown <= 0)
-		remove_movespeed_modifier(MOVESPEED_ID_LIVING_SLOWDOWN_STATUS)
+		confused = max(0, confused - 1)
 
 /mob/living/proc/handle_traits()
 	//Eyes
-	if(eye_blind)	//blindness, heals slowly over time
-		if(HAS_TRAIT_FROM(src, TRAIT_BLIND, EYES_COVERED)) //covering your eyes heals blurry eyes faster
-			adjust_blindness(-3)
-		else if(!stat && !(HAS_TRAIT(src, TRAIT_BLIND)))
-			adjust_blindness(-1)
+	if(eye_blind)			//blindness, heals slowly over time
+		if(!stat && !(HAS_TRAIT(src, TRAIT_BLIND)))
+			eye_blind = max(eye_blind-1,0)
+			if(client && !eye_blind)
+				clear_alert("blind")
+				clear_fullscreen("blind")
+		else
+			eye_blind = max(eye_blind-1,1)
 	else if(eye_blurry)			//blurry eyes heal slowly
-		adjust_blurriness(-1)
+		eye_blurry = max(eye_blurry-1, 0)
+		if(client)
+			if(!eye_blurry)
+				remove_eyeblur()
+			else
+				update_eyeblur()
 
 /mob/living/proc/update_damage_hud()
 	return
@@ -178,8 +208,8 @@
 
 /mob/living/proc/gravity_animate()
 	if(!get_filter("gravity"))
-		add_filter("gravity",1,list("type"="motion_blur", "x"=0, "y"=0))
-	INVOKE_ASYNC(src, PROC_REF(gravity_pulse_animation))
+		add_filter("gravity",1, GRAVITY_MOTION_BLUR)
+	INVOKE_ASYNC(src, .proc/gravity_pulse_animation)
 
 /mob/living/proc/gravity_pulse_animation()
 	animate(get_filter("gravity"), y = 1, time = 10)

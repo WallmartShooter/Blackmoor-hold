@@ -1,11 +1,11 @@
 /mob/Logout()
+	SEND_SIGNAL(src, COMSIG_MOB_CLIENT_LOGOUT, client)
 	log_message("[key_name(src)] is no longer owning mob [src]([src.type])", LOG_OWNERSHIP)
 	SStgui.on_logout(src)
 	unset_machine()
-	clear_typing_indicator()
 	GLOB.player_list -= src
+	logout_time = world.time
 
-	SEND_SIGNAL(src, COMSIG_MOB_LOGOUT)
 	..()
 
 	if(loc)

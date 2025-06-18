@@ -5,16 +5,16 @@
 
 /datum/brain_trauma
 	var/name = "Brain Trauma"
-	var/desc = ""
-	var/scan_desc = "" //description when detected by a health scanner
+	var/desc = "A trauma caused by brain damage, which causes issues to the patient."
+	var/scan_desc = "generic brain trauma" //description when detected by a health scanner
 	var/mob/living/carbon/owner //the poor bastard
 	var/obj/item/organ/brain/brain //the poor bastard's brain
-	var/gain_text = span_notice("I feel traumatized.")
-	var/lose_text = span_notice("I no longer feel traumatized.")
+	var/gain_text = "<span class='notice'>You feel traumatized.</span>"
+	var/lose_text = "<span class='notice'>You no longer feel traumatized.</span>"
 	var/can_gain = TRUE
-	var/random_gain = TRUE //can this be gained through random traumas?
+	var/random_gain = FALSE //can this be gained through random traumas?
 	var/resilience = TRAUMA_RESILIENCE_BASIC //how hard is this to cure?
-	var/clonable = TRUE // will this transfer if the brain is cloned?
+	var/clonable = TRUE // will this transfer if the brain is cloned? - currently has no effect
 
 /datum/brain_trauma/Destroy()
 	if(brain && brain.traumas)
@@ -40,8 +40,8 @@
 //Called when given to a mob
 /datum/brain_trauma/proc/on_gain()
 	to_chat(owner, gain_text)
-	RegisterSignal(owner, COMSIG_MOB_SAY, PROC_REF(handle_speech))
-	RegisterSignal(owner, COMSIG_MOVABLE_HEAR, PROC_REF(handle_hearing))
+	RegisterSignal(owner, COMSIG_MOB_SAY, .proc/handle_speech)
+	RegisterSignal(owner, COMSIG_MOVABLE_HEAR, .proc/handle_hearing)
 
 //Called when removed from a mob
 /datum/brain_trauma/proc/on_lose(silent)

@@ -7,6 +7,14 @@ GLOBAL_LIST_INIT(food_reagents, build_reagents_to_food()) //reagentid = related 
 		for(var/r in item.list_reagents)
 			if (!.[r])
 				.[r] = list()
+			.[r] |= type
+		qdel(item)
+	//dang plant snowflake
+	for (var/type in subtypesof(/obj/item/seeds))
+		var/obj/item/seeds/item = new type()
+		for(var/r in item.reagents_add)
+			if (!.[r])
+				.[r] = list()
 			.[r] += type
 		qdel(item)
 
@@ -65,6 +73,7 @@ GLOBAL_LIST_INIT(food_reagents, build_reagents_to_food()) //reagentid = related 
 	if(randomize_inputs)
 		var/list/remaining_possible_reagents = GetPossibleReagents(RNGCHEM_INPUT)
 		var/list/remaining_possible_catalysts = GetPossibleReagents(RNGCHEM_CATALYSTS)
+
 		//We're going to assume we're not doing any weird partial reactions for now.
 		for(var/reagent_type in results)
 			remaining_possible_catalysts -= reagent_type
@@ -114,7 +123,6 @@ GLOBAL_LIST_INIT(food_reagents, build_reagents_to_food()) //reagentid = related 
 
 /datum/chemical_reaction/randomized/proc/LoadOldRecipe(recipe_data)
 	created = text2num(recipe_data["timestamp"])
-
 	var/req_reag = unwrap_reagent_list(recipe_data["required_reagents"])
 	if(!req_reag)
 		return FALSE
@@ -140,13 +148,13 @@ GLOBAL_LIST_INIT(food_reagents, build_reagents_to_food()) //reagentid = related 
 
 /datum/chemical_reaction/randomized/secret_sauce
 	name = "secret sauce creation"
-	id = "secretsauce"
+	id = /datum/reagent/consumable/secretsauce
 	persistent = TRUE
 	persistence_period = 7 //Reset every week
 	randomize_container = TRUE
 	possible_containers = list(/obj/item/reagent_containers/glass/bucket) //easy way to ensure no common conflicts
 	randomize_req_temperature = TRUE
-	results = list(/datum/reagent/consumable/secretsauce=1)
+	results = list(/datum/reagent/consumable/secretsauce =1)
 
 /datum/chemical_reaction/randomized/secret_sauce/GetPossibleReagents(kind)
 	switch(kind)
@@ -160,7 +168,7 @@ GLOBAL_LIST_INIT(food_reagents, build_reagents_to_food()) //reagentid = related 
 
 /obj/item/paper/secretrecipe
 	name = "old recipe"
-	var/recipe_id = "secretsauce"
+	var/recipe_id = /datum/reagent/consumable/secretsauce
 
 /obj/item/paper/secretrecipe/examine(mob/user) //Extra secret
 	if(isobserver(user))
@@ -172,12 +180,13 @@ GLOBAL_LIST_INIT(food_reagents, build_reagents_to_food()) //reagentid = related 
 	if(SSpersistence.initialized)
 		UpdateInfo()
 	else
-		SSticker.OnRoundstart(CALLBACK(src,PROC_REF(UpdateInfo)))
+		SSticker.OnRoundstart(CALLBACK(src,.proc/UpdateInfo))
 
 /obj/item/paper/secretrecipe/proc/UpdateInfo()
 	var/datum/chemical_reaction/recipe = get_chemical_reaction(recipe_id)
 	if(!recipe)
 		info = "This recipe is illegible."
+		return
 	var/list/dat = list("<ul>")
 	for(var/rid in recipe.required_reagents)
 		var/datum/reagent/R = GLOB.chemical_reagents_list[rid]

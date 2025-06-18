@@ -12,16 +12,17 @@
 #define TOXIC 		(1<<11)
 #define PINEAPPLE	(1<<12)
 #define BREAKFAST	(1<<13)
-#define CLOTH 		(1<<14)
+#define ANTITOXIC 	(1<<14)
+#define LONGPORK 	(1<<15)
+#define NUKA		(1<<16)
 
 #define DRINK_NICE	1
 #define DRINK_GOOD	2
 #define DRINK_VERYGOOD	3
 #define DRINK_FANTASTIC	4
 #define FOOD_AMAZING 5
+#define RACE_DRINK 6
 
-#define FARE_IMPOVERISHED 1
-#define FARE_POOR 2
-#define FARE_NEUTRAL 3
-#define FARE_FINE 4
-#define FARE_LAVISH 5
+#define FOOD_IN_CONTAINER (1<<0)
+
+#define STOP_SERVING_BREAKFAST (15 MINUTES)

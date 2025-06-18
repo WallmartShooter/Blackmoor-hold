@@ -1,12 +1,3 @@
-// Yes this doesn't align correctly on anything other than 4 width tabs.
-// If you want it to go switch everybody to elastic tab stops.
-// Actually that'd be great if you could!
-#define EFFECT_UPDATE(level)                \
-	if (needs_update == LIGHTING_NO_UPDATE) \
-		SSlighting.sources_queue += src; \
-	if (needs_update < level)               \
-		needs_update = level;    \
-
 // This is where the fun begins.
 // These are the main datums that emit light.
 
@@ -17,15 +8,8 @@
 	var/turf/source_turf     // The turf under the above.
 	var/turf/pixel_turf      // The turf the top_atom appears to over.
 	var/light_power    // Intensity of the emitter light.
-	/// The range of the emitted light.
-	var/light_inner_range
-	/// Range where light begins to taper into darkness in tiles.
-	var/light_outer_range
-	/// Adjusts curve for falloff gradient
-	var/light_falloff_curve = LIGHTING_DEFAULT_FALLOFF_CURVE
-	var/light_depth		//multiz
-	var/light_height
-	var/light_color    // The colour of the light, string, decomposed by parse_light_color()
+	var/light_range      // The range of the emitted light.
+	var/light_color    // The colour of the light, string, decomposed by PARSE_LIGHT_COLOR()
 
 	// Variables for keeping track of the colour.
 	var/lum_r
@@ -44,24 +28,27 @@
 
 	var/needs_update = LIGHTING_NO_UPDATE    // Whether we are queued for an update.
 
+// Thanks to Lohikar for flinging this tiny bit of code at me, increasing my brain cell count from 1 to 2 in the process.
+// This macro will only offset up to 1 tile, but anything with a greater offset is an outlier and probably should handle its own lighting offsets.
+// Anything pixelshifted 16px or more will be considered on the next tile.
+#define GET_APPROXIMATE_PIXEL_DIR(PX, PY) ((!(PX) ? 0 : ((PX >= 16 ? EAST : (PX <= -16 ? WEST : 0)))) | (!PY ? 0 : (PY >= 16 ? NORTH : (PY <= -16 ? SOUTH : 0))))
+#define UPDATE_APPROXIMATE_PIXEL_TURF var/_mask = GET_APPROXIMATE_PIXEL_DIR(top_atom.pixel_x, top_atom.pixel_y); pixel_turf = _mask ? (get_step(source_turf, _mask) || source_turf) : source_turf
 
 /datum/light_source/New(atom/owner, atom/top)
 	source_atom = owner // Set our new owner.
-	add_to_light_sources(source_atom)
+	LAZYADD(source_atom.light_sources, src)
 	top_atom = top
 	if (top_atom != source_atom)
-		add_to_light_sources(top_atom)
+		LAZYADD(top_atom.light_sources, src)
 
 	source_turf = top_atom
-	pixel_turf = get_turf_pixel(top_atom) || source_turf
+	UPDATE_APPROXIMATE_PIXEL_TURF
 
 	light_power = source_atom.light_power
-	light_inner_range = source_atom.light_inner_range
-	light_outer_range = source_atom.light_outer_range
-	light_falloff_curve = source_atom.light_falloff_curve
+	light_range = source_atom.light_range
 	light_color = source_atom.light_color
 
-	parse_light_color()
+	PARSE_LIGHT_COLOR(src)
 
 	update()
 
@@ -74,44 +61,19 @@
 		LAZYREMOVE(top_atom.light_sources, src)
 
 	if (needs_update)
-		SSlighting.sources_queue -= src
+		GLOB.lighting_update_lights -= src
 
 	. = ..()
 
-///add this light source to new_atom_host's light_sources list. updating movement registrations as needed
-/datum/light_source/proc/add_to_light_sources(atom/new_atom_host)
-	if(QDELETED(new_atom_host))
-		return FALSE
+// Yes this doesn't align correctly on anything other than 4 width tabs.
+// If you want it to go switch everybody to elastic tab stops.
+// Actually that'd be great if you could!
+#define EFFECT_UPDATE(level)                \
+	if (needs_update == LIGHTING_NO_UPDATE) \
+		GLOB.lighting_update_lights += src; \
+	if (needs_update < level)               \
+		needs_update            = level;    \
 
-	LAZYADD(new_atom_host.light_sources, src)
-	//yes, we register the signal to the top atom too, this is intentional and ensures contained lighting updates properly
-	if(ismovable(new_atom_host) && new_atom_host == source_atom)
-		RegisterSignal(new_atom_host, COMSIG_MOVABLE_MOVED, PROC_REF(update_host_lights))
-	return TRUE
-
-///remove this light source from old_atom_host's light_sources list, unsetting movement registrations
-/datum/light_source/proc/remove_from_light_sources(atom/old_atom_host)
-	if(QDELETED(old_atom_host))
-		return FALSE
-
-	LAZYREMOVE(old_atom_host.light_sources, src)
-	if(ismovable(old_atom_host) && old_atom_host == source_atom)
-		UnregisterSignal(old_atom_host, COMSIG_MOVABLE_MOVED)
-	return TRUE
-
-///signal handler for when our host atom moves and we need to update our effects
-/datum/light_source/proc/update_host_lights(atom/movable/host)
-	SHOULD_NOT_SLEEP(TRUE)
-	if(QDELETED(host))
-		return
-
-	// If the host is our owner, we want to call their update so they can decide who the top atom should be
-	if(host == source_atom)
-		host.update_light()
-		return
-
-	// Otherwise, our top atom just moved, so we trigger a normal rebuild
-	EFFECT_UPDATE(LIGHTING_CHECK_UPDATE)
 
 // This proc will cause the light source to update the top atom, and add itself to the update queue.
 /datum/light_source/proc/update(atom/new_top_atom)
@@ -135,31 +97,28 @@
 /datum/light_source/proc/vis_update()
 	EFFECT_UPDATE(LIGHTING_VIS_UPDATE)
 
-// Decompile the hexadecimal colour into lumcounts of each perspective.
-/datum/light_source/proc/parse_light_color()
-	if (light_color)
-		lum_r = GetRedPart   (light_color) / 255
-		lum_g = GetGreenPart (light_color) / 255
-		lum_b = GetBluePart  (light_color) / 255
-	else
-		lum_r = 1
-		lum_g = 1
-		lum_b = 1
-
 // Macro that applies light to a new corner.
 // It is a macro in the interest of speed, yet not having to copy paste it.
 // If you're wondering what's with the backslashes, the backslashes cause BYOND to not automatically end the line.
 // As such this all gets counted as a single line.
 // The braces and semicolons are there to be able to do this on a single line.
-// This is the define used to calculate falloff.
-// Assuming a brightness of 1 at range 1, formula should be (brightness = 1 / distance^2)
-// However, due to the weird range factor, brightness = (-(distance - full_dark_start) / (full_dark_start - full_light_end)) ^ light_max_bright
-#define LUM_FALLOFF(C, T)(CLAMP01(-((((C.x - T.x) ** 2 +(C.y - T.y) ** 2) ** 0.5 - light_outer_range) / max(light_outer_range - light_inner_range, 1))) ** light_falloff_curve)
+
+//Original lighting falloff calculation. This looks the best out of the three. However, this is also the most expensive.
+//#define LUM_FALLOFF(C, T) (1 - CLAMP01(sqrt((C.x - T.x) ** 2 + (C.y - T.y) ** 2 + LIGHTING_HEIGHT) / max(1, light_range)))
+
+//Cubic lighting falloff. This has the *exact* same range as the original lighting falloff calculation, down to the exact decimal, but it looks a little unnatural due to the harsher falloff and how it's generally brighter across the board.
+//#define LUM_FALLOFF(C, T) (1 - CLAMP01((((C.x - T.x) * (C.x - T.x)) + ((C.y - T.y) * (C.y - T.y)) + LIGHTING_HEIGHT) / max(1, light_range*light_range)))
+
+//Linear lighting falloff. This resembles the original lighting falloff calculation the best, but results in lights having a slightly larger range, which is most noticable with large light sources. This also results in lights being diamond-shaped, fuck. This looks the darkest out of the three due to how lights are brighter closer to the source compared to the original falloff algorithm. This falloff method also does not at all take into account lighting height, as it acts as a flat reduction to light range with this method.
+//#define LUM_FALLOFF(C, T) (1 - CLAMP01(((abs(C.x - T.x) + abs(C.y - T.y))) / max(1, light_range+1)))
+
+//Linear lighting falloff but with an octagonal shape in place of a diamond shape. Lummox JR please add pointer support.
+#define GET_LUM_DIST(DISTX, DISTY) (DISTX + DISTY + abs(DISTX - DISTY)*0.4)
+#define LUM_FALLOFF(C, T) (1 - CLAMP01(max(GET_LUM_DIST(abs(C.x - T.x), abs(C.y - T.y)),LIGHTING_HEIGHT) / max(1, light_range+1)))
 
 #define APPLY_CORNER(C)                      \
 	. = LUM_FALLOFF(C, pixel_turf);          \
-	. *= (light_power ** 2);                \
-	. *= light_power < 0 ? -1:1;    		\
+	. *= light_power;                        \
 	var/OLD = effect_str[C];                 \
 	effect_str[C] = .;                       \
 											\
@@ -220,60 +179,39 @@
 		light_power = source_atom.light_power
 		update = TRUE
 
-	if (source_atom.light_inner_range != light_inner_range)
-		light_inner_range = source_atom.light_inner_range
-		update = TRUE
-
-	if (source_atom.light_outer_range != light_outer_range)
-		light_outer_range = source_atom.light_outer_range
-		update = TRUE
-
-	if (source_atom.light_depth != light_depth)
-		light_depth = source_atom.light_depth
-		update = TRUE
-
-	if (source_atom.light_height != light_height)
-		light_height = source_atom.light_height
+	if (source_atom.light_range != light_range)
+		light_range = source_atom.light_range
 		update = TRUE
 
 	if (!top_atom)
 		top_atom = source_atom
 		update = TRUE
 
-	if (!light_outer_range || !light_power)
+	if (!light_range || !light_power)
 		qdel(src)
 		return
 
 	if (isturf(top_atom))
 		if (source_turf != top_atom)
 			source_turf = top_atom
-			pixel_turf = source_turf
+			UPDATE_APPROXIMATE_PIXEL_TURF
 			update = TRUE
 	else if (top_atom.loc != source_turf)
 		source_turf = top_atom.loc
-		pixel_turf = get_turf_pixel(top_atom)
+		UPDATE_APPROXIMATE_PIXEL_TURF
 		update = TRUE
-	else
-		var/P = get_turf_pixel(top_atom)
-		if (P != pixel_turf)
-			pixel_turf = P
-			update = TRUE
 
 	if (!isturf(source_turf))
 		if (applied)
 			remove_lum()
 		return
 
-	if (source_atom.light_falloff_curve != light_falloff_curve)
-		light_falloff_curve = source_atom.light_falloff_curve
-		update = TRUE
-
-	if (light_outer_range && light_power && !applied)
+	if (light_range && light_power && !applied)
 		update = TRUE
 
 	if (source_atom.light_color != light_color)
 		light_color = source_atom.light_color
-		parse_light_color()
+		PARSE_LIGHT_COLOR(src)
 		update = TRUE
 
 	else if (applied_lum_r != lum_r || applied_lum_g != lum_g || applied_lum_b != lum_b)
@@ -286,55 +224,30 @@
 		return //nothing's changed
 
 	var/list/datum/lighting_corner/corners = list()
+	var/datum/lighting_corner/C
 	var/list/turf/turfs                    = list()
 	var/thing
 	var/turf/T
-	var/datum/lighting_corner/C
+
 	if (source_turf)
 		var/oldlum = source_turf.luminosity
-		source_turf.luminosity = CEILING(light_outer_range, 1)
-		for(T in view(CEILING(light_outer_range, 1), source_turf))
-			for (thing in T.get_corners(source_turf))
-				C = thing
-				corners[C] = 0
+		source_turf.luminosity = CEILING(light_range, 1)
+		for(T in view(CEILING(light_range, 1), source_turf))
 			turfs += T
-			var/turf/open/transparent/O = T
-			if(istype(O) && light_depth >= 1)
-				var/turf/open/B = get_step_multiz(T, DOWN)
-				if(isopenturf(B))
-					for(thing in B.get_corners(source_turf))
-						C = thing
-						corners[C] = 0
-					turfs += B
-					if(light_depth > 1)
-						if(istype(B, /turf/open/transparent))
-							B = get_step_multiz(B, DOWN)
-							if(isopenturf(B))
-								for(thing in B.get_corners(source_turf))
-									C = thing
-									corners[C] = 0
-								turfs += B
-						if(light_depth > 2)
-							if(istype(B, /turf/open/transparent))
-								B = get_step_multiz(B, DOWN)
-								if(isopenturf(B))
-									for(thing in B.get_corners(source_turf))
-										C = thing
-										corners[C] = 0
-									turfs += B
-			if(light_height >= 1)
-				var/turf/open/B = get_step_multiz(T, UP)
-				if(istype(B, /turf/open/transparent))
-					for(thing in B.get_corners(source_turf))
-						C = thing
-						corners[C] = 0
-					turfs += B
+			if(!IS_DYNAMIC_LIGHTING(T) && !T.light_sources)
+				continue
+			if(!T.lighting_corners_initialised)
+				T.generate_missing_corners()
+			corners[T.lc_topright] = 0
+			corners[T.lc_bottomright] = 0
+			corners[T.lc_bottomleft] = 0
+			corners[T.lc_topleft] = 0
 		source_turf.luminosity = oldlum
 
 	LAZYINITLIST(affecting_turfs)
 	var/list/L = turfs - affecting_turfs // New turfs, add us to the affecting lights of them.
 	affecting_turfs += L
-	for(thing in L)
+	for (thing in L)
 		T = thing
 		LAZYADD(T.affecting_lights, src)
 
@@ -386,5 +299,6 @@
 
 #undef EFFECT_UPDATE
 #undef LUM_FALLOFF
+#undef GET_LUM_DIST
 #undef REMOVE_CORNER
 #undef APPLY_CORNER

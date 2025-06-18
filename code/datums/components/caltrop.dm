@@ -12,7 +12,7 @@
 	probability = _probability
 	flags = _flags
 
-	RegisterSignal(parent, list(COMSIG_MOVABLE_CROSSED), PROC_REF(Crossed))
+	RegisterSignal(parent, list(COMSIG_MOVABLE_CROSSED), .proc/Crossed)
 
 /datum/component/caltrop/proc/Crossed(datum/source, atom/movable/AM)
 	var/atom/A = parent
@@ -37,9 +37,9 @@
 		if(O.status == BODYPART_ROBOTIC)
 			return
 
-		var/feetCover = (H.wear_armor && (H.wear_armor.body_parts_covered & FEET)) || (H.wear_pants && (H.wear_pants.body_parts_covered & FEET))
+		var/feetCover = (H.wear_suit && (H.wear_suit.body_parts_covered & FEET)) || (H.w_uniform && (H.w_uniform.body_parts_covered & FEET) || (H.shoes && (H.shoes.body_parts_covered & FEET)))
 
-		if(!(flags & CALTROP_BYPASS_SHOES) && (H.shoes || feetCover))
+		if(!(flags & CALTROP_BYPASS_SHOES) && feetCover)
 			return
 
 		if((H.movement_type & FLYING) || H.buckled)
@@ -47,16 +47,16 @@
 
 		var/damage = rand(min_damage, max_damage)
 		if(HAS_TRAIT(H, TRAIT_LIGHT_STEP))
-			damage *= 0.25
-		H.apply_damage(damage, BRUTE, picked_def_zone)
+			damage *= 0.75
+		H.apply_damage(damage, BRUTE, picked_def_zone, wound_bonus = CANT_WOUND)
 
 		if(cooldown < world.time - 10) //cooldown to avoid message spam.
 			if(!H.incapacitated(ignore_restraints = TRUE))
-				H.visible_message(span_danger("[H] steps on [A]."), \
-						span_danger("I step on [A]!"))
+				H.visible_message("<span class='danger'>[H] steps on [A].</span>", \
+						"<span class='userdanger'>You step on [A]!</span>")
 			else
-				H.visible_message(span_danger("[H] slides on [A]!"), \
-						span_danger("I slide on [A]!"))
+				H.visible_message("<span class='danger'>[H] slides on [A]!</span>", \
+						"<span class='userdanger'>You slide on [A]!</span>")
 
 			cooldown = world.time
-		H.Paralyze(60)
+		H.DefaultCombatKnockdown(60)

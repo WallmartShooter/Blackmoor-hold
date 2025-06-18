@@ -23,6 +23,16 @@
 	To see an example of a diagonal wall, see '/turf/closed/wall/mineral/titanium' and its subtypes.
 */
 
+//Modern /tg/ smoothing dirs (new icon smoothing not yet implemented on this codebase)
+#define NORTH_JUNCTION NORTH //(1<<0)
+#define SOUTH_JUNCTION SOUTH //(1<<1)
+#define EAST_JUNCTION EAST  //(1<<2)
+#define WEST_JUNCTION WEST  //(1<<3)
+#define NORTHEAST_JUNCTION (1<<4)
+#define SOUTHEAST_JUNCTION (1<<5)
+#define SOUTHWEST_JUNCTION (1<<6)
+#define NORTHWEST_JUNCTION (1<<7)
+
 //Redefinitions of the diagonal directions so they can be stored in one var without conflicts
 #define N_NORTH		(1<<1)
 #define N_SOUTH		(1<<2)
@@ -39,6 +49,7 @@
 #define SMOOTH_DIAGONAL	(1<<2)	//if atom should smooth diagonally, this should be present in 'smooth' var
 #define SMOOTH_BORDER	(1<<3)	//atom will smooth with the borders of the map
 #define SMOOTH_QUEUED	(1<<4)	//atom is currently queued to smooth.
+#define SMOOTH_OLD		(1<<5)	//If the icon uses the old junction stuff.
 
 #define NULLTURF_BORDER 123456789
 
@@ -46,7 +57,6 @@
 #define DEFAULT_UNDERLAY_ICON_STATE 	"plating"
 
 /atom/var/smooth = SMOOTH_FALSE
-/atom/var/smooth_diag = TRUE
 /atom/var/top_left_corner
 /atom/var/top_right_corner
 /atom/var/bottom_left_corner
@@ -62,7 +72,7 @@
 	var/adjacencies = 0
 
 	var/atom/movable/AM
-	if(ismovableatom(A))
+	if(ismovable(A))
 		AM = A
 		if(AM.can_be_unanchored && !AM.anchored)
 			return 0
@@ -75,38 +85,37 @@
 		else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
 			adjacencies |= 1 << direction
 
-	if(A.smooth_diag)
-		if(adjacencies & N_NORTH)
-			if(adjacencies & N_WEST)
-				AM = find_type_in_direction(A, NORTHWEST)
-				if(AM == NULLTURF_BORDER)
-					if((A.smooth & SMOOTH_BORDER))
-						adjacencies |= N_NORTHWEST
-				else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+	if(adjacencies & N_NORTH)
+		if(adjacencies & N_WEST)
+			AM = find_type_in_direction(A, NORTHWEST)
+			if(AM == NULLTURF_BORDER)
+				if((A.smooth & SMOOTH_BORDER))
 					adjacencies |= N_NORTHWEST
-			if(adjacencies & N_EAST)
-				AM = find_type_in_direction(A, NORTHEAST)
-				if(AM == NULLTURF_BORDER)
-					if((A.smooth & SMOOTH_BORDER))
-						adjacencies |= N_NORTHEAST
-				else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+			else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+				adjacencies |= N_NORTHWEST
+		if(adjacencies & N_EAST)
+			AM = find_type_in_direction(A, NORTHEAST)
+			if(AM == NULLTURF_BORDER)
+				if((A.smooth & SMOOTH_BORDER))
 					adjacencies |= N_NORTHEAST
+			else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+				adjacencies |= N_NORTHEAST
 
-		if(adjacencies & N_SOUTH)
-			if(adjacencies & N_WEST)
-				AM = find_type_in_direction(A, SOUTHWEST)
-				if(AM == NULLTURF_BORDER)
-					if((A.smooth & SMOOTH_BORDER))
-						adjacencies |= N_SOUTHWEST
-				else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+	if(adjacencies & N_SOUTH)
+		if(adjacencies & N_WEST)
+			AM = find_type_in_direction(A, SOUTHWEST)
+			if(AM == NULLTURF_BORDER)
+				if((A.smooth & SMOOTH_BORDER))
 					adjacencies |= N_SOUTHWEST
-			if(adjacencies & N_EAST)
-				AM = find_type_in_direction(A, SOUTHEAST)
-				if(AM == NULLTURF_BORDER)
-					if((A.smooth & SMOOTH_BORDER))
-						adjacencies |= N_SOUTHEAST
-				else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+			else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+				adjacencies |= N_SOUTHWEST
+		if(adjacencies & N_EAST)
+			AM = find_type_in_direction(A, SOUTHEAST)
+			if(AM == NULLTURF_BORDER)
+				if((A.smooth & SMOOTH_BORDER))
 					adjacencies |= N_SOUTHEAST
+			else if( (AM && !istype(AM)) || (istype(AM) && AM.anchored) )
+				adjacencies |= N_SOUTHEAST
 
 	return adjacencies
 
@@ -119,13 +128,18 @@
 		return
 	if(QDELETED(A))
 		return
+
+	if(A.smooth & SMOOTH_OLD)
+		A:recalculate_junction()
+		A:relative()
+		
 	if(A.smooth & (SMOOTH_TRUE | SMOOTH_MORE))
 		var/adjacencies = calculate_adjacencies(A)
 
 		if(A.smooth & SMOOTH_DIAGONAL)
 			A.diagonal_smooth(adjacencies)
 		else
-			A.cardinal_smooth(adjacencies)
+			cardinal_smooth(A, adjacencies)
 
 /atom/proc/diagonal_smooth(adjacencies)
 	switch(adjacencies)
@@ -148,7 +162,7 @@
 			replace_smooth_overlays("d-nw","d-nw-1")
 
 		else
-			cardinal_smooth(adjacencies)
+			cardinal_smooth(src, adjacencies)
 			return
 
 	icon_state = ""
@@ -181,7 +195,12 @@
 				underlay_appearance.icon_state = DEFAULT_UNDERLAY_ICON_STATE
 		underlays = U
 
-/atom/proc/cardinal_smooth(adjacencies)
+		// Drop posters which were previously placed on this wall.
+		for(var/obj/structure/sign/poster/P in src)
+			P.roll_and_drop(src)
+
+
+/proc/cardinal_smooth(atom/A, adjacencies)
 	//NW CORNER
 	var/nw = "1-i"
 	if((adjacencies & N_NORTH) && (adjacencies & N_WEST))
@@ -236,28 +255,28 @@
 
 	var/list/New
 
-	if(top_left_corner != nw)
-		cut_overlay(top_left_corner)
-		top_left_corner = nw
+	if(A.top_left_corner != nw)
+		A.cut_overlay(A.top_left_corner)
+		A.top_left_corner = nw
 		LAZYADD(New, nw)
 
-	if(top_right_corner != ne)
-		cut_overlay(top_right_corner)
-		top_right_corner = ne
+	if(A.top_right_corner != ne)
+		A.cut_overlay(A.top_right_corner)
+		A.top_right_corner = ne
 		LAZYADD(New, ne)
 
-	if(bottom_right_corner != sw)
-		cut_overlay(bottom_right_corner)
-		bottom_right_corner = sw
+	if(A.bottom_right_corner != sw)
+		A.cut_overlay(A.bottom_right_corner)
+		A.bottom_right_corner = sw
 		LAZYADD(New, sw)
 
-	if(bottom_left_corner != se)
-		cut_overlay(bottom_left_corner)
-		bottom_left_corner = se
+	if(A.bottom_left_corner != se)
+		A.cut_overlay(A.bottom_left_corner)
+		A.bottom_left_corner = se
 		LAZYADD(New, se)
 
 	if(New)
-		add_overlay(New)
+		A.add_overlay(New)
 
 /proc/find_type_in_direction(atom/source, direction)
 	var/turf/target_turf = get_step(source, direction)
@@ -397,3 +416,25 @@
 	icon_state = "smooth"
 	smooth = SMOOTH_TRUE|SMOOTH_DIAGONAL|SMOOTH_BORDER
 	canSmoothWith = null
+
+///OLD SMOOTH SYSTEM
+
+/atom
+	var/icon_type_smooth
+	var/junction
+
+/atom/proc/recalculate_junction()
+	junction = 0
+
+	for(var/cdir in GLOB.cardinals)
+		var/turf/T = get_step(src,cdir)
+		if(!T)
+			continue
+		for(var/a_type in canSmoothWith)
+			var/A = locate(a_type) in T
+			if(A || T.type == a_type)
+				junction |= cdir
+				break
+
+atom/proc/relative(custom_junction = junction)
+	icon_state = "[src.icon_type_smooth][custom_junction]"

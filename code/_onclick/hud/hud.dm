@@ -5,8 +5,16 @@
 */
 
 // The default UI style is the first one in the list
-GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
-	"Rogue" = 'icons/mob/roguehud.dmi')))
+GLOBAL_LIST_INIT(available_ui_styles, list(
+	"Fallout" = 'icons/fallout/UI/screen_fallout2.dmi', // Fallout 2 Pip-boy style UI. Walk the wasteland with style. -Pebbles
+	"Darkout" = 'icons/fallout/UI/screen_fallout2_dark.dmi', // The original Fallout 2 pipboy UI, dark
+	"Midnight" = 'icons/mob/screen_midnight.dmi',
+	"Retro" = 'icons/mob/screen_retro.dmi',
+	"Plasmafire" = 'icons/mob/screen_plasmafire.dmi',
+	"Slimecore" = 'icons/mob/screen_slimecore.dmi',
+	"Operative" = 'icons/mob/screen_operative.dmi',
+	"Clockwork" = 'icons/mob/screen_clockwork.dmi'
+))
 
 /proc/ui_style2icon(ui_style)
 	return GLOB.available_ui_styles[ui_style] || GLOB.available_ui_styles[GLOB.available_ui_styles[1]]
@@ -16,65 +24,44 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 
 	var/hud_shown = TRUE			//Used for the HUD toggle (F12)
 	var/hud_version = HUD_STYLE_STANDARD	//Current displayed version of the HUD
-	var/inventory_shown = TRUE		//Equipped item inventory
+	var/inventory_shown = FALSE		//Equipped item inventory
 	var/hotkey_ui_hidden = FALSE	//This is to hide the buttons that can be used via hotkeys. (hotkeybuttons list of buttons)
 
-	var/atom/movable/screen/ling/chems/lingchemdisplay
-	var/atom/movable/screen/ling/sting/lingstingdisplay
+	var/obj/screen/ling/chems/lingchemdisplay
+	var/obj/screen/ling/sting/lingstingdisplay
 
-	var/atom/movable/screen/blobpwrdisplay
+	var/obj/screen/blobpwrdisplay
 
-	var/atom/movable/screen/devil/soul_counter/devilsouldisplay
+	var/obj/screen/alien_plasma_display
+	var/obj/screen/alien_queen_finder
 
-	var/atom/movable/screen/act_intent/action_intent
-	var/atom/movable/screen/grain
-	var/atom/movable/screen/scannies
-	var/atom/movable/screen/act_intent/rogintent/magic/spell_intent
-	var/atom/movable/screen/zone_sel/zone_select
-	var/atom/movable/screen/pull_icon
-	var/atom/movable/screen/rest_icon
-	var/atom/movable/screen/throw_catch/throw_icon
-	var/atom/movable/screen/module_store_icon
-	var/atom/movable/screen/backhudl
-	var/atom/movable/screen/hsover
-	var/atom/movable/screen/quad_intents/quad_intents
-	var/atom/movable/screen/give_intent/give_intent
-	var/atom/movable/screen/def_intent/def_intent
-	var/atom/movable/screen/fov
-	var/atom/movable/screen/fov_blocker
-	var/atom/movable/screen/clock
-	var/atom/movable/screen/stress/stressies
-	var/atom/movable/screen/cmode_button
-	var/atom/movable/screen/rmbintent/rmb_intent
+	var/obj/screen/devil/soul_counter/devilsouldisplay
+
+	var/obj/screen/action_intent
+	var/obj/screen/zone_select
+	var/obj/screen/pull_icon
+	var/obj/screen/rest_icon
+	var/obj/screen/throw_icon
+	var/obj/screen/module_store_icon
 
 	var/list/static_inventory = list() //the screen objects which are static
 	var/list/toggleable_inventory = list() //the screen objects which can be hidden
-	var/list/atom/movable/screen/hotkeybuttons = list() //the buttons that can be used via hotkeys
+	var/list/obj/screen/hotkeybuttons = list() //the buttons that can be used via hotkeys
 	var/list/infodisplay = list() //the screen objects that display mob info (health, alien plasma, etc...)
 	var/list/screenoverlays = list() //the screen objects used as whole screen overlays (flash, damageoverlay, etc...)
-	var/list/inv_slots[SLOTS_AMT] // /atom/movable/screen/inventory objects, ordered by their slot ID.
-	var/list/hand_slots // /atom/movable/screen/inventory/hand objects, assoc list of "[held_index]" = object
-	var/list/atom/movable/screen/plane_master/plane_masters = list() // see "appearance_flags" in the ref, assoc list of "[plane]" = object
+	var/list/inv_slots[SLOTS_AMT] // /obj/screen/inventory objects, ordered by their slot ID.
+	var/list/hand_slots // /obj/screen/inventory/hand objects, assoc list of "[held_index]" = object
+	var/list/obj/screen/plane_master/plane_masters = list() // see "appearance_flags" in the ref, assoc list of "[plane]" = object
 
-	var/atom/movable/screen/movable/action_button/hide_toggle/hide_actions_toggle
+	var/obj/screen/movable/action_button/hide_toggle/hide_actions_toggle
 	var/action_buttons_hidden = FALSE
 
-	var/atom/movable/screen/healths
-	var/atom/movable/screen/bloods
-	var/atom/movable/screen/healthdoll
-	var/atom/movable/screen/internals
-	var/atom/movable/screen/rogfat/fats
-	var/atom/movable/screen/rogstam/stams
-
-	var/image/object_overlay
-	var/atom/movable/screen/overlay_curloc
+	var/obj/screen/healths
+	var/obj/screen/healthdoll
+	var/obj/screen/internals
 
 	// subtypes can override this to force a specific UI style
 	var/ui_style
-
-	var/atom/movable/screen/read/reads
-	var/atom/movable/screen/textl
-	var/atom/movable/screen/textr
 
 /datum/hud/New(mob/owner)
 	mymob = owner
@@ -83,42 +70,23 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 		// will fall back to the default if any of these are null
 		ui_style = ui_style2icon(owner.client && owner.client.prefs && owner.client.prefs.UI_style)
 
-//	hide_actions_toggle = new
-//	hide_actions_toggle.InitialiseIcon(src)
-//	if(mymob.client)
-//		hide_actions_toggle.locked = mymob.client.prefs.buttons_locked
+	hide_actions_toggle = new
+	hide_actions_toggle.InitialiseIcon(src)
+	if(mymob.client)
+		hide_actions_toggle.locked = mymob.client.prefs.buttons_locked
 
-	if(!hand_slots)
-		hand_slots = list()
-	else
-		hand_slots.Cut()
+	hand_slots = list()
 
-	for(var/mytype in subtypesof(/atom/movable/screen/plane_master))
-		var/atom/movable/screen/plane_master/instance = new mytype()
+	for(var/mytype in subtypesof(/obj/screen/plane_master))
+		var/obj/screen/plane_master/instance = new mytype()
 		plane_masters["[instance.plane]"] = instance
 		instance.backdrop(mymob)
-
-/datum/hud/new_player/New(mob/owner)
-	..()
-	scannies = new /atom/movable/screen/scannies
-	scannies.hud = src
-	static_inventory += scannies
-	if(owner.client?.prefs?.crt == TRUE)
-		scannies.alpha = 70
-
-/datum/hud/new_player/New(mob/owner)
-	..()
-	grain = new /atom/movable/screen/grain
-	grain.hud = src
-	static_inventory += grain
-	if(owner.client?.prefs?.grain == TRUE)
-		grain.alpha = 55
 
 /datum/hud/Destroy()
 	if(mymob.hud_used == src)
 		mymob.hud_used = null
 
-//	QDEL_NULL(hide_actions_toggle)
+	QDEL_NULL(hide_actions_toggle)
 	QDEL_NULL(module_store_icon)
 	QDEL_LIST(static_inventory)
 
@@ -126,7 +94,6 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 	action_intent = null
 	zone_select = null
 	pull_icon = null
-	backhudl = null
 
 	QDEL_LIST(toggleable_inventory)
 	QDEL_LIST(hotkeybuttons)
@@ -136,14 +103,19 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 	healths = null
 	healthdoll = null
 	internals = null
+	lingchemdisplay = null
 	devilsouldisplay = null
+	lingstingdisplay = null
 	blobpwrdisplay = null
+	alien_plasma_display = null
+	alien_queen_finder = null
 
 	QDEL_LIST_ASSOC_VAL(plane_masters)
 	QDEL_LIST(screenoverlays)
 	mymob = null
 
 	return ..()
+
 
 /mob/proc/create_mob_hud()
 	if(!client || hud_used)
@@ -181,7 +153,7 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 			if(infodisplay.len)
 				screenmob.client.screen += infodisplay
 
-//			screenmob.client.screen += hide_actions_toggle
+			screenmob.client.screen += hide_actions_toggle
 
 			if(action_intent)
 				action_intent.screen_loc = initial(action_intent.screen_loc) //Restore intent selection to the original position
@@ -199,7 +171,7 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 
 			//These ones are a part of 'static_inventory', 'toggleable_inventory' or 'hotkeybuttons' but we want them to stay
 			for(var/h in hand_slots)
-				var/atom/movable/screen/hand = hand_slots[h]
+				var/obj/screen/hand = hand_slots[h]
 				if(hand)
 					screenmob.client.screen += hand
 			if(action_intent)
@@ -237,7 +209,7 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 /datum/hud/proc/plane_masters_update()
 	// Plane masters are always shown to OUR mob, never to observers
 	for(var/thing in plane_masters)
-		var/atom/movable/screen/plane_master/PM = plane_masters[thing]
+		var/obj/screen/plane_master/PM = plane_masters[thing]
 		PM.backdrop(mymob)
 		mymob.client.screen += PM
 
@@ -247,6 +219,12 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 		return
 	var/mob/screenmob = viewmob || mymob
 	hidden_inventory_update(screenmob)
+
+/datum/hud/robot/show_hud(version = 0, mob/viewmob)
+	. = ..()
+	if(!.)
+		return
+	update_robot_modules_display()
 
 /datum/hud/proc/hidden_inventory_update()
 	return
@@ -266,7 +244,7 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 
 	ui_style = new_ui_style
 	build_hand_slots()
-//	hide_actions_toggle.InitialiseIcon(src)
+	hide_actions_toggle.InitialiseIcon(src)
 
 //Triggered when F12 is pressed (Unless someone changed something in the DMF)
 /mob/verb/button_pressed_F12()
@@ -275,9 +253,9 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 
 	if(hud_used && client)
 		hud_used.show_hud() //Shows the next hud preset
-		to_chat(usr, span_info("Switched HUD mode. Press F12 to toggle."))
+		to_chat(usr, "<span class ='info'>Switched HUD mode. Press F12 to toggle.</span>")
 	else
-		to_chat(usr, span_warning("This mob type does not use a HUD."))
+		to_chat(usr, "<span class ='warning'>This mob type does not use a HUD.</span>")
 
 
 //(re)builds the hand ui slots, throwing away old ones
@@ -285,16 +263,13 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 //9/10 this is only called once per mob and only for 2 hands
 /datum/hud/proc/build_hand_slots()
 	for(var/h in hand_slots)
-		var/atom/movable/screen/inventory/hand/H = hand_slots[h]
+		var/obj/screen/inventory/hand/H = hand_slots[h]
 		if(H)
 			static_inventory -= H
-	if(hand_slots)
-		hand_slots.Cut()
-	else
-		hand_slots = list()
-	var/atom/movable/screen/inventory/hand/hand_box
+	hand_slots = list()
+	var/obj/screen/inventory/hand/hand_box
 	for(var/i in 1 to mymob.held_items.len)
-		hand_box = new /atom/movable/screen/inventory/hand()
+		hand_box = new /obj/screen/inventory/hand()
 		hand_box.name = mymob.get_held_index_name(i)
 		hand_box.icon = ui_style
 		hand_box.icon_state = "hand_[mymob.held_index_to_dir(i)]"
@@ -306,10 +281,10 @@ GLOBAL_LIST_INIT(available_ui_styles, sortList(list(
 		hand_box.update_icon()
 
 	var/i = 1
-	for(var/atom/movable/screen/swap_hand/SH in static_inventory)
+	for(var/obj/screen/swap_hand/SH in static_inventory)
 		SH.screen_loc = ui_swaphand_position(mymob,!(i % 2) ? 2: 1)
 		i++
-	for(var/atom/movable/screen/human/equip/E in static_inventory)
+	for(var/obj/screen/human/equip/E in static_inventory)
 		E.screen_loc = ui_equip_position(mymob)
 
 	if(ismob(mymob) && mymob.hud_used == src)

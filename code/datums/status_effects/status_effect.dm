@@ -6,19 +6,23 @@
 	var/id = "effect" //Used for screen alerts.
 	var/duration = -1 //How long the status effect lasts in DECISECONDS. Enter -1 for an effect that never ends unless removed through some means.
 	var/tick_interval = 10 //How many deciseconds between ticks, approximately. Leave at 10 for every second.
+	var/next_tick //The scheduled time for the next tick.
 	var/mob/living/owner //The mob affected by the status effect.
-	var/status_type = STATUS_EFFECT_UNIQUE //How many of the effect can be on one mob, and what happens when you try to add another
 	var/on_remove_on_mob_delete = FALSE //if we call on_remove() when the mob is deleted
 	var/examine_text //If defined, this text will appear when the mob is examined - to use he, she etc. use "SUBJECTPRONOUN" and replace it in the examines themselves
-	var/alert_type = /atom/movable/screen/alert/status_effect //the alert thrown by the status effect, contains name and description
-	var/atom/movable/screen/alert/status_effect/linked_alert = null //the alert itself, if it exists
-	var/list/effectedstats = list()
+	var/alert_type = /obj/screen/alert/status_effect //the alert thrown by the status effect, contains name and description
+	/// If this is TRUE, the user will have combt mode forcefully disabled while this is active.
+	var/blocks_combatmode = FALSE
+	/// If this is TRUE, the user will have sprint forcefully disabled while this is active.
+	var/blocks_sprint = FALSE
+	var/obj/screen/alert/status_effect/linked_alert = null //the alert itself, if it exists
+	/// How many of the effect can be on one mob, and what happens when you try to add another
+	var/status_type = STATUS_EFFECT_UNIQUE
 
 /datum/status_effect/New(list/arguments)
 	on_creation(arglist(arguments))
 
 /datum/status_effect/proc/on_creation(mob/living/new_owner, ...)
-	testing("oncreation")
 	if(new_owner)
 		owner = new_owner
 	if(owner)
@@ -28,51 +32,61 @@
 		return
 	if(duration != -1)
 		duration = world.time + duration
-	tick_interval = world.time + tick_interval
+	next_tick = world.time + tick_interval
 	if(alert_type)
-		var/atom/movable/screen/alert/status_effect/A = owner.throw_alert(id, alert_type)
-		A?.attached_effect = src //so the alert can reference us, if it needs to
+		var/obj/screen/alert/status_effect/A = owner.throw_alert(id, alert_type)
+		A.attached_effect = src //so the alert can reference us, if it needs to
 		linked_alert = A //so we can reference the alert, if we need to
-	START_PROCESSING(SSfastprocess, src)
+	START_PROCESSING(SSstatus_effects, src)
 	return TRUE
 
 /datum/status_effect/Destroy()
-	STOP_PROCESSING(SSfastprocess, src)
+	STOP_PROCESSING(SSstatus_effects, src)
 	if(owner)
-		linked_alert = null
 		owner.clear_alert(id)
 		LAZYREMOVE(owner.status_effects, src)
 		on_remove()
 		owner = null
-	effectedstats = list()
 	return ..()
 
 /datum/status_effect/process()
 	if(!owner)
 		qdel(src)
 		return
-	if(tick_interval < world.time)
+	if(next_tick < world.time)
 		tick()
-		tick_interval = world.time + initial(tick_interval)
+		next_tick = world.time + tick_interval
 	if(duration != -1 && duration < world.time)
 		qdel(src)
 
 /datum/status_effect/proc/on_apply() //Called whenever the buff is applied; returning FALSE will cause it to autoremove itself.
-	for(var/S in effectedstats)
-		owner.change_stat(S, effectedstats[S])
+	SHOULD_CALL_PARENT(TRUE)
+	if(blocks_combatmode)
+		ADD_TRAIT(owner, TRAIT_COMBAT_MODE_LOCKED, src)
+	if(blocks_sprint)
+		ADD_TRAIT(owner, TRAIT_SPRINT_LOCKED, src)
 	return TRUE
 
 /datum/status_effect/proc/tick() //Called every tick.
 
+/datum/status_effect/proc/before_remove() //! Called before being removed; returning FALSE will cancel removal
+	return TRUE
+
 /datum/status_effect/proc/on_remove() //Called whenever the buff expires or is removed; do note that at the point this is called, it is out of the owner's status_effects but owner is not yet null
-	for(var/S in effectedstats)
-		owner.change_stat(S, -(effectedstats[S]))
+	SHOULD_CALL_PARENT(TRUE)
+	if(blocks_combatmode)
+		REMOVE_TRAIT(owner, TRAIT_COMBAT_MODE_LOCKED, src)
+	if(blocks_sprint)
+		REMOVE_TRAIT(owner, TRAIT_SPRINT_LOCKED, src)
+	return TRUE
 
 /datum/status_effect/proc/be_replaced() //Called instead of on_remove when a status effect is replaced by itself or when a status effect with on_remove_on_mob_delete = FALSE has its mob deleted
-	for(var/S in effectedstats)
-		owner.change_stat(S, -(effectedstats[S]))
 	owner.clear_alert(id)
 	LAZYREMOVE(owner.status_effects, src)
+	if(blocks_combatmode)
+		REMOVE_TRAIT(owner, TRAIT_COMBAT_MODE_LOCKED, src)
+	if(blocks_sprint)
+		REMOVE_TRAIT(owner, TRAIT_SPRINT_LOCKED, src)
 	owner = null
 	qdel(src)
 
@@ -82,41 +96,20 @@
 		return
 	duration = world.time + original_duration
 
-//clickdelay/nextmove modifiers!
-/datum/status_effect/proc/nextmove_modifier()
+/**
+ * Multiplied to clickdelays
+ */
+/datum/status_effect/proc/action_cooldown_mod()
 	return 1
-
-/datum/status_effect/proc/nextmove_adjust()
-	return 0
 
 ////////////////
 // ALERT HOOK //
 ////////////////
 
-/atom/movable/screen/alert/status_effect
+/obj/screen/alert/status_effect
 	name = "Curse of Mundanity"
-	desc = ""
+	desc = "You don't feel any different..."
 	var/datum/status_effect/attached_effect
-
-/atom/movable/screen/alert/status_effect/examine_ui(mob/user)
-	var/list/inspec = list("----------------------")
-	inspec += "<br><span class='notice'><b>[name]</b></span>"
-	if(desc)
-		inspec += "<br>[desc]"
-
-	for(var/S in attached_effect?.effectedstats)
-		if(attached_effect.effectedstats[S] > 0)
-			inspec += "<br><span class='purple'>[S]</span> \Roman [attached_effect.effectedstats[S]]"
-		if(attached_effect.effectedstats[S] < 0)
-			var/newnum = attached_effect.effectedstats[S] * -1
-			inspec += "<br><span class='danger'>[S]</span> \Roman [newnum]"
-
-	inspec += "<br>----------------------"
-	to_chat(user, "[inspec.Join()]")
-
-/atom/movable/screen/alert/status_effect/Destroy()
-	attached_effect = null
-	return ..()
 
 //////////////////
 // HELPER PROCS //
@@ -140,12 +133,13 @@
 	S1 = new effect(arguments)
 	. = S1
 
-/mob/living/proc/remove_status_effect(effect) //removes all of a given status effect from this mob, returning TRUE if at least one was removed
+/mob/living/proc/remove_status_effect(effect, ...) //removes all of a given status effect from this mob, returning TRUE if at least one was removed
 	. = FALSE
+	var/list/arguments = args.Copy(2)
 	if(status_effects)
 		var/datum/status_effect/S1 = effect
 		for(var/datum/status_effect/S in status_effects)
-			if(initial(S1.id) == S.id)
+			if(initial(S1.id) == S.id && S.before_remove(arguments))
 				qdel(S)
 				. = TRUE
 
@@ -163,7 +157,7 @@
 		var/datum/status_effect/S1 = effect
 		for(var/datum/status_effect/S in status_effects)
 			if(initial(S1.id) == S.id)
-				. += S	
+				. += S
 
 //////////////////////
 // STACKING EFFECTS //
@@ -227,11 +221,13 @@
 		if(stacks >= stack_threshold && !threshold_crossed) //threshold_crossed check prevents threshold effect from occuring if changing from above threshold to still above threshold
 			threshold_crossed = TRUE
 			on_threshold_cross()
+			if(consumed_on_threshold)
+				return
 		else if(stacks < stack_threshold && threshold_crossed)
 			threshold_crossed = FALSE //resets threshold effect if we fall below threshold so threshold effect can trigger again
 			on_threshold_drop()
 		if(stacks_added > 0)
-			tick_interval += delay_before_decay //refreshes time until decay
+			next_tick += delay_before_decay //refreshes time until decay
 		stacks = min(stacks, max_stacks)
 		status_overlay.icon_state = "[overlay_state][stacks]"
 		status_underlay.icon_state = "[underlay_state][stacks]"
@@ -242,8 +238,9 @@
 		qdel(src) //deletes status if stacks fall under one
 
 /datum/status_effect/stacking/on_creation(mob/living/new_owner, stacks_to_apply)
-	..()
-	src.add_stacks(stacks_to_apply)
+	. = ..()
+	if(.)
+		add_stacks(stacks_to_apply)
 
 /datum/status_effect/stacking/on_apply()
 	if(!can_have_status())
@@ -268,3 +265,26 @@
 		owner.underlays -= status_underlay
 	QDEL_NULL(status_overlay)
 	return ..()
+
+/// Status effect from multiple sources, when all sources are removed, so is the effect
+/datum/status_effect/grouped
+	status_type = STATUS_EFFECT_MULTIPLE //! Adds itself to sources and destroys itself if one exists already, there are never multiple
+	var/list/sources = list()
+
+/datum/status_effect/grouped/on_creation(mob/living/new_owner, source)
+	var/datum/status_effect/grouped/existing = new_owner.has_status_effect(type)
+	if(existing)
+		existing.sources |= source
+		qdel(src)
+		return FALSE
+	else
+		sources |= source
+		return ..()
+
+/datum/status_effect/grouped/before_remove(source)
+	sources -= source
+	return !length(sources)
+
+//do_after modifier!
+/datum/status_effect/proc/interact_speed_modifier()
+	return 1

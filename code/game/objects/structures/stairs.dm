@@ -10,149 +10,137 @@
 	name = "stairs"
 	icon = 'icons/obj/stairs.dmi'
 	icon_state = "stairs"
+	resistance_flags = INDESTRUCTIBLE
 	anchored = TRUE
-	layer = 2
-	nomouseover = TRUE
 
-/obj/structure/stairs/stone
-	name = "stone stairs"
-	icon = 'icons/obj/stairs.dmi'
-	icon_state = "stonestairs"
-	max_integrity = 600
+	var/force_open_above = FALSE // replaces the turf above this stair obj with /turf/open/transparent/openspace
+	var/terminator_mode = STAIR_TERMINATOR_AUTOMATIC
+	var/turf/listeningTo
 
-//	climb_offset = 10
-	//RTD animate climbing offset so this can be here
+/obj/structure/stairs/north
+	dir = NORTH
 
-/obj/structure/stairs/fancy
-	icon_state = "fancy_stairs"
+/obj/structure/stairs/south
+	dir = SOUTH
 
-/obj/structure/stairs/fancy/c
-	icon_state = "fancy_stairs_c"
+/obj/structure/stairs/east
+	dir = EAST
 
-/obj/structure/stairs/fancy/r
-	icon_state = "fancy_stairs_r"
-
-/obj/structure/stairs/fancy/l
-	icon_state = "fancy_stairs_l"
-
-/obj/structure/stairs/fancy/Initialize()
-	. = ..()
-	if(GLOB.lordprimary)
-		lordcolor(GLOB.lordprimary,GLOB.lordsecondary)
-	GLOB.lordcolor += src
-
-/obj/structure/stairs/fancy/Destroy()
-	GLOB.lordcolor -= src
-	return ..()
-
-/obj/structure/stairs/fancy/lordcolor(primary,secondary)
-	if(!primary || !secondary)
-		return
-	var/mutable_appearance/M = mutable_appearance(icon, "[icon_state]_primary", -(layer+0.1))
-	M.color = primary
-	add_overlay(M)
-
-/obj/structure/stairs/OnCrafted(dirin)
-	. = ..()
-	var/turf/partner = get_step_multiz(get_turf(src), UP)
-	partner = get_step(partner, dirin)
-	if(isopenturf(partner))
-		var/obj/stairs = new /obj/structure/stairs(partner)
-		stairs.dir = dirin
-
-/obj/structure/stairs/d/OnCrafted(dirin, mob/user)
-	dir = turn(dirin, 180)
-	var/turf/partner = get_step_multiz(get_turf(src), DOWN)
-	partner = get_step(partner, dirin)
-	if(isopenturf(partner))
-		var/obj/stairs = new /obj/structure/stairs(partner)
-		stairs.dir = turn(dirin, 180)
-	SEND_SIGNAL(user, COMSIG_ITEM_CRAFTED, user, type)
-	record_featured_stat(FEATURED_STATS_CRAFTERS, user)
-	record_featured_object_stat(FEATURED_STATS_CRAFTED_ITEMS, name)
-
-/obj/structure/stairs/stone/d/OnCrafted(dirin, mob/user)
-	dir = turn(dirin, 180)
-	var/turf/partner = get_step_multiz(get_turf(src), DOWN)
-	partner = get_step(partner, dirin)
-	if(isopenturf(partner))
-		var/obj/stairs = new /obj/structure/stairs/stone(partner)
-		stairs.dir = turn(dirin, 180)
-	SEND_SIGNAL(user, COMSIG_ITEM_CRAFTED, user, type)
-	record_featured_stat(FEATURED_STATS_CRAFTERS, user)
-	record_featured_object_stat(FEATURED_STATS_CRAFTED_ITEMS, name)
+/obj/structure/stairs/west
+	dir = WEST
 
 /obj/structure/stairs/Initialize(mapload)
+	if(force_open_above)
+		force_open_above()
+		build_signal_listener()
+	update_surrounding()
 	return ..()
 
 /obj/structure/stairs/Destroy()
+	listeningTo = null
 	return ..()
+
+/obj/structure/stairs/Move()			//Look this should never happen but...
+	. = ..()
+	if(force_open_above)
+		build_signal_listener()
+	update_surrounding()
+
+/obj/structure/stairs/proc/update_surrounding()
+	update_icon()
+	for(var/i in GLOB.cardinals)
+		var/turf/T = get_step(get_turf(src), i)
+		var/obj/structure/stairs/S = locate() in T
+		if(S)
+			S.update_icon()
 
 /obj/structure/stairs/Uncross(atom/movable/AM, turf/newloc)
 	if(!newloc || !AM)
 		return ..()
-	var/moved = get_dir(src, newloc)
-	if(moved == dir)
-		if(stair_ascend(AM,moved))
-			return FALSE
-	if(moved == turn(dir, 180))
-		if(stair_descend(AM,moved))
-			return FALSE
+	if(!isobserver(AM) && isTerminator() && (get_dir(src, newloc) == dir))
+		stair_ascend(AM)
+		return FALSE
 	return ..()
 
-/obj/structure/stairs/proc/stair_ascend(atom/movable/AM, dirmove)
+/obj/structure/stairs/Cross(atom/movable/AM)
+	if(isTerminator() && (get_dir(src, AM) == dir))
+		return FALSE
+	return ..()
+
+/obj/structure/stairs/update_icon_state()
+	if(isTerminator())
+		icon_state = "stairs_t"
+	else
+		icon_state = "stairs"
+
+/obj/structure/stairs/proc/stair_ascend(atom/movable/AM)
 	var/turf/checking = get_step_multiz(get_turf(src), UP)
 	if(!istype(checking))
 		return
-//	if(!checking.zPassIn(AM, UP, get_turf(src)))
-//		return
-	var/turf/target = get_step_multiz(get_turf(src), UP)
-	if(!istype(target))
+	if(!checking.zPassIn(AM, UP, get_turf(src)))
 		return
-	return user_walk_into_target_loc(AM, dirmove, target)
-
-/obj/structure/stairs/proc/stair_descend(atom/movable/AM, dirmove)
-	var/turf/checking = get_step_multiz(get_turf(src), DOWN)
-	if(!istype(checking))
-		return
-//	if(!checking.zPassIn(AM, DOWN, get_turf(src)))
-//		return
-	var/turf/target = get_step_multiz(get_turf(src), DOWN)
-	if(!istype(target))
-		return
-	return user_walk_into_target_loc(AM, dirmove, target)
-
-/obj/structure/stairs/proc/user_walk_into_target_loc(atom/movable/AM, dirmove, turf/target)
-	var/based = FALSE
-	var/turf/newtarg = get_step(target, dirmove)
-	for(var/obj/structure/stairs/S in newtarg.contents)
-		if(S.dir == dir)
-			based = TRUE
-	if(based)
+	var/turf/target = get_step_multiz(get_turf(src), (dir|UP))
+	if(istype(target) && !target.can_zFall(AM, null, get_step_multiz(target, DOWN)))			//Don't throw them into a tile that will just dump them back down.
 		if(isliving(AM))
-			mob_move_travel_z_level(AM, newtarg)
+			var/mob/living/L = AM
+			var/pulling = L.pulling
+			if(pulling)
+				L.pulling.forceMove(target)
+			L.forceMove(target)
+			L.start_pulling(pulling)
 		else
-			AM.forceMove(newtarg)
-		return TRUE
-	return FALSE
+			AM.forceMove(target)
+
+/obj/structure/stairs/vv_edit_var(var_name, var_value)
+	. = ..()
+	if(!.)
+		return
+	if(var_name != NAMEOF(src, force_open_above))
+		return
+	if(!var_value)
+		if(listeningTo)
+			UnregisterSignal(listeningTo, COMSIG_TURF_MULTIZ_NEW)
+			listeningTo = null
+	else
+		build_signal_listener()
+		force_open_above()
+
+/obj/structure/stairs/proc/build_signal_listener()
+	if(listeningTo)
+		UnregisterSignal(listeningTo, COMSIG_TURF_MULTIZ_NEW)
+	var/turf/open/transparent/openspace/T = get_step_multiz(get_turf(src), UP)
+	RegisterSignal(T, COMSIG_TURF_MULTIZ_NEW, .proc/on_multiz_new)
+	listeningTo = T
+
+/obj/structure/stairs/proc/force_open_above()
+	var/turf/open/transparent/openspace/T = get_step_multiz(get_turf(src), UP)
+	if(T && !istype(T))
+		T.ChangeTurf(/turf/open/transparent/openspace, flags = CHANGETURF_INHERIT_AIR)
+
+/obj/structure/stairs/proc/on_multiz_new(turf/source, dir)
+	//SIGNAL_HANDLER
+	SHOULD_NOT_SLEEP(TRUE) //the same thing.
+
+	if(dir == UP)
+		var/turf/open/transparent/openspace/T = get_step_multiz(get_turf(src), UP)
+		if(T && !istype(T))
+			T.ChangeTurf(/turf/open/transparent/openspace, flags = CHANGETURF_INHERIT_AIR)
 
 /obj/structure/stairs/intercept_zImpact(atom/movable/AM, levels = 1)
 	. = ..()
+	if(isTerminator())
+		. |= FALL_INTERCEPTED | FALL_NO_MESSAGE
 
-/proc/mob_move_travel_z_level(mob/living/L, turf/newtarg)
-	var/atom/movable/pulling = L.pulling
-	var/was_pulled_buckled = FALSE
-	if(pulling)
-		if(pulling in L.buckled_mobs)
-			was_pulled_buckled = TRUE
-	L.forceMove(newtarg)
-	if(pulling)
-		L.stop_pulling()
-		pulling.forceMove(newtarg)
-		L.start_pulling(pulling, supress_message = TRUE)
-		if(was_pulled_buckled) 
-			var/mob/living/M = pulling
-			if(M.mobility_flags & MOBILITY_STAND)	// piggyback carry
-				L.buckle_mob(pulling, TRUE, TRUE, FALSE, 0, 0)
-			else				// fireman carry
-				L.buckle_mob(pulling, TRUE, TRUE, 90, 0, 0)
+/obj/structure/stairs/proc/isTerminator()			//If this is the last stair in a chain and should move mobs up
+	if(terminator_mode != STAIR_TERMINATOR_AUTOMATIC)
+		return (terminator_mode == STAIR_TERMINATOR_YES)
+	var/turf/T = get_turf(src)
+	if(!T)
+		return FALSE
+	var/turf/them = get_step(T, dir)
+	if(!them)
+		return FALSE
+	for(var/obj/structure/stairs/S in them)
+		if(S.dir == dir)
+			return FALSE
+	return TRUE

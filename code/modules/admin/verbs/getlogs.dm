@@ -1,15 +1,15 @@
 //This proc allows download of past server logs saved within the data/logs/ folder.
 /client/proc/getserverlogs()
 	set name = "Get Server Logs"
-	set desc = ""
-	set category = "-Server-"
+	set desc = "View/retrieve logfiles."
+	set category = "Admin"
 
 	browseserverlogs()
 
 /client/proc/getcurrentlogs()
 	set name = "Get Current Logs"
-	set desc = ""
-	set category = "-Server-"
+	set desc = "View/retrieve logfiles for the current round."
+	set category = "Admin"
 
 	browseserverlogs("[GLOB.log_directory]/")
 
@@ -31,5 +31,5 @@
 			src << ftp(file(path))
 		else
 			return
-	to_chat(src, "Attempting to send [path], this may take a fair few minutes if the file is very large.")
+	to_chat(src, "Attempting to send [path], this may take a fair few minutes if the file is very large.", confidential = TRUE)
 	return

@@ -121,6 +121,7 @@
 
 //Converts an angle (degrees) into an ss13 direction
 /proc/angle2dir(degree)
+
 	degree = SIMPLIFY_DEGREES(degree)
 	switch(degree)
 		if(0 to 22.5) //north requires two angle ranges
@@ -142,9 +143,8 @@
 		if(337.5 to 360)
 			return NORTH
 
-/proc/angle2dir_cardinal(degree)
-	degree = SIMPLIFY_DEGREES(degree)
-	switch(round(degree, 0.1))
+/proc/angle2dir_cardinal(angle)
+	switch(round(angle, 0.1))
 		if(315.5 to 360, 0 to 45.5)
 			return NORTH
 		if(45.6 to 135.5)
@@ -195,7 +195,7 @@
 //Converts a rights bitfield into a string
 /proc/rights2text(rights, seperator="", prefix = "+")
 	seperator += prefix
-	if(rights & R_BUILD)
+	if(rights & R_BUILDMODE)
 		. += "[seperator]BUILDMODE"
 	if(rights & R_ADMIN)
 		. += "[seperator]ADMIN"
@@ -217,14 +217,12 @@
 		. += "[seperator]POLL"
 	if(rights & R_VAREDIT)
 		. += "[seperator]VAREDIT"
-	if(rights & R_SOUND)
+	if(rights & R_SOUNDS)
 		. += "[seperator]SOUND"
 	if(rights & R_SPAWN)
 		. += "[seperator]SPAWN"
-	if(rights & R_AUTOADMIN)
+	if(rights & R_AUTOLOGIN)
 		. += "[seperator]AUTOLOGIN"
-	if(rights & R_WATCH)
-		. += "[seperator]WATCH"
 	if(rights & R_DBRANKS)
 		. += "[seperator]DBRANKS"
 	if(!.)
@@ -296,133 +294,141 @@
 		return (a+(b-a)*((2/3)-hue)*6)
 	return a
 
+// Very ugly, BYOND doesn't support unix time and rounding errors make it really hard to convert it to BYOND time.
+// returns "YYYY-MM-DD" by default
+/proc/unix2date(timestamp, seperator = "-")
+
+	if(timestamp < 0)
+		return 0 //Do not accept negative values
+
+	var/year = 1970 //Unix Epoc begins 1970-01-01
+	var/dayInSeconds = 86400 //60secs*60mins*24hours
+	var/daysInYear = 365 //Non Leap Year
+	var/daysInLYear = daysInYear + 1//Leap year
+	var/days = round(timestamp / dayInSeconds) //Days passed since UNIX Epoc
+	var/tmpDays = days + 1 //If passed (timestamp < dayInSeconds), it will return 0, so add 1
+	var/monthsInDays = list() //Months will be in here ***Taken from the PHP source code***
+	var/month = 1 //This will be the returned MONTH NUMBER.
+	var/day //This will be the returned day number.
+
+	while(tmpDays > daysInYear) //Start adding years to 1970
+		year++
+		if(isLeap(year))
+			tmpDays -= daysInLYear
+		else
+			tmpDays -= daysInYear
+
+	if(isLeap(year)) //The year is a leap year
+		monthsInDays = list(-1,30,59,90,120,151,181,212,243,273,304,334)
+	else
+		monthsInDays = list(0,31,59,90,120,151,181,212,243,273,304,334)
+
+	var/mDays = 0;
+	var/monthIndex = 0;
+
+	for(var/m in monthsInDays)
+		monthIndex++
+		if(tmpDays > m)
+			mDays = m
+			month = monthIndex
+
+	day = tmpDays - mDays //Setup the date
+
+	return "[year][seperator][((month < 10) ? "0[month]" : month)][seperator][((day < 10) ? "0[day]" : day)]"
+
+/proc/isLeap(y)
+	return ((y) % 4 == 0 && ((y) % 100 != 0 || (y) % 400 == 0))
+
+/// For finding out what body parts a body zone covers, the inverse of the below basically
+/proc/zone2body_parts_covered(def_zone)
+	switch(def_zone)
+		if(BODY_ZONE_CHEST)
+			return list(CHEST, GROIN)
+		if(BODY_ZONE_HEAD)
+			return list(HEAD)
+		if(BODY_ZONE_L_ARM)
+			return list(ARM_LEFT, HAND_LEFT)
+		if(BODY_ZONE_R_ARM)
+			return list(ARM_RIGHT, HAND_RIGHT)
+		if(BODY_ZONE_L_LEG)
+			return list(LEG_LEFT, FOOT_LEFT)
+		if(BODY_ZONE_R_LEG)
+			return list(LEG_RIGHT, FOOT_RIGHT)
+
 //Turns a Body_parts_covered bitfield into a list of organ/limb names.
-//(I challenge you to find a use for this)
-//^ I did.
-//verbose = TRUE will include BOTH flags like "ARMS" and individual flags like "L ARM"
-//precise = TRUE will EXCLUDE combined flags like "ARMS" or "LEGS" and only include "L ARM" / "R ARM" etc
-//leaving both FALSE will include combined flags where appropriate.
-/proc/body_parts_covered2organ_names(bpc, verbose = FALSE, precise = FALSE)
+//(I challenge you to find a use for this) -I found a use for it!!
+/proc/body_parts_covered2organ_names(bpc)
 	var/list/covered_parts = list()
 
 	if(!bpc)
 		return 0
 
-	if(bpc & HEAD)
-		covered_parts |= list(READABLE_ZONE_HEAD)
-	if(bpc & NECK)
-		covered_parts |= list(READABLE_ZONE_NECK)
-	if(bpc & FACE && !precise)
-		covered_parts |= list(READABLE_ZONE_FACE)
-	if(verbose || precise || !(bpc & FACE))
-		if(bpc & MOUTH)
-			covered_parts |= list(READABLE_ZONE_MOUTH)
-		if(bpc & NOSE)
-			covered_parts |= list(READABLE_ZONE_NOSE)
-		if(bpc & EYES)
-			covered_parts |= list(READABLE_ZONE_EYES)
+	if(bpc & FULL_BODY)
+		covered_parts |= list(BODY_ZONE_L_ARM,BODY_ZONE_R_ARM,BODY_ZONE_HEAD,BODY_ZONE_CHEST,BODY_ZONE_L_LEG,BODY_ZONE_R_LEG)
 
-	if(bpc & CHEST)
-		covered_parts |= list(READABLE_ZONE_CHEST)
-	if(bpc & VITALS)
-		covered_parts |= list(READABLE_ZONE_VITALS)
-	if(bpc & GROIN)
-		covered_parts |= list(READABLE_ZONE_GROIN)
+	else
+		if(bpc & HEAD)
+			covered_parts |= list(BODY_ZONE_HEAD)
+		if(bpc & CHEST)
+			covered_parts |= list(BODY_ZONE_CHEST)
+		if(bpc & GROIN)
+			covered_parts |= list(BODY_ZONE_CHEST)
 
-	if(bpc & ARMS && !precise)
-		covered_parts |= list(READABLE_ZONE_ARMS)
-	if(verbose || precise || !(bpc & ARMS))
-		if(bpc & ARM_LEFT)
-			covered_parts |= list(READABLE_ZONE_L_ARM)
-		if(bpc & ARM_RIGHT)
-			covered_parts |= list(READABLE_ZONE_R_ARM)
+		if(bpc & ARMS)
+			covered_parts |= list(BODY_ZONE_L_ARM,BODY_ZONE_R_ARM)
+		else
+			if(bpc & ARM_LEFT)
+				covered_parts |= list(BODY_ZONE_L_ARM)
+			if(bpc & ARM_RIGHT)
+				covered_parts |= list(BODY_ZONE_R_ARM)
 
-	if(bpc & HANDS && !precise)
-		covered_parts |= list(READABLE_ZONE_HANDS)
-	if(verbose || precise || !(bpc & HANDS))
-		if(bpc & HAND_LEFT)
-			covered_parts |= list(READABLE_ZONE_L_HAND)
-		if(bpc & HAND_RIGHT)
-			covered_parts |= list(READABLE_ZONE_R_HAND)
+		if(bpc & HANDS)
+			covered_parts |= list(BODY_ZONE_L_ARM,BODY_ZONE_R_ARM)
+		else
+			if(bpc & HAND_LEFT)
+				covered_parts |= list(BODY_ZONE_L_ARM)
+			if(bpc & HAND_RIGHT)
+				covered_parts |= list(BODY_ZONE_R_ARM)
 
-	if(bpc & LEGS && !precise)
-		covered_parts |= list(READABLE_ZONE_LEGS)
-	if(verbose || precise || !(bpc & LEGS))
-		if(bpc & LEG_LEFT)
-			covered_parts |= list(READABLE_ZONE_L_LEG)
-		if(bpc & LEG_RIGHT)
-			covered_parts |= list(READABLE_ZONE_R_LEG)
+		if(bpc & LEGS)
+			covered_parts |= list(BODY_ZONE_L_LEG,BODY_ZONE_R_LEG)
+		else
+			if(bpc & LEG_LEFT)
+				covered_parts |= list(BODY_ZONE_L_LEG)
+			if(bpc & LEG_RIGHT)
+				covered_parts |= list(BODY_ZONE_R_LEG)
 
-
-	if(bpc & FEET && !precise)
-		covered_parts |= list(READABLE_ZONE_FEET)
-	if(verbose || precise || !(bpc & FEET))
-		if(bpc & FOOT_LEFT)
-			covered_parts |= list(READABLE_ZONE_L_FOOT)
-		if(bpc & FOOT_RIGHT)
-			covered_parts |= list(READABLE_ZONE_R_FOOT)
+		if(bpc & FEET)
+			covered_parts |= list(BODY_ZONE_L_LEG,BODY_ZONE_R_LEG)
+		else
+			if(bpc & FOOT_LEFT)
+				covered_parts |= list(BODY_ZONE_L_LEG)
+			if(bpc & FOOT_RIGHT)
+				covered_parts |= list(BODY_ZONE_R_LEG)
 
 	return covered_parts
 
-
-//Takes a user-targeted zone and returns a readable version of it.
-/proc/bodyzone2readablezone(zone)
-	switch(zone)
-		if(BODY_ZONE_HEAD)
-			return READABLE_ZONE_HEAD
-		if(BODY_ZONE_PRECISE_EARS)
-			return READABLE_ZONE_HEAD
-		if(BODY_ZONE_PRECISE_L_EYE, BODY_ZONE_PRECISE_R_EYE)
-			return READABLE_ZONE_EYES
-		if(BODY_ZONE_PRECISE_MOUTH)
-			return READABLE_ZONE_MOUTH
-		if(BODY_ZONE_PRECISE_NOSE)
-			return READABLE_ZONE_NOSE
-		if(BODY_ZONE_CHEST)
-			return READABLE_ZONE_CHEST
-		if(BODY_ZONE_PRECISE_STOMACH)
-			return READABLE_ZONE_VITALS
-		if(BODY_ZONE_PRECISE_GROIN)
-			return READABLE_ZONE_GROIN
-		if(BODY_ZONE_L_ARM)
-			return READABLE_ZONE_L_ARM
-		if(BODY_ZONE_PRECISE_L_HAND)
-			return READABLE_ZONE_L_HAND
-		if(BODY_ZONE_R_ARM)
-			return READABLE_ZONE_R_ARM
-		if(BODY_ZONE_PRECISE_R_HAND)
-			return READABLE_ZONE_R_HAND
-		if(BODY_ZONE_L_LEG)
-			return READABLE_ZONE_L_LEG
-		if(BODY_ZONE_PRECISE_L_FOOT)
-			return READABLE_ZONE_L_FOOT
-		if(BODY_ZONE_R_LEG)
-			return READABLE_ZONE_R_LEG
-		if(BODY_ZONE_PRECISE_R_FOOT)
-			return READABLE_ZONE_R_FOOT
-		
-
 /proc/slot2body_zone(slot)
 	switch(slot)
-		if(SLOT_BACK, SLOT_ARMOR, SLOT_BELT, SLOT_SHIRT, SLOT_CLOAK, SLOT_BACK_R, SLOT_BACK_L, SLOT_BELT_R, SLOT_BELT_L)
+		if(SLOT_BACK, SLOT_WEAR_SUIT, SLOT_W_UNIFORM, SLOT_BELT, SLOT_WEAR_ID)
 			return BODY_ZONE_CHEST
 
-		if(SLOT_GLOVES, SLOT_HANDS, SLOT_HANDCUFFED, SLOT_RING)
+		if(SLOT_GLOVES, SLOT_HANDS, SLOT_HANDCUFFED)
 			return pick(BODY_ZONE_PRECISE_L_HAND, BODY_ZONE_PRECISE_R_HAND)
 
-		if(SLOT_HEAD, SLOT_NECK)
+		if(SLOT_HEAD, SLOT_NECK, SLOT_NECK, SLOT_EARS)
 			return BODY_ZONE_HEAD
 
-		if(SLOT_WEAR_MASK, SLOT_MOUTH)
+		if(SLOT_WEAR_MASK)
 			return BODY_ZONE_PRECISE_MOUTH
 
 		if(SLOT_GLASSES)
-			return BODY_ZONE_PRECISE_R_EYE
+			return BODY_ZONE_PRECISE_EYES
 
 		if(SLOT_SHOES)
 			return pick(BODY_ZONE_PRECISE_R_FOOT, BODY_ZONE_PRECISE_L_FOOT)
 
-		if(SLOT_LEGCUFFED, SLOT_PANTS)
+		if(SLOT_LEGCUFFED)
 			return pick(BODY_ZONE_L_LEG, BODY_ZONE_R_LEG)
 
 //adapted from http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
@@ -456,6 +462,14 @@
 		else
 			. = max(0, min(255, 138.5177312231 * log(temp - 10) - 305.0447927307))
 
+/proc/instability2text(instability) //used when displaying fusion power on analyzers
+	switch(instability)
+		if(0 to 2)
+			return "stable, meaning that its heat will always increase."
+		if(2 to 3)
+			return "metastable, meaning that its heat will trend upwards."
+		if (3 to INFINITY)
+			return "unstable, meaning that its heat will trend downwards."
 
 /proc/color2hex(color)	//web colors
 	if(!color)
@@ -540,17 +554,17 @@
 
 //assumes format #RRGGBB #rrggbb
 /proc/color_hex2num(A)
-	if(!A)
+	if(!A || length(A) != length_char(A))
 		return 0
-	var/R = hex2num(copytext(A,2,4))
-	var/G = hex2num(copytext(A,4,6))
-	var/B = hex2num(copytext(A,6,0))
+	var/R = hex2num(copytext(A, 2, 4))
+	var/G = hex2num(copytext(A, 4, 6))
+	var/B = hex2num(copytext(A, 6, 0))
 	return R+G+B
 
 //word of warning: using a matrix like this as a color value will simplify it back to a string after being set
 /proc/color_hex2color_matrix(string)
 	var/length = length(string)
-	if(length != 7 && length != 9)
+	if((length != 7 && length != 9) || length != length_char(string))
 		return color_matrix_identity()
 	var/r = hex2num(copytext(string, 2, 4))/255
 	var/g = hex2num(copytext(string, 4, 6))/255
@@ -604,6 +618,12 @@
 		else //regex everything else (works for /proc too)
 			return lowertext(replacetext("[the_type]", "[type2parent(the_type)]/", ""))
 
+
+/// Return html to load a url.
+/// for use inside of browse() calls to html assets that might be loaded on a cdn.
+/proc/url2htmlloader(url)
+	return {"<html><head><meta http-equiv="refresh" content="0;URL='[url]'"/></head><body onLoad="parent.location='[url]'"></body></html>"}
+
 /proc/strtohex(str)
 	if(!istext(str)||!str)
 		return
@@ -627,3 +647,49 @@
 			return null
 		r += ascii2text(c)
 	return r
+
+/proc/slot_to_string(slot)
+	switch(slot)
+		if(SLOT_BACK)
+			return "Backpack"
+		if(SLOT_WEAR_MASK)
+			return "Mask"
+		if(SLOT_HANDS)
+			return "Hands"
+		if(SLOT_BELT)
+			return "Belt"
+		if(SLOT_EARS)
+			return "Ears"
+		if(SLOT_GLASSES)
+			return "Glasses"
+		if(SLOT_GLOVES)
+			return "Gloves"
+		if(SLOT_NECK)
+			return "Neck"
+		if(SLOT_HEAD)
+			return "Head"
+		if(SLOT_SHOES)
+			return "Shoes"
+		if(SLOT_WEAR_SUIT)
+			return "Suit"
+		if(SLOT_W_UNIFORM)
+			return "Uniform"
+		if(SLOT_IN_BACKPACK)
+			return "In backpack"
+
+/proc/tg_ui_icon_to_cit_ui(ui_style)
+	switch(ui_style)
+		if('icons/mob/screen_plasmafire.dmi')
+			return 'modular_citadel/icons/ui/screen_plasmafire.dmi'
+		if('icons/mob/screen_slimecore.dmi')
+			return 'modular_citadel/icons/ui/screen_slimecore.dmi'
+		if('icons/mob/screen_operative.dmi')
+			return 'modular_citadel/icons/ui/screen_operative.dmi'
+		if('icons/mob/screen_clockwork.dmi')
+			return 'modular_citadel/icons/ui/screen_clockwork.dmi'
+		if('icons/mob/screen_midnight.dmi')
+			return 'modular_citadel/icons/ui/screen_midnight.dmi'
+		if('icons/fallout/UI/screen_fallout2_dark.dmi')
+			return 'icons/fallout/UI/screen_fallout2_dark.dmi'
+		else
+			return 'icons/fallout/UI/buttons_fallout2.dmi'

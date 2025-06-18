@@ -2,15 +2,15 @@
 	if(!message || !subject)
 		return
 	var/F = file("[GLOB.log_directory]/[subject].html")
-	WRITE_FILE(F, "[time_stamp()] [REF(src)] ([x],[y],[z]) || [src] [message]<br>")
+	WRITE_FILE(F, "<small>[TIME_STAMP("hh:mm:ss", FALSE)] [REF(src)] ([x],[y],[z])</small> || [src] [message]<br>")
 
 /client/proc/investigate_show()
 	set name = "Investigate"
-	set category = "-Admin-"
+	set category = "Admin.Game"
 	if(!holder)
 		return
 
-	var/list/investigates = list(INVESTIGATE_RESEARCH, INVESTIGATE_EXONET, INVESTIGATE_PORTAL, INVESTIGATE_SINGULO, INVESTIGATE_WIRES, INVESTIGATE_TELESCI, INVESTIGATE_GRAVITY, INVESTIGATE_RECORDS, INVESTIGATE_CARGO, INVESTIGATE_SUPERMATTER, INVESTIGATE_ATMOS, INVESTIGATE_EXPERIMENTOR, INVESTIGATE_BOTANY, INVESTIGATE_HALLUCINATIONS, INVESTIGATE_RADIATION, INVESTIGATE_NANITES, INVESTIGATE_PRESENTS)
+	var/list/investigates = list(INVESTIGATE_DESTROYED,INVESTIGATE_RCD, INVESTIGATE_RESEARCH, INVESTIGATE_EXONET, INVESTIGATE_PORTAL, INVESTIGATE_SINGULO, INVESTIGATE_WIRES, INVESTIGATE_TELESCI, INVESTIGATE_GRAVITY, INVESTIGATE_RECORDS, INVESTIGATE_CARGO, INVESTIGATE_SUPERMATTER, INVESTIGATE_ATMOS, INVESTIGATE_EXPERIMENTOR, INVESTIGATE_BOTANY, INVESTIGATE_HALLUCINATIONS, INVESTIGATE_RADIATION, INVESTIGATE_CIRCUIT, INVESTIGATE_NANITES, INVESTIGATE_CRYOGENICS)
 
 	var/list/logs_present = list("notes, memos, watchlist")
 	var/list/logs_missing = list("---")
@@ -37,6 +37,6 @@
 
 	var/F = file("[GLOB.log_directory]/[selected].html")
 	if(!fexists(F))
-		to_chat(src, span_danger("No [selected] logfile was found."))
+		to_chat(src, "<span class='danger'>No [selected] logfile was found.</span>", confidential = TRUE)
 		return
 	src << browse(F,"window=investigate[selected];size=800x300")

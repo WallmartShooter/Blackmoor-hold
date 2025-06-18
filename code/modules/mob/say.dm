@@ -1,162 +1,177 @@
 //Speech verbs.
-
-
-//Because of how classic keys work, we need to use a custom verb to show the typing indicator. 
-//Otherwise when you press enter, it will open up the input box.
+// the _keybind verbs uses "as text" versus "as text|null" to force a popup when pressed by a keybind.
 /mob/verb/say_typing_indicator()
 	set name = "say_indicator"
 	set hidden = TRUE
 	set category = "IC"
-	
 	display_typing_indicator()
 	var/message = input(usr, "", "say") as text|null
 	// If they don't type anything just drop the message.
-	clear_typing_indicator()
+	clear_typing_indicator()		// clear it immediately!
 	if(!length(message))
 		return
 	return say_verb(message)
 
 /mob/verb/say_verb(message as text)
-	set name = "Say"
+	set name = "say"
 	set category = "IC"
-	set hidden = 1
-
 	if(!length(message))
 		return
 	if(GLOB.say_disabled)	//This is here to try to identify lag problems
 		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
 		return
 	clear_typing_indicator()		// clear it immediately!
-
 	say(message)
-
-///Whisper verb
-/mob/verb/whisper_verb(message as text)
-	set name = "Whisper"
-	set category = "IC"
-	set hidden = 1
-
-	if(GLOB.say_disabled)	//This is here to try to identify lag problems
-		to_chat(usr, span_danger("Speech is currently admin-disabled."))
-		return
-	whisper(message)
-
-///whisper a message
-/mob/proc/whisper(message, bubble_type, list/spans = list(), sanitize = TRUE, datum/language/language = null, ignore_spam = FALSE, forced = null)
-	say(message, language) //only living mobs actually whisper, everything else just talks
-
 
 /mob/verb/me_typing_indicator()
 	set name = "me_indicator"
 	set hidden = TRUE
 	set category = "IC"
-
 	display_typing_indicator()
-	var/message = input(usr, "", "me") as text|null
+	var/message = input(usr, "", "me") as message|null
 	// If they don't type anything just drop the message.
 	clear_typing_indicator()		// clear it immediately!
 	if(!length(message))
 		return
 	return me_verb(message)
 
-///The me emote verb
-///The me emote verb
-/mob/verb/me_verb(message as text)
-	set name = "Me"
+/mob/verb/me_verb(message as message)
+	set name = "me"
 	set category = "IC"
-	set hidden = 1
-#ifndef MATURESERVER
-	return
-#endif
-	// If they don't type anything just drop the message.
-	clear_typing_indicator()
 	if(!length(message))
 		return
 	if(GLOB.say_disabled)	//This is here to try to identify lag problems
-		to_chat(usr, span_danger("Speech is currently admin-disabled."))
+		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
 		return
+	
+	if(length(message) > MAX_MESSAGE_LEN)
+		to_chat(usr, message)
+		to_chat(usr, "<span class='danger'>^^^----- The preceeding message has been DISCARDED for being over the maximum length of [MAX_MESSAGE_LEN]. It has NOT been sent! -----^^^</span>")
+		return
+
 	message = trim(copytext_char(sanitize(message), 1, MAX_MESSAGE_LEN))
-	message = parsemarkdown_basic(message, limited = TRUE, barebones = TRUE)
-	if(check_subtler(message, FALSE))
-		return
-	usr.emote("me",1,message,TRUE, custom_me = TRUE)
+	clear_typing_indicator()		// clear it immediately!
 
-/mob/verb/me_big_verb_indicator()
-	set name = "me_big_indicator"
-	set category = "IC"
-	set hidden = 1
+	usr.emote("me",1,message,TRUE)
 
-	display_typing_indicator()
-	var/message = input(usr, "", "me") as message|null
-	// If they don't type anything just drop the message.
-	clear_typing_indicator()
+/**
+ * Ensure that the first word of a sentence gets transformed into lower case
+ * e.g. `Nods her head and stares at McMullen` becomes
+ * `nods her head and stares at McMullen`.
+ */
+/proc/lowertext_first_word(sentence)
+	var/list/words_in_sentence = splittext(sentence, regex(@"[ ]+"))
+	var/treated_sentence = ""
+	var/sentence_len = length(words_in_sentence)
+	if(sentence_len == 0)
+		return sentence
+	var/i = 0
+	for(var/word_in_sentence in words_in_sentence)
+		treated_sentence += i == 0 ? lowertext(word_in_sentence) : word_in_sentence
+		if (i != sentence_len - 1)
+			treated_sentence += " "
+		i += 1
+	return treated_sentence
+
+/mob/say_mod(input, message_mode)
+	if(message_mode == MODE_WHISPER_CRIT)
+		return ..()
+	if((input[1] == "!") && (length_char(input) > 1))
+		message_mode = MODE_CUSTOM_SAY
+		return copytext_char(input, 2)
+	var/customsayverb = findtext(input, "*")
+	if(customsayverb)
+		message_mode = MODE_CUSTOM_SAY
+		return lowertext_first_word(copytext_char(input, 1, customsayverb))
+	return ..()
+
+/proc/uncostumize_say(input, message_mode)
+	. = input
+	if(message_mode == MODE_CUSTOM_SAY)
+		var/customsayverb = findtext(input, "*")
+		return lowertext(copytext_char(input, 1, customsayverb))
+
+/mob/proc/whisper_keybind()
+	var/message = input(src, "", "whisper") as text|null
 	if(!length(message))
 		return
-	return me_big_verb(message)
+	return whisper_verb(message)
 
-///The me emote verb
-/mob/verb/me_big_verb(message as message)
-	set name = "Me(big)"
+/mob/verb/whisper_verb(message as text)
+	set name = "Whisper"
 	set category = "IC"
-	set hidden = 1
-#ifndef MATURESERVER
-	return
-#endif
-	// If they don't type anything just drop the message.
-	clear_typing_indicator()
 	if(!length(message))
 		return
 	if(GLOB.say_disabled)	//This is here to try to identify lag problems
-		to_chat(usr, span_danger("Speech is currently admin-disabled."))
+		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
 		return
-	message = trim(copytext_char(html_encode(message), 1, MAX_MESSAGE_BIGME))
-	message = parsemarkdown_basic(message, limited = TRUE, barebones = TRUE)
-	if(check_subtler(message, FALSE))
-		return
-	usr.emote("me",1,message,TRUE, custom_me = TRUE)
+	whisper(message)
 
-///Speak as a dead person (ghost etc)
+/mob/proc/whisper(message, datum/language/language=null)
+	say(message, language) //only living mobs actually whisper, everything else just talks
+
 /mob/proc/say_dead(message)
+	var/name = real_name
+	var/alt_name = ""
 
-	return // RTCHANGE
+	if(GLOB.say_disabled)	//This is here to try to identify lag problems
+		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
+		return
 
-///Check if this message is an emote
-/mob/proc/check_emote(message, forced)
-	if(copytext_char(message, 1, 2) == "*")
-		emote(copytext_char(message, 2), intentional = !forced, custom_me = TRUE)
-		return 1
+	var/jb = jobban_isbanned(src, "OOC")
+	if(QDELETED(src))
+		return
 
-/mob/proc/check_whisper(message, forced)
-	if(copytext_char(message, 1, 2) == "+")
-		var/text = copytext(message, 2)
-		var/boldcheck = findtext_char(text, "+")	//Check for a *second* + in the text, implying the message is meant to have something formatted as bold (+text+)
-		whisper(copytext_char(message, boldcheck ? 1 : 2),sanitize = FALSE)//already sani'd
-		return 1
+	if(jb)
+		to_chat(src, "<span class='danger'>You have been banned from deadchat.</span>")
+		return
 
-///Check if the mob has a hivemind channel
+
+
+	if (src.client)
+		if(src.client.prefs.muted & MUTE_DEADCHAT)
+			to_chat(src, "<span class='danger'>You cannot talk in deadchat (muted).</span>")
+			return
+
+		if(src.client.handle_spam_prevention(message,MUTE_DEADCHAT))
+			return
+
+	var/mob/dead/observer/O = src
+	if(isobserver(src) && O.deadchat_name)
+		name = "[O.deadchat_name]"
+	else
+		if(mind && mind.name)
+			name = "[mind.name]"
+		else
+			name = real_name
+		if(name != real_name)
+			alt_name = " (died as [real_name])"
+
+	var/spanned = say_quote(say_emphasis(message))
+	message = emoji_parse(message)
+	var/rendered = "<span class='game deadsay'><span class='prefix'>DEAD:</span> <span class='name'>[name]</span>[alt_name] <span class='message'>[emoji_parse(spanned)]</span></span>"
+	log_talk(message, LOG_SAY, tag="DEAD")
+	deadchat_broadcast(rendered, follow_target = src, speaker_key = key)
+
+/mob/proc/check_emote(message)
+	if(message[1] == "*")
+		emote(copytext(message, length(message[1]) + 1), intentional = TRUE)
+		return TRUE
+
 /mob/proc/hivecheck()
 	return 0
 
-///Check if the mob has a ling hivemind
 /mob/proc/lingcheck()
 	return LINGHIVE_NONE
 
-/**
-  * Get the mode of a message
-  *
-  * Result can be
-  * * MODE_WHISPER (Quiet speech)
-  * * MODE_HEADSET (Common radio channel)
-  * * A department radio (lots of values here)
-  */
 /mob/proc/get_message_mode(message)
-	var/key = copytext_char(message, 1, 2)
+	var/key = message[1]
 	if(key == "#")
 		return MODE_WHISPER
-	else if(key == ";")
-		return MODE_HEADSET
 	else if(key == "%")
 		return MODE_SING
-	else if(length(message) > 2 && (key in GLOB.department_radio_prefixes))
-		var/key_symbol = lowertext(copytext_char(message, 2, 3))
+	else if(key == ";")
+		return MODE_HEADSET
+	else if((length(message) > (length(key) + 1)) && (key in GLOB.department_radio_prefixes))
+		var/key_symbol = lowertext(message[length(key) + 1])
 		return GLOB.department_radio_keys[key_symbol]

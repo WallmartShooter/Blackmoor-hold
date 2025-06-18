@@ -4,8 +4,8 @@ GLOBAL_LIST_EMPTY(explosions)
 //Against my better judgement, I will return the explosion datum
 //If I see any GC errors for it I will find you
 //and I will gib you
-/proc/explosion(atom/epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog = TRUE, ignorecap = FALSE, flame_range = 0, silent = FALSE, smoke = FALSE, soundin)
-	return new /datum/explosion(epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog, ignorecap, flame_range, silent, smoke, soundin)
+/proc/explosion(atom/epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog = TRUE, ignorecap = FALSE, flame_range = 0, silent = FALSE, smoke = FALSE)
+	return new /datum/explosion(epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog, ignorecap, flame_range, silent, smoke)
 
 //This datum creates 3 async tasks
 //1 GatherSpiralTurfsProc runs spiral_range_turfs(tick_checked = TRUE) to populate the affected_turfs list
@@ -33,7 +33,7 @@ GLOBAL_LIST_EMPTY(explosions)
 		EX_PREPROCESS_EXIT_CHECK\
 	}
 
-/datum/explosion/New(atom/epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog, ignorecap, flame_range, silent, smoke, soundin = 'sound/misc/explode/explosion.ogg')
+/datum/explosion/New(atom/epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog, ignorecap, flame_range, silent, smoke)
 	set waitfor = FALSE
 
 	var/id = ++id_counter
@@ -76,7 +76,9 @@ GLOBAL_LIST_EMPTY(explosions)
 	//I would make this not ex_act the thing that triggered the explosion,
 	//but everything that explodes gives us their loc or a get_turf()
 	//and somethings expect us to ex_act them so they can qdel()
-	stoplag() //tldr, let the calling proc call qdel(src) before we explode
+	//stoplag() //tldr, let the calling proc call qdel(src) before we explode
+	// no - use sleep. stoplag() results in quirky things like explosions taking too long to process and hanging mid-air for no reason.
+	sleep(0)
 
 	EX_PREPROCESS_EXIT_CHECK
 
@@ -87,12 +89,13 @@ GLOBAL_LIST_EMPTY(explosions)
 	if(adminlog)
 		message_admins("Explosion with size ([devastation_range], [heavy_impact_range], [light_impact_range], [flame_range]) in [ADMIN_VERBOSEJMP(epicenter)]")
 		log_game("Explosion with size ([devastation_range], [heavy_impact_range], [light_impact_range], [flame_range]) in [loc_name(epicenter)]")
+	deadchat_broadcast("<span class='deadsay bold'>An explosion with size ([devastation_range], [heavy_impact_range], [light_impact_range], [flame_range]) has occured at ([get_area(epicenter)])</span>", turf_target = get_turf(epicenter))
 
 	var/x0 = epicenter.x
 	var/y0 = epicenter.y
 	var/z0 = epicenter.z
 	var/area/areatype = get_area(epicenter)
-	SSblackbox.record_feedback("associative", "explosion", 1, list("dev" = devastation_range, "heavy" = heavy_impact_range, "light" = light_impact_range, "flash" = flash_range, "flame" = flame_range, "orig_dev" = orig_dev_range, "orig_heavy" = orig_heavy_range, "orig_light" = orig_light_range, "x" = x0, "y" = y0, "z" = z0, "area" = areatype.type, "time" = time_stamp("YYYY-MM-DD hh:mm:ss", 1)))
+	SSblackbox.record_feedback("associative", "explosion", 1, list("dev" = devastation_range, "heavy" = heavy_impact_range, "light" = light_impact_range, "flash" = flash_range, "flame" = flame_range, "orig_dev" = orig_dev_range, "orig_heavy" = orig_heavy_range, "orig_light" = orig_light_range, "x" = x0, "y" = y0, "z" = z0, "area" = areatype.type, "time" = TIME_STAMP("YYYY-MM-DD hh:mm:ss", 1)))
 
 	// Play sounds; we want sounds to be different depending on distance so we will manually do it ourselves.
 	// Stereo users will also hear the direction of the explosion!
@@ -101,22 +104,19 @@ GLOBAL_LIST_EMPTY(explosions)
 	// 3/7/14 will calculate to 80 + 35
 
 	var/far_dist = 0
-	far_dist += heavy_impact_range * 5
-	far_dist += devastation_range * 209
+	far_dist += heavy_impact_range * 15 // Large explosions carry further
+	far_dist += devastation_range * 20
 
 	if(!silent)
 		var/frequency = get_rand_frequency()
-		if(islist(soundin))
-			var/list/shitty = soundin
-			soundin = pick(shitty)
-		var/sound/explosion_sound = sound(soundin)
-		var/sound/far_explosion_sound = sound(pick('sound/misc/explode/explosionfar (1).ogg','sound/misc/explode/explosionfar (2).ogg','sound/misc/explode/explosionfar (3).ogg'))
+		var/sound/explosion_sound = sound(get_sfx("explosion"))
+		var/sound/far_explosion_sound = sound('sound/effects/explosionfar.ogg')
+		var/sound/explosion_echo_sound = sound('sound/effects/explosion_distant.ogg')
 
 		for(var/mob/M in GLOB.player_list)
 			// Double check for client
 			var/turf/M_turf = get_turf(M)
-			var/turf/E_turf = get_turf(epicenter)
-			if(is_in_zweb(M_turf.z,E_turf.z))
+			if(M_turf && M_turf.z == z0)
 				var/dist = get_dist(M_turf, epicenter)
 				var/baseshakeamount
 				if(orig_max_distance - dist > 0)
@@ -125,15 +125,20 @@ GLOBAL_LIST_EMPTY(explosions)
 				if(dist <= round(max_range + world.view - 2, 1))
 					M.playsound_local(epicenter, null, 100, 1, frequency, falloff = 5, S = explosion_sound)
 					if(baseshakeamount > 0)
-						shake_camera(M, 25, CLAMP(baseshakeamount, 0, 10))
+						shake_camera(M, 25, clamp(baseshakeamount, 0, 10))
 				// You hear a far explosion if you're outside the blast radius. Small bombs shouldn't be heard all over the station.
 				else if(dist <= far_dist)
-					var/far_volume = CLAMP(far_dist, 50, 100) // Volume is based on explosion size and dist
-					far_volume += (dist <= far_dist * 0.5 ? 50 : 0) // add 50 volume if the mob is pretty close to the explosion
-					far_volume = CLAMP(far_volume, 50, 100)
-					M.playsound_local(epicenter, null, far_volume, 1, frequency, falloff = 5, S = far_explosion_sound)
-					if(baseshakeamount > 0)
-						shake_camera(M, 10, CLAMP(baseshakeamount*0.25, 0, 2.5))
+					var/far_volume = clamp(far_dist/2, 40, 60) // Volume is based on explosion size and dist
+					if(prob(75))
+						M.playsound_local(epicenter, null, far_volume, 1, frequency, S = far_explosion_sound, distance_multiplier = 0) // Far sound
+					else
+						M.playsound_local(epicenter, null, far_volume, 1, frequency, S = explosion_echo_sound, distance_multiplier = 0) // Echo sound
+
+					if(baseshakeamount > 0 || devastation_range)
+						if(!baseshakeamount) // Devastating explosions rock the station and ground
+							baseshakeamount = devastation_range*3
+						shake_camera(M, 10, clamp(baseshakeamount*0.25, 0, 2.5))
+
 			EX_PREPROCESS_CHECK_TICK
 
 	//postpone processing for a bit
@@ -141,13 +146,14 @@ GLOBAL_LIST_EMPTY(explosions)
 	SSlighting.postpone(postponeCycles)
 	SSmachines.postpone(postponeCycles)
 
-	var/datum/effect_system/explosion/E
-	if(smoke)
-		E = new /datum/effect_system/explosion/smoke
-	else
-		E = new
-	E.set_up(epicenter)
-	E.start()
+	if(heavy_impact_range > 1)
+		var/datum/effect_system/explosion/E
+		if(smoke)
+			E = new /datum/effect_system/explosion/smoke
+		else
+			E = new
+		E.set_up(epicenter)
+		E.start()
 
 	EX_PREPROCESS_CHECK_TICK
 
@@ -198,18 +204,16 @@ GLOBAL_LIST_EMPTY(explosions)
 
 		//------- EX_ACT AND TURF FIRES -------
 
-		if(T == epicenter) // Ensures explosives detonating from bags trigger other explosives in that bag
-			var/list/items = list()
-			for(var/I in T)
-				var/atom/A = I
-				if (!(A.flags_1 & PREVENT_CONTENTS_EXPLOSION_1)) //The atom/contents_explosion() proc returns null if the contents ex_acting has been handled by the atom, and TRUE if it hasn't.
-					items += A.GetAllContents()
-			for(var/O in items)
-				var/atom/A = O
+		if((T == epicenter) && !QDELETED(explosion_source) && ismovable(explosion_source) && (get_turf(explosion_source) == T)) // Ensures explosives detonating from bags trigger other explosives in that bag
+			var/list/atoms = list()
+			for(var/atom/A in explosion_source.loc)		// the ismovableatom check 2 lines above makes sure we don't nuke an /area
+				atoms += A
+			for(var/i in atoms)
+				var/atom/A = i
 				if(!QDELETED(A))
 					A.ex_act(dist)
 
-		if(flame_dist && !istransparentturf(T))
+		if(flame_dist && prob(40) && !isspaceturf(T) && !T.density)
 			new /obj/effect/hotspot(T) //Mostly for ambience!
 
 		if(dist > EXPLODE_NONE)
@@ -218,14 +222,15 @@ GLOBAL_LIST_EMPTY(explosions)
 			T.ex_act(dist)
 			exploded_this_tick += T
 
-		//--- THROW STUFF AROUND ---
+		//--- THROW ITEMS AROUND ---
 
 		var/throw_dir = get_dir(epicenter,T)
-		for(var/atom/movable/A in T)
-			if(!A.anchored)
+		for(var/obj/item/I in T)
+			if(!I.anchored)
 				var/throw_range = rand(throw_dist, max_range)
-				var/turf/throw_at = get_ranged_target_turf(A, throw_dir, throw_range)
-				A.throw_at(throw_at, throw_range, EXPLOSION_THROW_SPEED)
+				var/turf/throw_at = get_ranged_target_turf(I, throw_dir, throw_range)
+				I.throw_speed = EXPLOSION_THROW_SPEED //Temporarily change their throw_speed for embedding purposes (Reset when it finishes throwing, regardless of hitting anything)
+				I.throw_at(throw_at, throw_range, EXPLOSION_THROW_SPEED)
 
 		//wait for the lists to repop
 		var/break_condition
@@ -281,6 +286,12 @@ GLOBAL_LIST_EMPTY(explosions)
 	//You need to press the DebugGame verb to see these now....they were getting annoying and we've collected a fair bit of data. Just -test- changes to explosion code using this please so we can compare
 	if(GLOB.Debug2)
 		log_world("## DEBUG: Explosion([x0],[y0],[z0])(d[devastation_range],h[heavy_impact_range],l[light_impact_range]): Took [took] seconds.")
+
+	if(running)	//if we aren't in a hurry
+		//Machines which report explosions.
+		for(var/array in GLOB.doppler_arrays)
+			var/obj/machinery/doppler_array/A = array
+			A.sense_explosion(epicenter, devastation_range, heavy_impact_range, light_impact_range, took,orig_dev_range, orig_heavy_range, orig_light_range)
 
 	++stopped
 	qdel(src)
@@ -391,7 +402,7 @@ GLOBAL_LIST_EMPTY(explosions)
 		else
 			continue
 
-	addtimer(CALLBACK(GLOBAL_PROC, GLOBAL_PROC_REF(wipe_color_and_text), wipe_colours), 100)
+	addtimer(CALLBACK(GLOBAL_PROC, .proc/wipe_color_and_text, wipe_colours), 100)
 
 /proc/wipe_color_and_text(list/atom/wiping)
 	for(var/i in wiping)

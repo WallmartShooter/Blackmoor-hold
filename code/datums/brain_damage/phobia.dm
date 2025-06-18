@@ -1,9 +1,9 @@
 /datum/brain_trauma/mild/phobia
 	name = "Phobia"
-	desc = ""
-	scan_desc = ""
-	gain_text = span_warning("I start finding default values very unnerving...")
-	lose_text = span_notice("I no longer feel afraid of default values.")
+	desc = "Patient is unreasonably afraid of something."
+	scan_desc = "phobia"
+	gain_text = "<span class='warning'>You start finding default values very unnerving...</span>"
+	lose_text = "<span class='notice'>You no longer feel afraid of default values.</span>"
 	var/phobia_type
 	var/next_check = 0
 	var/next_scare = 0
@@ -13,6 +13,7 @@
 	var/list/trigger_objs //also checked in mob equipment
 	var/list/trigger_turfs
 	var/list/trigger_species
+	random_gain = TRUE
 
 /datum/brain_trauma/mild/phobia/New(new_phobia_type)
 	if(new_phobia_type)
@@ -21,8 +22,8 @@
 	if(!phobia_type)
 		phobia_type = pick(SStraumas.phobia_types)
 
-	gain_text = span_warning("I start finding [phobia_type] very unnerving...")
-	lose_text = span_notice("I no longer feel afraid of [phobia_type].")
+	gain_text = "<span class='warning'>You start finding [phobia_type] very unnerving...</span>"
+	lose_text = "<span class='notice'>You no longer feel afraid of [phobia_type].</span>"
 	scan_desc += " of [phobia_type]"
 	trigger_words = SStraumas.phobia_words[phobia_type]
 	trigger_mobs = SStraumas.phobia_mobs[phobia_type]
@@ -44,7 +45,7 @@
 		return
 	if(world.time > next_check && world.time > next_scare)
 		next_check = world.time + 50
-		var/list/seen_atoms = view(7, owner)
+		var/list/seen_atoms = owner.fov_view(7)
 
 		if(LAZYLEN(trigger_objs))
 			for(var/obj/O in seen_atoms)
@@ -87,8 +88,8 @@
 		var/regex/reg = regex("(\\b|\\A)[REGEX_QUOTE(word)]'?s*(\\b|\\Z)", "i")
 
 		if(findtext(hearing_args[HEARING_RAW_MESSAGE], reg))
-			addtimer(CALLBACK(src, PROC_REF(freak_out), null, word), 10) //to react AFTER the chat message
-			hearing_args[HEARING_MESSAGE] = reg.Replace(hearing_args[HEARING_MESSAGE], span_phobia("$1"))
+			addtimer(CALLBACK(src, .proc/freak_out, null, word), 10) //to react AFTER the chat message
+			hearing_args[HEARING_RAW_MESSAGE] = reg.Replace(hearing_args[HEARING_RAW_MESSAGE], "<span class='phobia'>$1</span>")
 			break
 
 /datum/brain_trauma/mild/phobia/handle_speech(datum/source, list/speech_args)
@@ -98,7 +99,7 @@
 		var/regex/reg = regex("(\\b|\\A)[REGEX_QUOTE(word)]'?s*(\\b|\\Z)", "i")
 
 		if(findtext(speech_args[SPEECH_MESSAGE], reg))
-			to_chat(owner, span_warning("I can't bring myself to say the word \"<span class='phobia'>[word]</span>\"!"))
+			to_chat(owner, "<span class='warning'>You can't bring yourself to say the word \"<span class='phobia'>[word]</span>\"!</span>")
 			speech_args[SPEECH_MESSAGE] = ""
 
 /datum/brain_trauma/mild/phobia/proc/freak_out(atom/reason, trigger_word)
@@ -107,15 +108,15 @@
 		return
 	var/message = pick("spooks you to the bone", "shakes you up", "terrifies you", "sends you into a panic", "sends chills down your spine")
 	if(reason)
-		to_chat(owner, span_danger("Seeing [reason] [message]!"))
+		to_chat(owner, "<span class='userdanger'>Seeing [reason] [message]!</span>")
 	else if(trigger_word)
-		to_chat(owner, span_danger("Hearing \"[trigger_word]\" [message]!"))
+		to_chat(owner, "<span class='userdanger'>Hearing \"[trigger_word]\" [message]!</span>")
 	else
-		to_chat(owner, span_danger("Something [message]!"))
+		to_chat(owner, "<span class='userdanger'>Something [message]!</span>")
 	var/reaction = rand(1,4)
 	switch(reaction)
 		if(1)
-			to_chat(owner, span_warning("I are paralyzed with fear!"))
+			to_chat(owner, "<span class='warning'>You are paralyzed with fear!</span>")
 			owner.Stun(70)
 			owner.Jitter(8)
 		if(2)
@@ -125,7 +126,7 @@
 			if(reason)
 				owner.pointed(reason)
 		if(3)
-			to_chat(owner, span_warning("I shut your eyes in terror!"))
+			to_chat(owner, "<span class='warning'>You shut your eyes in terror!</span>")
 			owner.Jitter(5)
 			owner.blind_eyes(10)
 		if(4)
@@ -146,10 +147,6 @@
 
 /datum/brain_trauma/mild/phobia/security
 	phobia_type = "security"
-	random_gain = FALSE
-
-/datum/brain_trauma/mild/phobia/clowns
-	phobia_type = "clowns"
 	random_gain = FALSE
 
 /datum/brain_trauma/mild/phobia/greytide
@@ -182,6 +179,10 @@
 
 /datum/brain_trauma/mild/phobia/supernatural
 	phobia_type = "the supernatural"
+	random_gain = FALSE
+
+/datum/brain_trauma/mild/phobia/aliens
+	phobia_type = "aliens"
 	random_gain = FALSE
 
 /datum/brain_trauma/mild/phobia/strangers

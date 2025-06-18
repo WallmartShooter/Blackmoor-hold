@@ -33,7 +33,7 @@
 // note is a number from 1-7 for A-G
 // acc is either "b", "n", or "#"
 // oct is 1-8 (or 9 for C)
-/datum/song/proc/playnote(mob/user, note, acc as text, oct)
+/datum/song/proc/playnote(note, acc as text, oct)
 	// handle accidental -> B<>C of E<>F
 	if(acc == "b" && (note == 3 || note == 6)) // C or F
 		if(note == 3)
@@ -52,12 +52,12 @@
 		acc = "b"
 		note++
 
-	// check octave, C is allowed to go to 9
+	// check octave, C is allowed to go to 9.
 	if(oct < 1 || (note == 3 ? oct > 9 : oct > 8))
 		return
 
 	// now generate name
-	var/soundfile = "sound/instruments/[instrumentDir]/[ascii2text(note+64)][acc][oct].[instrumentExt]"
+	var/soundfile = "sound/runtime/instruments/[instrumentDir]/[ascii2text(note+64)][acc][oct].[instrumentExt]"
 	soundfile = file(soundfile)
 	// make sure the note exists
 	if(!fexists(soundfile))
@@ -67,25 +67,22 @@
 	if((world.time - MUSICIAN_HEARCHECK_MINDELAY) > last_hearcheck)
 		LAZYCLEARLIST(hearing_mobs)
 		for(var/mob/M in get_hearers_in_view(15, source))
+			if(!M.client || !(M.client.prefs.toggles & SOUND_INSTRUMENTS))
+				continue
 			LAZYADD(hearing_mobs, M)
 		last_hearcheck = world.time
 
 	var/sound/music_played = sound(soundfile)
 	for(var/i in hearing_mobs)
 		var/mob/M = i
-		if(HAS_TRAIT(user, TRAIT_MUSICIAN) && isliving(M))
-			var/mob/living/L = M
-			L.apply_status_effect(STATUS_EFFECT_GOOD_MUSIC)
-		if(!M.client || !(M.client.prefs.toggles & SOUND_INSTRUMENTS))
-			continue
-		M.playsound_local(source, null, 100, falloff = 5, S = music_played)
+		M.playsound_local(source, null, 70, falloff = 5, S = music_played)
 
 /datum/song/proc/updateDialog(mob/user)
 	instrumentObj.updateDialog()		// assumes it's an object in world, override if otherwise
 
 /datum/song/proc/shouldStopPlaying(mob/user)
 	if(instrumentObj)
-		if(!user.canUseTopic(instrumentObj, BE_CLOSE, FALSE, NO_TK))
+		if(!user.canUseTopic(instrumentObj))
 			return TRUE
 		return !instrumentObj.anchored		// add special cases to stop in subclasses
 	else
@@ -130,7 +127,7 @@
 							cur_acc[cur_note] = "b"
 						else if(prob(75))
 							cur_acc[cur_note] = "n"
-					playnote(user, cur_note, cur_acc[cur_note], cur_oct[cur_note])
+					playnote(cur_note, cur_acc[cur_note], cur_oct[cur_note])
 				if(notes.len >= 2 && text2num(notes[2]))
 					sleep(sanitize_tempo(tempo / text2num(notes[2])))
 				else
@@ -179,7 +176,7 @@
 					Notes are played by the names of the note, and optionally, the accidental, and/or the octave number.<br>
 					By default, every note is natural and in octave 3. Defining otherwise is remembered for each note.<br>
 					Example: <i>C,D,E,F,G,A,B</i> will play a C major scale.<br>
-					After a note has an accidental placed, it will be remembered: <i>C,C4,C,C3</i> is <i>C3,C4,C4,C3</i><br>
+					After a note has an accidental placed, it will be remembered: <i>C,C4,C,C3</i> is C3,C4,C4,C3</i><br>
 					Chords can be played simply by seperating each note with a hyphon: <i>A-C#,Cn-E,E-G#,Gn-B</i><br>
 					A pause may be denoted by an empty chord: <i>C,E,,C,G</i><br>
 					To make a chord be a different time, end it with /x, where the chord length will be length<br>
@@ -220,7 +217,7 @@
 		updateDialog(usr)		// make sure updates when complete
 
 /datum/song/Topic(href, href_list)
-	if(!usr.canUseTopic(instrumentObj, BE_CLOSE, FALSE, NO_TK))
+	if(!usr.canUseTopic(instrumentObj))
 		usr << browse(null, "window=instrument")
 		usr.unset_machine()
 		return
@@ -236,13 +233,11 @@
 		var/t = ""
 		do
 			t = html_encode(input(usr, "Please paste the entire song, formatted:", text("[]", name), t)  as message)
-			if(!usr.canUseTopic(instrumentObj, BE_CLOSE, FALSE, NO_TK))
+			if(!in_range(instrumentObj, usr))
 				return
 
 			if(length(t) >= MUSIC_MAXLINES * MUSIC_MAXLINECHARS)
 				var/cont = input(usr, "Your message is too long! Would you like to continue editing it?", "", "yes") in list("yes", "no")
-				if(!usr.canUseTopic(instrumentObj, BE_CLOSE, FALSE, NO_TK))
-					return
 				if(cont == "no")
 					break
 		while(length(t) > MUSIC_MAXLINES * MUSIC_MAXLINECHARS)
@@ -268,11 +263,12 @@
 
 	else if(href_list["play"])
 		playing = TRUE
-		INVOKE_ASYNC(src, PROC_REF(playsong), usr)
+		spawn()
+			playsong(usr)
 
 	else if(href_list["newline"])
 		var/newline = html_encode(input("Enter your line: ", instrumentObj.name) as text|null)
-		if(!newline || !usr.canUseTopic(instrumentObj, BE_CLOSE, FALSE, NO_TK))
+		if(!newline || !in_range(instrumentObj, usr))
 			return
 		if(lines.len > MUSIC_MAXLINES)
 			return
@@ -289,7 +285,7 @@
 	else if(href_list["modifyline"])
 		var/num = round(text2num(href_list["modifyline"]),1)
 		var/content = html_encode(input("Enter your line: ", instrumentObj.name, lines[num]) as text|null)
-		if(!content || !usr.canUseTopic(instrumentObj, BE_CLOSE, FALSE, NO_TK))
+		if(!content || !in_range(instrumentObj, usr))
 			return
 		if(length(content) > MUSIC_MAXLINECHARS)
 			content = copytext(content, 1, MUSIC_MAXLINECHARS)
@@ -335,17 +331,17 @@
 /obj/structure/piano/unanchored
 	anchored = FALSE
 
-/obj/structure/piano/Initialize()
-	. = ..()
+/obj/structure/piano/New()
+	..()
 	song = new("piano", src)
 
-	if(prob(50) && icon_state == initial(icon_state))
+	if(prob(50))
 		name = "space minimoog"
-		desc = ""
+		desc = "This is a minimoog, like a space piano, but more spacey!"
 		icon_state = "minimoog"
 	else
 		name = "space piano"
-		desc = ""
+		desc = "This is a space piano, like a regular piano, but always in tune! Even if the musician isn't."
 		icon_state = "piano"
 
 /obj/structure/piano/Destroy()
@@ -373,14 +369,9 @@
 /obj/structure/piano/ui_interact(mob/user)
 	if(!user || !anchored)
 		return
-
-	if(!user.IsAdvancedToolUser())
-		to_chat(user, span_warning("I don't have the dexterity to do this!"))
-		return 1
 	user.set_machine(src)
 	song.interact(user)
 
 /obj/structure/piano/wrench_act(mob/living/user, obj/item/I)
-	..()
 	default_unfasten_wrench(user, I, 40)
 	return TRUE

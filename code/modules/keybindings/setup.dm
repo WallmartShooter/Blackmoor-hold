@@ -1,53 +1,38 @@
-/client
-	/// A rolling buffer of any keys held currently
-	var/list/keys_held = list()
-	///used to keep track of the current rolling buffer position
-	var/current_key_address = 0
-	/// These next two vars are to apply movement for keypresses and releases made while move delayed.
-	/// Because discarding that input makes the game less responsive.
- 	/// On next move, add this dir to the move that would otherwise be done
-	var/next_move_dir_add
- 	/// On next move, subtract this dir from the move that would otherwise be done
-	var/next_move_dir_sub
-
-// Set a client's focus to an object and override these procs on that object to let it handle keypresses
-
 /datum/proc/key_down(key, client/user) // Called when a key is pressed down initially
 	return
+
 /datum/proc/key_up(key, client/user) // Called when a key is released
 	return
+
 /datum/proc/keyLoop(client/user) // Called once every frame
 	set waitfor = FALSE
 	return
-
-/client/verb/change_macrosets()
-	set name = "Switch Keybinding Mode"
-	set desc = "Switch between classic and modern keybinding modes."
-	set category = "OOC"
-
-	var/list/macrosets = list(
-		"Classic" = SKIN_MACROSET_CLASSIC_INPUT,
-		"Modern" = SKIN_MACROSET_HOTKEYS
-	)
-	var/choice = input("Select a keybinding mode:") as null|anything in macrosets
-	if(!choice)
-		return
-	winset(src, null, "mainwindow.macro=[macrosets[choice]]")
 
 /client/verb/fix_macros()
 	set name = "Fix Keybindings"
 	set desc = "Re-assert all your macros/keybindings."
 	set category = "OOC"
+	if(last_macro_fix > (world.time - 10 SECONDS))
+		to_chat(src, "<span class='warning'>It's been too long since the last reset. Wait a while.</span>")
+		return
 	if(!SSinput.initialized)
 		to_chat(src, "<span class='warning'>Input hasn't been initialized yet. Wait a while.</span>")
 		return
 	to_chat(src, "<span class='danger'>Force-reasserting all macros.</span>")
-	set_macros()
+	last_macro_fix = world.time
+	full_macro_assert()
 
 // removes all the existing macros
-/client/proc/erase_all_macros()
+/client/proc/erase_all_macros(datum/preferences/prefs_override = prefs)
 	var/erase_output = ""
-	var/list/macro_set = params2list(winget(src, "default.*", "command")) // The third arg doesnt matter here as we're just removing them all
+	var/list/set_text = list()
+	if(!prefs_override)
+		for(var/macroset in SSinput.all_macrosets)
+			set_text += "[macroset].*"
+		set_text = set_text.Join(";")
+	else
+		set_text = prefs_override.hotkeys? "[SKIN_MACROSET_HOTKEYS].*" : "[SKIN_MACROSET_CLASSIC_INPUT].*;[SKIN_MACROSET_CLASSIC_HOTKEYS].*"
+	var/list/macro_set = params2list(winget(src, "[set_text]", "command"))
 	for(var/k in 1 to length(macro_set))
 		var/list/split_name = splittext(macro_set[k], ".")
 		var/macro_name = "[split_name[1]].[split_name[2]]" // [3] is "command"
@@ -63,24 +48,27 @@
 		var/command = macroset[key]
 		winset(src, "[name]-[REF(key)]", "parent=[name];name=[key];command=[command]")
 
+/client/proc/set_hotkeys_preference(datum/preferences/prefs_override = prefs)
+	if(prefs_override.hotkeys)
+		winset(src, null, "map.focus=true input.background-color=[COLOR_INPUT_DISABLED] mainwindow.macro=[SKIN_MACROSET_HOTKEYS]")
+	else
+		winset(src, null, "input.focus=true input.background-color=[COLOR_INPUT_ENABLED] mainwindow.macro=[SKIN_MACROSET_CLASSIC_INPUT]")
+
 /client/proc/ensure_keys_set(datum/preferences/prefs_override = prefs)
 	if(SSinput.initialized)
 		full_macro_assert(prefs_override)
 
 /client/proc/full_macro_assert(datum/preferences/prefs_override = prefs)
-	INVOKE_ASYNC(src, PROC_REF(set_macros), prefs_override)
+	INVOKE_ASYNC(src, .proc/do_full_macro_assert, prefs_override)		// winget sleeps.
 
-/client/proc/set_macros(datum/preferences/prefs_override = prefs)
-	set waitfor = FALSE
-
+// TODO: OVERHAUL ALL OF THIS AGAIN. While this works this is flatout horrid with the "use list but also don't use lists" crap. I hate my life.
+/client/proc/do_full_macro_assert(datum/preferences/prefs_override = prefs)
 	// First, wipe
+	erase_all_macros(prefs_override)
 	keys_held.Cut()
-
-	erase_all_macros()
-	update_movement_keys()
-	// First, collect sets. Make sure to COPY, as we are modifying these!	
+	// First, collect sets. Make sure to COPY, as we are modifying these!
 	var/list/macrosets = prefs_override.hotkeys? list(
-			SKIN_MACROSET_HOTKEYS = SSinput.macroset_hotkey.Copy()
+		SKIN_MACROSET_HOTKEYS = SSinput.macroset_hotkey.Copy()
 		) : list(
 			SKIN_MACROSET_CLASSIC_INPUT = SSinput.macroset_classic_input.Copy(),
 			SKIN_MACROSET_CLASSIC_HOTKEYS = SSinput.macroset_classic_hotkey.Copy()
@@ -137,13 +125,11 @@
 			for(var/macroset in macrosets)
 				var/list/the_set = macrosets[macroset]
 				the_set[actual] = command
-	
-	apply_macro_set(SKIN_MACROSET_HOTKEYS, SSinput.macroset_hotkey)
-	apply_macro_set(SKIN_MACROSET_CLASSIC_HOTKEYS, SSinput.macroset_classic_hotkey)
-	apply_macro_set(SKIN_MACROSET_CLASSIC_INPUT, SSinput.macroset_classic_input)
-
-	set_hotkeys_preference()
-	set_hotkeys_button(prefs_override.hotkeys)
+	// Lastly, set the actual macros.
+	for(var/macroset in macrosets)
+		apply_macro_set(macroset, macrosets[macroset])
+	// Finally, set hotkeys.
+	set_hotkeys_preference(prefs_override)
 
 /proc/keybind_modifier_permutation(key, alt = FALSE, ctrl = FALSE, shift = FALSE, self = TRUE)
 	var/list/permutations = list()
@@ -166,26 +152,17 @@
 		. += "[mod]+[key]"
 		do_keybind_modifier_permutations("[mod]+[key]", permutations.Copy(), .)
 
-/client/proc/set_hotkeys_preference(datum/preferences/prefs_override = prefs)
-	if(prefs_override.hotkeys)
-		winset(src, null, "map.focus=true input.background-color=[COLOR_INPUT_DISABLED] mainwindow.macro=[SKIN_MACROSET_HOTKEYS]")
-	else
-		winset(src, null, "input.focus=true input.background-color=[COLOR_INPUT_ENABLED] mainwindow.macro=[SKIN_MACROSET_CLASSIC_INPUT]")
-
-/client/proc/set_hotkeys_button(toggled)
-	winset(src, "hotkey_toggle", "is-checked=[toggled? "true" : "false"]")
-
 /**
-  * Updates the keybinds for special keys
-  *
-  * Handles adding macros for the keys that need it
-  * And adding movement keys to the clients movement_keys list
-  * At the time of writing this, communication(OOC, Say, IC) require macros
-  * Arguments:
-  * * direct_prefs - the preference we're going to get keybinds from
-  *
-  * Returns list of special keybind in key = Mod1Mod2Mod3Key format, NOT Mod1+Mod2+Mod3+Key format.
-  */
+ * Updates the keybinds for special keys
+ *
+ * Handles adding macros for the keys that need it
+ * And adding movement keys to the clients movement_keys list
+ * At the time of writing this, communication(OOC, Say, IC) require macros
+ * Arguments:
+ * * direct_prefs - the preference we're going to get keybinds from
+ *
+ **Returns list of special keybind in key = Mod1Mod2Mod3Key format, NOT Mod1+Mod2+Mod3+Key format.
+*/
 /client/proc/update_special_keybinds(datum/preferences/direct_prefs)
 	var/datum/preferences/D = direct_prefs || prefs
 	if(!D?.key_bindings)

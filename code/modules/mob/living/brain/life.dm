@@ -1,11 +1,7 @@
 
-/mob/living/brain/Life()
-	set invisibility = 0
-	if (notransform)
+/mob/living/brain/BiologicalLife(seconds, times_fired)
+	if(!(. = ..()))
 		return
-	if(!loc)
-		return
-	. = ..()
 	handle_emp_damage()
 
 /mob/living/brain/update_stat()
@@ -15,10 +11,12 @@
 		if(stat != DEAD)
 			death()
 		var/obj/item/organ/brain/BR
-		if(istype(loc, /obj/item/organ/brain))
+		if(container && container.brain)
+			BR = container.brain
+		else if(istype(loc, /obj/item/organ/brain))
 			BR = loc
 		if(BR)
-			BR.brain_death = TRUE //beaten to a pulp
+			BR.brain_death = TRUE
 
 /mob/living/brain/proc/handle_emp_damage()
 	if(emp_damage)

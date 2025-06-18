@@ -1,8 +1,9 @@
 /mob/living/simple_animal/cockroach
 	name = "cockroach"
-	desc = ""
+	desc = "This station is just crawling with bugs."
 	icon_state = "cockroach"
 	icon_dead = "cockroach"
+	blood_volume = 50
 	health = 1
 	maxHealth = 1
 	turns_per_move = 5
@@ -13,6 +14,8 @@
 	pass_flags = PASSTABLE | PASSGRILLE | PASSMOB
 	mob_size = MOB_SIZE_TINY
 	mob_biotypes = MOB_ORGANIC|MOB_BUG
+	response_help_continuous = "pokes"
+	response_help_simple = "poke"
 	response_disarm_continuous = "shoos"
 	response_disarm_simple = "shoo"
 	response_harm_continuous = "splats"
@@ -20,6 +23,7 @@
 	speak_emote = list("chitters")
 	density = FALSE
 	ventcrawler = VENTCRAWLER_ALWAYS
+	mob_size = MOB_SIZE_TINY
 	gold_core_spawnable = FRIENDLY_SPAWN
 	verb_say = "chitters"
 	verb_ask = "chitters inquisitively"
@@ -29,6 +33,8 @@
 	del_on_death = 1
 
 /mob/living/simple_animal/cockroach/death(gibbed)
+	if(SSticker.mode && SSticker.mode.station_was_nuked) //If the nuke is going off, then cockroaches are invincible. Keeps the nuke from killing them, cause cockroaches are immune to nukes.
+		return
 	..()
 
 /mob/living/simple_animal/cockroach/Crossed(atom/movable/AM)
@@ -37,22 +43,17 @@
 			var/mob/living/A = AM
 			if(A.mob_size > MOB_SIZE_SMALL && !(A.movement_type & FLYING))
 				if(prob(squish_chance))
-					if(ishuman(A))
-						var/mob/living/carbon/human/H = A
-						if(HAS_TRAIT(H, TRAIT_PACIFISM))
-							H.visible_message(span_notice("[src] avoids getting crushed."), span_warning("I avoid crushing [src]!"))
-							return
-					A.visible_message(span_notice("[A] crushes [src]."), span_notice("I crushed [src]."))
+					A.visible_message("<span class='notice'>[A] squashed [src].</span>", "<span class='notice'>You squashed [src].</span>")
 					adjustBruteLoss(1) //kills a normal cockroach
 				else
-					visible_message(span_notice("[src] avoids getting crushed."))
+					visible_message("<span class='notice'>[src] avoids getting crushed.</span>")
 	else
 		if(isstructure(AM))
 			if(prob(squish_chance))
-				AM.visible_message(span_notice("[src] was crushed under [AM]."))
+				AM.visible_message("<span class='notice'>[src] was crushed under [AM].</span>")
 				adjustBruteLoss(1)
 			else
-				visible_message(span_notice("[src] avoids getting crushed."))
+				visible_message("<span class='notice'>[src] avoids getting crushed.</span>")
 
 /mob/living/simple_animal/cockroach/ex_act() //Explosions are a terrible way to handle a cockroach.
 	return

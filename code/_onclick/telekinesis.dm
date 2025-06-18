@@ -63,11 +63,11 @@
 	* If you have not grabbed something, do a normal tk attack
 	* If you have something, throw it at the target.  If it is already adjacent, do a normal attackby()
 	* If you click what you are holding, or attack_self(), do an attack_self_tk() on it.
-	* Deletes itself if it is ever not in my hand, or if you should have no access to TK.
+	* Deletes itself if it is ever not in your hand, or if you should have no access to TK.
 */
 /obj/item/tk_grab
 	name = "Telekinetic Grab"
-	desc = ""
+	desc = "Magic"
 	icon = 'icons/obj/magic.dmi'//Needs sprites
 	icon_state = "2"
 	item_flags = NOBLUDGEON | ABSTRACT | DROPDEL
@@ -90,7 +90,7 @@
 	return ..()
 
 /obj/item/tk_grab/process()
-	if(check_if_focusable(focus)) //if somebody grabs my thing, no waiting for them to put it down and hitting them again.
+	if(check_if_focusable(focus)) //if somebody grabs your thing, no waiting for them to put it down and hitting them again.
 		update_icon()
 
 /obj/item/tk_grab/dropped(mob/user)
@@ -101,16 +101,14 @@
 
 //stops TK grabs being equipped anywhere but into hands
 /obj/item/tk_grab/equipped(mob/user, slot)
-	. = ..()
 	if(slot == SLOT_HANDS)
-		return
+		return ..()
 	qdel(src)
 
 /obj/item/tk_grab/examine(user)
 	if (focus)
 		return focus.examine(user)
-	else
-		return ..()
+	return ..()
 
 /obj/item/tk_grab/attack_self(mob/user)
 	if(!focus)
@@ -125,7 +123,8 @@
 	. = ..()
 	if(!target || !user)
 		return
-
+	if(!user.CheckActionCooldown(CLICK_CD_MELEE))
+		return
 	if(!focus)
 		focus_object(target)
 		return
@@ -147,13 +146,13 @@
 	else
 		apply_focus_overlay()
 		focus.throw_at(target, 10, 1,user)
-	user.changeNext_move(CLICK_CD_MELEE)
+	user.DelayNextAction(considered_action = TRUE, flush = TRUE)
 	update_icon()
 
 /proc/tkMaxRangeCheck(mob/user, atom/target)
 	var/d = get_dist(user, target)
 	if(d > TK_MAXRANGE)
-		to_chat(user, span_warning("My mind won't reach that far."))
+		to_chat(user, "<span class ='warning'>Your mind won't reach that far.</span>")
 		return
 	return TRUE
 
@@ -169,7 +168,7 @@
 	return TRUE
 
 /obj/item/tk_grab/proc/check_if_focusable(obj/target)
-	if(!tk_user || !istype(tk_user) || QDELETED(target) || !istype(target))
+	if(!tk_user || !istype(tk_user) || QDELETED(target) || !istype(target) || !tk_user.dna.check_mutation(TK))
 		qdel(src)
 		return
 	if(!tkMaxRangeCheck(tk_user, target) || target.anchored || !isturf(target.loc))
@@ -186,14 +185,13 @@
 	. = ..()
 	if(!focus)
 		return
-
 	var/mutable_appearance/focus_overlay = new(focus)
 	focus_overlay.layer = layer + 0.01
 	focus_overlay.plane = ABOVE_HUD_PLANE
 	. += focus_overlay
 
 /obj/item/tk_grab/suicide_act(mob/user)
-	user.visible_message(span_suicide("[user] is using [user.p_their()] telekinesis to choke [user.p_them()]self! It looks like [user.p_theyre()] trying to commit suicide!"))
+	user.visible_message("<span class='suicide'>[user] is using [user.p_their()] telekinesis to choke [user.p_them()]self! It looks like [user.p_theyre()] trying to commit suicide!</span>")
 	return (OXYLOSS)
 
 

@@ -13,16 +13,17 @@ GLOBAL_LIST_EMPTY(deliverybeacontags)			    //list of all tags associated with d
 GLOBAL_LIST_EMPTY(nuke_list)
 GLOBAL_LIST_EMPTY(alarmdisplay)				        //list of all machines or programs that can display station alerts
 GLOBAL_LIST_EMPTY(singularities)				    //list of all singularities on the station (actually technically all engines)
+GLOBAL_LIST_EMPTY(grounding_rods)					//list of all grounding rods on the station
+GLOBAL_LIST_EMPTY(plant_bins)					    //list of all plant bins on the map
 
+GLOBAL_LIST_EMPTY(materials_list)					//list of all /datum/material datums indexed by material id.
 GLOBAL_LIST(chemical_reactions_list)				//list of all /datum/chemical_reaction datums. Used during chemical reactions
 GLOBAL_LIST(chemical_reagents_list)				//list of all /datum/reagent datums indexed by reagent id. Used by chemistry stuff
-GLOBAL_LIST_EMPTY(materials_list)				//list of all /datum/material datums indexed by material id.
 GLOBAL_LIST_EMPTY(tech_list)					//list of all /datum/tech datums indexed by id.
+GLOBAL_LIST_EMPTY(surgeries_list)				//list of all surgeries by name, associated with their path.
+GLOBAL_LIST_EMPTY(uplink_items)					//list of all uplink item typepaths, ascendingly sorted by their initial name.
+GLOBAL_LIST_EMPTY(uplink_categories)			//list of all uplink categories, listed by the order they are loaded in code. Be careful.
 GLOBAL_LIST_EMPTY(crafting_recipes)				//list of all table craft recipes
-GLOBAL_LIST_EMPTY(anvil_recipes)				//list of all table craft recipes
-GLOBAL_LIST_EMPTY(alch_grind_recipes)			//list of all alchemy grinding recipes
-GLOBAL_LIST_EMPTY(alch_cauldron_recipes)		//list of all alchemy cauldron recipes
-GLOBAL_LIST_EMPTY(cooking_recipes)				//list of all cooking recipes. currently unused, pending a broader crafting refactor.
 GLOBAL_LIST_EMPTY(rcd_list)					//list of Rapid Construction Devices.
 GLOBAL_LIST_EMPTY(apcs_list)					//list of all Area Power Controller machines, separate from machines for powernet speeeeeeed.
 GLOBAL_LIST_EMPTY(tracked_implants)			//list of all current implants that are tracked to work out what sort of trek everyone is on. Sadly not on lavaworld not implemented...
@@ -34,8 +35,7 @@ GLOBAL_LIST_EMPTY(meteor_list)				// List of all meteors.
 GLOBAL_LIST_EMPTY(active_jammers)             // List of active radio jammers
 GLOBAL_LIST_EMPTY(ladders)
 GLOBAL_LIST_EMPTY(trophy_cases)
-
-GLOBAL_LIST_EMPTY(stew_recipes) // list of all stew recipes
+GLOBAL_LIST_EMPTY(coin_values)
 
 GLOBAL_LIST_EMPTY(wire_color_directory)
 GLOBAL_LIST_EMPTY(wire_name_directory)
@@ -44,3 +44,12 @@ GLOBAL_LIST_EMPTY(ai_status_displays)
 
 GLOBAL_LIST_EMPTY(mob_spawners) 		    // All mob_spawn objects
 GLOBAL_LIST_EMPTY(alert_consoles)			// Station alert consoles, /obj/machinery/computer/station_alert
+
+//list of everyone playing rock paper scissors
+GLOBAL_LIST_EMPTY(rockpaperscissors_players)
+
+GLOBAL_LIST_EMPTY(trash_piles)						//list of all trash_piles
+GLOBAL_LIST_EMPTY(money_piles)
+
+GLOBAL_LIST_EMPTY(mob_nests)						//list of all nests, 				/obj/structure/nest
+GLOBAL_LIST_EMPTY(lamppost)							//list of all lampposts

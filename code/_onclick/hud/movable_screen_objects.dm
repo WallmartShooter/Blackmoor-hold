@@ -8,7 +8,7 @@
 //Movable Screen Object
 //Not tied to the grid, places it's center where the cursor is
 
-/atom/movable/screen/movable
+/obj/screen/movable
 	var/snap2grid = FALSE
 	var/moved = FALSE
 	var/locked = FALSE
@@ -18,11 +18,11 @@
 //Snap Screen Object
 //Tied to the grid, snaps to the nearest turf
 
-/atom/movable/screen/movable/snap
+/obj/screen/movable/snap
 	snap2grid = TRUE
 
 
-/atom/movable/screen/movable/MouseDrop(over_object, src_location, over_location, src_control, over_control, params)
+/obj/screen/movable/MouseDrop(over_object, src_location, over_location, src_control, over_control, params)
 	if(locked) //no! I am locked! begone!
 		return
 	var/list/PM = params2list(params)
@@ -56,13 +56,13 @@
 	set category = "Debug"
 	set name = "Spawn Movable UI Object"
 
-	var/atom/movable/screen/movable/M = new()
+	var/obj/screen/movable/M = new()
 	M.name = "Movable UI Object"
 	M.icon_state = "block"
 	M.maptext = "Movable"
 	M.maptext_width = 64
 
-	var/screen_l = input(usr,"Where on the screen? (Formatted as 'X,Y' e.g: '1,1' for bottom left)","Spawn Movable UI Object") as text|null
+	var/screen_l = input(usr,"Where on the screen? (Formatted as 'X,Y' e.g: '1,1' for bottom left)","Spawn Movable UI Object") as text
 	if(!screen_l)
 		return
 
@@ -75,13 +75,13 @@
 	set category = "Debug"
 	set name = "Spawn Snap UI Object"
 
-	var/atom/movable/screen/movable/snap/S = new()
+	var/obj/screen/movable/snap/S = new()
 	S.name = "Snap UI Object"
 	S.icon_state = "block"
 	S.maptext = "Snap"
 	S.maptext_width = 64
 
-	var/screen_l = input(usr,"Where on the screen? (Formatted as 'X,Y' e.g: '1,1' for bottom left)","Spawn Snap UI Object") as text|null
+	var/screen_l = input(usr,"Where on the screen? (Formatted as 'X,Y' e.g: '1,1' for bottom left)","Spawn Snap UI Object") as text
 	if(!screen_l)
 		return
 

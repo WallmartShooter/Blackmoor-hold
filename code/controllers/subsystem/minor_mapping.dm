@@ -4,20 +4,36 @@ SUBSYSTEM_DEF(minor_mapping)
 	flags = SS_NO_FIRE
 
 /datum/controller/subsystem/minor_mapping/Initialize(timeofday)
-	//Minor mapping comes quite late in the init list so it should be safe to add here. We want this long after everything else is done
+	trigger_migration(CONFIG_GET(number/mice_roundstart))
 	SSmapping.load_marks()
-
-//	place_sunlight()
 	return ..()
 
-/proc/find_sun_suitable_turfs()
-	var/list/suitable = list()
+/datum/controller/subsystem/minor_mapping/proc/trigger_migration(num_mice=10)
+	var/list/exposed_wires = find_exposed_wires()
 
-	for(var/z in SSmapping.levels_by_trait(ZTRAIT_STATION))
-		for(var/t in block(locate(1,1,z), locate(world.maxx,world.maxy,z)))
-			if(isfloorturf(t))
-				var/area/A = get_area(t)
-				if(istype(A, /area/rogue/outdoors))
-					suitable += t
+	var/mob/living/simple_animal/mouse/M
+	var/turf/proposed_turf
 
-	return shuffle(suitable)
+	while((num_mice > 0) && exposed_wires.len)
+		proposed_turf = pick_n_take(exposed_wires)
+		if(!M)
+			M = new(proposed_turf)
+		else
+			M.forceMove(proposed_turf)
+		if(M.environment_is_safe())
+			num_mice -= 1
+			M = null
+
+/proc/find_exposed_wires()
+	var/list/exposed_wires = list()
+	exposed_wires.Cut()
+	var/list/all_turfs
+	for (var/z in SSmapping.levels_by_trait(ZTRAIT_STATION))
+		all_turfs += block(locate(1,1,z), locate(world.maxx,world.maxy,z))
+	for(var/turf/open/floor/plating/T in all_turfs)
+		if(is_blocked_turf(T))
+			continue
+		if(locate(/obj/structure/cable) in T)
+			exposed_wires += T
+
+	return shuffle(exposed_wires)

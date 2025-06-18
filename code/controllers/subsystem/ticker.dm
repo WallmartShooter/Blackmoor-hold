@@ -1,7 +1,5 @@
 #define ROUND_START_MUSIC_LIST "strings/round_start_sounds.txt"
-
-
-GLOBAL_VAR_INIT(round_timer, INITIAL_ROUND_TIMER)
+#define ROUND_BEGIN_MUSIC_LIST "strings/round_begin_sounds.txt"
 
 SUBSYSTEM_DEF(ticker)
 	name = "Ticker"
@@ -17,11 +15,24 @@ SUBSYSTEM_DEF(ticker)
 	var/start_immediately = FALSE
 	var/setup_done = FALSE //All game setup done including mode post setup and
 
+	var/hide_mode = 0
+	var/datum/game_mode/mode = null
+	var/event_time = null
+	var/event = 0
+
 	var/login_music							//music played in pregame lobby
+	var/begin_music							//F13 Round start sound
 	var/round_end_sound						//music/jingle played when the world reboots
 	var/round_end_sound_sent = TRUE			//If all clients have loaded it
 
 	var/list/datum/mind/minds = list()		//The characters in the game. Used for objective tracking.
+
+	var/list/syndicate_coalition = list()	//list of traitor-compatible factions
+	var/list/factions = list()				//list of all factions
+	var/list/availablefactions = list()		//list of factions with openings
+	var/list/scripture_states = list(SCRIPTURE_DRIVER = TRUE, \
+	SCRIPTURE_SCRIPT = FALSE, \
+	SCRIPTURE_APPLICATION = FALSE) //list of clockcult scripture states for announcements
 
 	var/delay_end = 0						//if set true, the round will not restart on it's own
 	var/admin_delay_notice = ""				//a message to display to anyone who tries to restart the world after a delay
@@ -33,14 +44,10 @@ SUBSYSTEM_DEF(ticker)
 
 	var/timeLeft						//pregame timer
 	var/start_at
-	//576000 dusk
-	//376000 day
-	var/gametime_offset = 288001		//Deciseconds to add to world.time for station time.
-	var/station_time_rate_multiplier = 50		//factor of station time progressal vs real time.
-	var/time_until_vote = 180 MINUTES
-	var/last_vote_time = null
-	var/autovote = TRUE
-	var/firstvote = TRUE
+
+	/// Deciseconds to add to world.time for station time.
+	var/gametime_offset = 216000
+	var/station_time_rate_multiplier = 12		//factor of station time progressal vs real time.
 
 	var/totalPlayers = 0					//used for pregame stats on statpanel
 	var/totalPlayersReady = 0				//used for pregame stats on statpanel
@@ -57,25 +64,14 @@ SUBSYSTEM_DEF(ticker)
 	var/roundend_check_paused = FALSE
 
 	var/round_start_time = 0
-	var/round_start_irl = 0
 	var/list/round_start_events
 	var/list/round_end_events
 	var/mode_result = "undefined"
 	var/end_state = "undefined"
-	var/job_change_locked = FALSE
-	var/list/royals_readied = list()
-	var/rulertype = "Grand Duke" // reports whether king or queen rules
-	var/rulermob = null // reports what the ruling mob is.
-	var/failedstarts = 0
-	var/list/manualmodes = list()
 
-	var/gamemode_voted = FALSE
-	var/end_party = FALSE
-	var/last_lobby = 0
-	var/round_end = FALSE
+	var/modevoted = FALSE					//Have we sent a vote for the gamemode?
 
-	var/next_lord_check = 0
-	var/missing_lord_time = 0
+	var/station_integrity = 100				// stored at roundend for use in some antag goals
 
 /datum/controller/subsystem/ticker/Initialize(timeofday)
 	load_mode()
@@ -113,29 +109,28 @@ SUBSYSTEM_DEF(ticker)
 				if((use_rare_music && L[1] == "rare") || (L[1] == SSmapping.config.map_name))
 					music += S
 			if(1) //sound.ogg -- common sound
-				if(L[1] == "exclude")
-					continue
 				music += S
 
-//	var/old_login_music = trim(file2text("data/last_round_lobby_music.txt"))
-//	if(music.len > 1)
-//		music -= old_login_music
+	var/old_login_music = trim(file2text("data/last_round_lobby_music.txt"))
+	if(music.len > 1)
+		music -= old_login_music
 
 	for(var/S in music)
 		var/list/L = splittext(S,".")
 		if(L.len >= 2)
-			var/ext = lowertext(L[L.len]) //pick the real extension, no 'honk.ogg.exe' nonsense here
+			var/ext = lowertext(L[L.len]) //pick the real extension, no nonsense here
 			if(byond_sound_formats[ext])
 				continue
 		music -= S
 
 	if(isemptylist(music))
+		music = world.file2list(ROUND_BEGIN_MUSIC_LIST, "\n")
+		begin_music = pick(music)
 		music = world.file2list(ROUND_START_MUSIC_LIST, "\n")
 		login_music = pick(music)
 	else
 		login_music = "[global.config.directory]/title_music/sounds/[pick(music)]"
 
-	login_music = pick('sound/music/title.ogg','sound/music/title2.ogg')
 
 	if(!GLOB.syndicate_code_phrase)
 		GLOB.syndicate_code_phrase	= generate_code_phrase(return_list=TRUE)
@@ -163,262 +158,196 @@ SUBSYSTEM_DEF(ticker)
 /datum/controller/subsystem/ticker/fire()
 	switch(current_state)
 		if(GAME_STATE_STARTUP)
-//			if(Master.initializations_finished_with_no_players_logged_in)
-//			start_at = world.time + (CONFIG_GET(number/lobby_countdown) * 10)
+			if(Master.initializations_finished_with_no_players_logged_in)
+				start_at = world.time + (CONFIG_GET(number/lobby_countdown) * 10)
 			for(var/client/C in GLOB.clients)
 				window_flash(C, ignorepref = TRUE) //let them know lobby has opened up.
-//			to_chat(world, span_boldnotice("Welcome to [station_name()]!"))
-			send2chat(new /datum/tgs_message_content("New round starting on [SSmapping.config.map_name]!"), CONFIG_GET(string/chat_announce_new_game))
+			to_chat(world, "<span class='boldnotice'>Welcome to [station_name()]!</span>")
+			send2chat("New round starting on [SSmapping.config.map_name]!", CONFIG_GET(string/chat_announce_new_game))
 			current_state = GAME_STATE_PREGAME
 			//Everyone who wants to be an observer is now spawned
 			create_observers()
 			fire()
 		if(GAME_STATE_PREGAME)
-			//lobby stats for statpanels
+				//lobby stats for statpanels
 			if(isnull(timeLeft))
 				timeLeft = max(0,start_at - world.time)
-			totalPlayers = LAZYLEN(GLOB.new_player_list)
+			totalPlayers = 0
 			totalPlayersReady = 0
-			for(var/i in GLOB.new_player_list)
-				var/mob/dead/new_player/player = i
+			for(var/mob/dead/new_player/player in GLOB.player_list)
+				++totalPlayers
 				if(player.ready == PLAYER_READY_TO_PLAY)
 					++totalPlayersReady
-			
-			if(!gamemode_voted)
-				SSvote.initiate_vote("storyteller", "Psydon", timeLeft/2)
-				gamemode_voted = TRUE
 
 			if(start_immediately)
 				timeLeft = 0
 
+			//clampif(!modevoted)
+				//send_gamemode_vote()
 			//countdown
 			if(timeLeft < 0)
 				return
 			timeLeft -= wait
 
 			if(timeLeft <= 300 && !tipped)
-#ifdef MATURESERVER
 				send_tip_of_the_round()
-#endif
 				tipped = TRUE
 
 			if(timeLeft <= 0)
-				if(!checkreqroles())
-					current_state = GAME_STATE_STARTUP
-					start_at = world.time + 600
-					timeLeft = null
-					Master.SetRunLevel(RUNLEVEL_LOBBY)
-				else
-					current_state = GAME_STATE_SETTING_UP
-					Master.SetRunLevel(RUNLEVEL_SETUP)
-					if(start_immediately)
-						fire()
+				if(SSvote.mode && (SSvote.mode == "roundtype" || SSvote.mode == "dynamic" || SSvote.mode == "mode tiers"))
+					SSvote.result()
+					SSpersistence.SaveSavedVotes()
+					for(var/client/C in SSvote.voting)
+						C << browse(null, "window=vote;can_close=0")
+					SSvote.reset()
+				current_state = GAME_STATE_SETTING_UP
+				Master.SetRunLevel(RUNLEVEL_SETUP)
+				if(start_immediately)
+					fire()
 
 		if(GAME_STATE_SETTING_UP)
 			if(!setup())
 				//setup failed
 				current_state = GAME_STATE_STARTUP
-				start_at = world.time + 600
+				start_at = world.time + (CONFIG_GET(number/lobby_countdown) * 10)
 				timeLeft = null
 				Master.SetRunLevel(RUNLEVEL_LOBBY)
 
 		if(GAME_STATE_PLAYING)
+			mode.process(wait * 0.1)
 			check_queue()
 			check_maprotate()
+			scripture_states = scripture_unlock_alert(scripture_states)
+			//SSshuttle.autoEnd()
 
-			check_for_lord()
-			if(!roundend_check_paused && SSgamemode.check_finished(force_ending) || force_ending)
-				SSgamemode.refresh_alive_stats()
+			if(!roundend_check_paused && mode.check_finished(force_ending) || force_ending)
 				current_state = GAME_STATE_FINISHED
 				toggle_ooc(TRUE) // Turn it on
 				toggle_dooc(TRUE)
 				declare_completion(force_ending)
 				Master.SetRunLevel(RUNLEVEL_POSTGAME)
 
-/datum/controller/subsystem/ticker
-	var/last_bot_update = 0
-
-/datum/controller/subsystem/ticker/proc/checkreqroles()
-	var/list/readied_jobs = list()
-	var/list/required_jobs = list()
-
-	//var/list/required_jobs = list("Queen","King","Merchant") //JTGSZ - 4/11/2024 - This was the prev set of required jobs to go with the hardcoded checks commented out below
-
-	for(var/V in required_jobs)
-		for(var/mob/dead/new_player/player in GLOB.player_list)
-			if(!player)
-				continue
-			if(player.client.prefs.job_preferences[V] == JP_HIGH)
-				if(player.ready == PLAYER_READY_TO_PLAY)
-					if(player.client.prefs.lastclass == V)
-						if(player.IsJobUnavailable(V) != JOB_AVAILABLE)
-							to_chat(player, span_warning("You cannot be [V] and thus are not considered."))
-							continue
-				readied_jobs.Add(V)
-		/*
-			// These else conditions stop the round from starting unless there is a merchant, king, and queen.
-		else
-			var/list/stuffy = list("Set a Ruler to 'high' in your class preferences to start the game!", "PLAY Ruler NOW!", "A Ruler is required to start.", "Pray for a Ruler.", "One day, there will be a Ruler.", "Just try playing Ruler.", "If you don't play Ruler, the game will never start.", "We need at least one Ruler to start the game.", "We're waiting for you to pick Ruler to start.", "Still no Ruler is readied..", "I'm going to lose my mind if we don't get a Ruler readied up.","No. The game will not start because there is no Ruler.","What's the point of ROGUETOWN without a Ruler?")
-			to_chat(world, span_purple("[pick(stuffy)]"))
-			return FALSE
-	else
-		var/list/stuffy = list("Set Merchant to 'high' in your class preferences to start the game!", "PLAY Merchant NOW!", "A Merchant is required to start.", "Pray for a Merchant.", "One day, there will be a Merchant.", "Just try playing Merchant.", "If you don't play Merchant, the game will never start.", "We need at least one Merchant to start the game.", "We're waiting for you to pick Merchant to start.", "Still no Merchant is readied..", "I'm going to lose my mind if we don't get a Merchant readied up.","No. The game will not start because there is no Merchant.","What's the point of ROGUETOWN without a Merchant?")
-		to_chat(world, span_purple("[pick(stuffy)]"))
-		return FALSE
-	*/
-
-	/*
-	for(var/mob/dead/new_player/player in GLOB.player_list)
-		if(!player)
-			continue
-		if(player.ready == PLAYER_READY_TO_PLAY)
-			amt_ready++
-
-	if(amt_ready < 2)
-		to_chat(world, span_purple("[amt_ready]/20 players ready."))
-		failedstarts++
-		if(failedstarts > 7)
-			to_chat(world, span_purple("[failedstarts]/13"))
-		if(failedstarts >= 13)
-			to_chat(world, span_greentext("Starting ROGUEFIGHT..."))
-			var/icon/ikon
-			var/file_path = "icons/roguefight_title.dmi"
-			ASSERT(fexists(file_path))
-			ikon = new(fcopy_rsc(file_path))
-			if(SStitle.splash_turf && ikon)
-				SStitle.splash_turf.icon = ikon
-			for(var/mob/dead/new_player/player in GLOB.player_list)
-				player.playsound_local(player, 'sound/music/wartitle.ogg', 100, TRUE)
-		return FALSE
-	*/
-	job_change_locked = TRUE
-	return TRUE
-
-/datum/controller/subsystem/ticker
-	var/isroguefight = FALSE
-	var/isrogueworld = FALSE
 
 /datum/controller/subsystem/ticker/proc/setup()
-	message_admins(span_boldannounce("Starting game..."))
+	to_chat(world, "<span class='boldannounce'>Starting game...</span>")
 	var/init_start = world.timeofday
-		
+		//Create and announce mode
+	var/list/datum/game_mode/runnable_modes
+	if(GLOB.master_mode == "random" || GLOB.master_mode == "secret")
+		runnable_modes = config.get_runnable_modes()
+
+		if(GLOB.master_mode == "secret")
+			hide_mode = 1
+			if(GLOB.secret_force_mode != "secret")
+				var/datum/game_mode/smode = config.pick_mode(GLOB.secret_force_mode)
+				if(!smode.can_start())
+					message_admins("<span class='notice'>Unable to force secret [GLOB.secret_force_mode]. [smode.required_players] players and [smode.required_enemies] eligible antagonists needed.</span>")
+				else
+					mode = smode
+
+		if(!mode)
+			if(!runnable_modes.len)
+				to_chat(world, "<B>Unable to choose playable game mode.</B> Reverting to pre-game lobby.")
+				return 0
+			mode = pickweight(runnable_modes)
+			if(!mode)	//too few roundtypes all run too recently
+				mode = pick(runnable_modes)
+
+	else
+		mode = config.pick_mode(GLOB.master_mode)
+		if(!mode.can_start())
+			to_chat(world, "<B>Unable to start [mode.name].</B> Not enough players, [mode.required_players] players and [mode.required_enemies] eligible antagonists needed. Reverting to pre-game lobby.")
+			qdel(mode)
+			mode = null
+			SSjob.ResetOccupations()
+			return 0
 
 	CHECK_TICK
 	//Configure mode and assign player to special mode stuff
 	var/can_continue = 0
-
+	can_continue = src.mode.pre_setup()		//Choose antagonists
+	CHECK_TICK
+	can_continue = can_continue && SSjob.DivideOccupations(mode.required_jobs) 				//Distribute jobs
 	CHECK_TICK
 
-	can_continue =	SSgamemode.pre_setup()
+	if(!GLOB.Debug2)
+		if(!can_continue)
+			log_game("[mode.name] failed pre_setup, cause: [mode.setup_error]")
+			send2irc("SSticker", "[mode.name] failed pre_setup, cause: [mode.setup_error]")
+			message_admins("<span class='notice'>[mode.name] failed pre_setup, cause: [mode.setup_error]</span>")
+			QDEL_NULL(mode)
+			to_chat(world, "<B>Error setting up [GLOB.master_mode].</B> Reverting to pre-game lobby.")
+			SSjob.ResetOccupations()
+			return 0
+	else
+		message_admins("<span class='notice'>DEBUG: Bypassing prestart checks...</span>")
 
 	CHECK_TICK
-
-	can_continue = can_continue && SSjob.DivideOccupations(list()) 				//Distribute jobs
-
-	CHECK_TICK
-
-	log_game("GAME SETUP: Divide Occupations success")
-
-	CHECK_TICK
+	/*if(hide_mode) CIT CHANGE - comments this section out to obfuscate gamemodes. Quit self-antagging during extended just because "hurrrrr no antaggs!!!!!! i giv sec thing 2 do!!!!!!!!!" it's bullshit and everyone hates it
+		var/list/modes = new
+		for (var/datum/game_mode/M in runnable_modes)
+			modes += M.name
+		modes = sortList(modes)
+		to_chat(world, "<b>The gamemode is: secret!\nPossibilities:</B> [english_list(modes)]")
+	else
+		mode.announce()*/
 
 	if(!CONFIG_GET(flag/ooc_during_round))
 		toggle_ooc(FALSE) // Turn it off
 
 	CHECK_TICK
 	GLOB.start_landmarks_list = shuffle(GLOB.start_landmarks_list) //Shuffle the order of spawn points so they dont always predictably spawn bottom-up and right-to-left
-	if(!isrogueworld && !isroguefight)
-		create_characters() //Create player characters
-		log_game("GAME SETUP: create characters success")
-		collect_minds()
-		log_game("GAME SETUP: collect minds success")
-		equip_characters()
-		log_game("GAME SETUP: equip characters success")
+	create_characters() //Create player characters
+	collect_minds()
+	equip_characters()
 
-		GLOB.data_core.manifest()
-		log_game("GAME SETUP: manifest success")
+	GLOB.data_core.manifest()
 
-		transfer_characters()	//transfer keys to the new mobs
-		log_game("GAME SETUP: transfer characters success")
+	transfer_characters()	//transfer keys to the new mobs
 
 	for(var/I in round_start_events)
 		var/datum/callback/cb = I
 		cb.InvokeAsync()
-
-	log_game("GAME SETUP: round start events success")
 	LAZYCLEARLIST(round_start_events)
-	CHECK_TICK
-	if(isrogueworld)
-		for(var/obj/structure/fluff/traveltile/TT in GLOB.traveltiles)
-			if(TT.aallmig)
-				TT.aportalgoesto = TT.aallmig
-		for(var/i in GLOB.mob_living_list)
-			var/mob/living/L = i
-			var/turf/T = get_turf(L)
-			if(!T || !(T.z in list(2,3,4,5)))
-				continue
-			qdel(L)
-		for(var/i in SSmachines.processing)
-			var/obj/machinery/light/L = i
-			if(istype(L))
-				var/turf/T = get_turf(L)
-				if(!T || !(T.z in list(2,3,4,5)))
-					continue
-				qdel(L)
 
-	log_game("GAME SETUP: Game start took [(world.timeofday - init_start)/10]s")
+	log_world("Game start took [(world.timeofday - init_start)/10]s")
 	round_start_time = world.time
-	round_start_irl = REALTIMEOFDAY
-//	SSshuttle.emergency.startTime = world.time
-//	SSshuttle.emergency.setTimer(ROUNDTIMERBOAT)
-
 	SSdbcore.SetRoundStart()
 
-	for(var/client/C in GLOB.clients)
-		if(C.mob)
-			C.mob.playsound_local(C.mob, 'sound/misc/roundstart.ogg', 100, FALSE)
+	to_chat(world, "<span class='notice'><B>Welcome to [station_name()], enjoy your stay!</B></span>")
+	SEND_SOUND(world, sound(begin_music))
 
-//	SEND_SOUND(world, sound('sound/misc/roundstart.ogg'))
 	current_state = GAME_STATE_PLAYING
-
-
 	Master.SetRunLevel(RUNLEVEL_GAME)
-/*
+
 	if(SSevents.holidays)
-		to_chat(world, span_notice("and..."))
+		to_chat(world, "<span class='notice'>and...</span>")
 		for(var/holidayname in SSevents.holidays)
 			var/datum/holiday/holiday = SSevents.holidays[holidayname]
 			to_chat(world, "<h4>[holiday.greet()]</h4>")
-*/
+
 	PostSetup()
-	log_game("GAME SETUP: postsetup success")
+	SSshuttle.realtimeofstart = world.realtime
 
 	return TRUE
 
 /datum/controller/subsystem/ticker/proc/PostSetup()
 	set waitfor = FALSE
+	mode.post_setup()
+	GLOB.start_state = new /datum/station_state()
+	GLOB.start_state.count()
 
-	SSgamemode.current_storyteller?.process(STORYTELLER_WAIT_TIME * 0.1) // we want this asap
-	SSgamemode.current_storyteller?.round_started = TRUE
-
+	var/list/adm = get_admin_counts()
+	var/list/allmins = adm["present"]
+	send2irc("Server", "Round [GLOB.round_id ? "#[GLOB.round_id]:" : "of"] [hide_mode ? "secret":"[mode.name]"] has started[allmins.len ? ".":" with no active admins online!"]")
 	setup_done = TRUE
 
-	job_change_locked = FALSE
-
-//	setup_hell()
-	SStriumphs.fire_on_PostSetup()
 	for(var/i in GLOB.start_landmarks_list)
 		var/obj/effect/landmark/start/S = i
 		if(istype(S))							//we can not runtime here. not in this important of a proc.
 			S.after_round_start()
 		else
 			stack_trace("[S] [S.type] found in start landmarks list, which isn't a start landmark!")
-
-/*	if(living_player_count() < 10) //If it's lowpop, open up the gates so people don't have to start doing assassin's creed bullshit to get into town
-		for(var/obj/structure/gate/obstacle in GLOB.biggates)
-			obstacle.open() */
-
-	if(!rulermob)
-		lord_color_default()
 
 
 //These callbacks will fire after roundstart key transfer
@@ -440,18 +369,11 @@ SUBSYSTEM_DEF(ticker)
 		var/turf/epi = bomb.loc
 		qdel(bomb)
 		if(epi)
-			explosion(epi, 0, 256, 512, 0, TRUE, TRUE, 0, TRUE)
+			explosion(epi, 512, 0, 0, 0, TRUE, TRUE, 0, TRUE)
 
 /datum/controller/subsystem/ticker/proc/create_characters()
-	for(var/i in GLOB.new_player_list)
-		var/mob/dead/new_player/player = i
-		if(!player)
-			message_admins("THERES A FUCKING NULL IN THE NEW_PLAYER_LIST, REPORT IT TO BLACKMOOR DEVELOPMENT STAFF NOW!")
-			continue
-		if(!player.mind)
-			message_admins("THERES A MIND LACKING PLAYER IN THE NEW_PLAYER_LIST, REPORT IT TO BLACKMOOR DEVELOPMENT STAFF NOW!")
-			continue
-		if(player.ready == PLAYER_READY_TO_PLAY)
+	for(var/mob/dead/new_player/player in GLOB.player_list)
+		if(player.ready == PLAYER_READY_TO_PLAY && player.mind)
 			GLOB.joined_player_list += player.ckey
 			player.create_character(FALSE)
 		else
@@ -459,77 +381,76 @@ SUBSYSTEM_DEF(ticker)
 		CHECK_TICK
 
 /datum/controller/subsystem/ticker/proc/collect_minds()
-	for(var/i in GLOB.new_player_list)
-		var/mob/dead/new_player/P = i
+	for(var/mob/dead/new_player/P in GLOB.player_list)
 		if(P.new_character && P.new_character.mind)
 			SSticker.minds += P.new_character.mind
 		CHECK_TICK
 
+
 /datum/controller/subsystem/ticker/proc/equip_characters()
-	var/list/valid_characters = list()
-	for(var/mob/dead/new_player/new_player as anything in GLOB.new_player_list)
-		var/mob/living/carbon/human/player = new_player.new_character
-		if(istype(player) && player.mind?.assigned_role)
+	var/captainless=1
+	for(var/mob/dead/new_player/N in GLOB.player_list)
+		var/mob/living/carbon/human/player = N.new_character
+		if(istype(player) && player.mind && player.mind.assigned_role)
+			var/datum/job/J = SSjob.GetJob(player.mind.assigned_role)
+			if(J)
+				J.standard_assign_skills(player.mind)
+			if(player.mind.assigned_role == "Captain")
+				captainless=0
 			if(player.mind.assigned_role != player.mind.special_role)
-				valid_characters[player] = new_player
-	sortTim(valid_characters, GLOBAL_PROC_REF(cmp_assignedrole_dsc))
-	for(var/mob/character as anything in valid_characters)
-		var/mob/new_player = valid_characters[character]
-		SSjob.EquipRank(new_player, character.mind.assigned_role, joined_late = FALSE)
+				SSjob.EquipRank(N, player.mind.assigned_role, 0)
+				if(CONFIG_GET(flag/roundstart_traits) && ishuman(N.new_character))
+					SSquirks.AssignQuirks(N.new_character, N.client, TRUE, TRUE, SSjob.GetJob(player.mind.assigned_role), FALSE, N)
+			N.client.prefs.post_copy_to(player)
 		CHECK_TICK
+	if(captainless)
+		for(var/mob/dead/new_player/N in GLOB.player_list)
+			if(N.new_character)
+				to_chat(N, "Captainship not forced on anyone.")
+			CHECK_TICK
 
 /datum/controller/subsystem/ticker/proc/transfer_characters()
 	var/list/livings = list()
-	for(var/i in GLOB.new_player_list)
-		var/mob/dead/new_player/player = i
-		var/mob/living = player?.transfer_character()
+	for(var/mob/dead/new_player/player in GLOB.mob_list)
+		var/mob/living = player.transfer_character()
 		if(living)
 			qdel(player)
-			living.notransform = TRUE
+			living.mob_transforming = TRUE
 			if(living.client)
-				var/atom/movable/screen/splash/S = new(living.client, TRUE)
+				if (living.client.prefs && living.client.prefs.auto_ooc)
+					if (living.client.prefs.chat_toggles & CHAT_OOC)
+						living.client.prefs.chat_toggles ^= CHAT_OOC
+				var/obj/screen/splash/S = new(living.client, TRUE)
 				S.Fade(TRUE)
+				living.client.init_verbs()
 			livings += living
-			if(ishuman(living))
-				try_apply_character_post_equipment(living)
-		else
-			continue
+
 	if(livings.len)
-		addtimer(CALLBACK(src, PROC_REF(release_characters), livings), 30, TIMER_CLIENT_TIME)
+		addtimer(CALLBACK(src, .proc/release_characters, livings), 30, TIMER_CLIENT_TIME)
+
+	SSmatchmaking.matchmake()
+
 
 /datum/controller/subsystem/ticker/proc/release_characters(list/livings)
 	for(var/I in livings)
 		var/mob/living/L = I
-		if(L)
-			L?.notransform = FALSE
+		L.mob_transforming = FALSE
 
 /datum/controller/subsystem/ticker/proc/send_tip_of_the_round()
-	return
-/*	var/m
+	var/m
 	if(selected_tip)
 		m = selected_tip
 	else
 		var/list/randomtips = world.file2list("strings/tips.txt")
-//		var/list/memetips = world.file2list("strings/sillytips.txt")
-//		if(randomtips.len && prob(95))
-		m = pick(randomtips)
-//		else if(memetips.len)
-//			m = pick(memetips)
+		if(randomtips.len)
+			m = pick(randomtips)
+
 	if(m)
-		to_chat(world, span_purple("Before we begin, remember: [html_encode(m)]"))
-*/
+		to_chat(world, "<span class='purple'><b>Tip of the round: </b>[html_encode(m)]</span>")
+
 /datum/controller/subsystem/ticker/proc/check_queue()
-	if(!queued_players.len)
-		return
 	var/hpc = CONFIG_GET(number/hard_popcap)
-	if(!hpc)
-		listclearnulls(queued_players)
-		for (var/mob/dead/new_player/NP in queued_players)
-			to_chat(NP, span_danger("The alive players limit has been released!<br><a href='?src=[REF(NP)];late_join=override'>[html_encode(">>Join Game<<")]</a>"))
-			SEND_SOUND(NP, sound('sound/blank.ogg'))
-			NP.LateChoices()
-		queued_players.len = 0
-		queue_delay = 0
+	if(!queued_players.len || !hpc)
 		return
 
 	queue_delay++
@@ -537,22 +458,23 @@ SUBSYSTEM_DEF(ticker)
 
 	switch(queue_delay)
 		if(5) //every 5 ticks check if there is a slot available
-			listclearnulls(queued_players)
 			if(living_player_count() < hpc)
 				if(next_in_line && next_in_line.client)
-					to_chat(next_in_line, span_danger("A slot has opened! You have approximately 20 seconds to join. <a href='?src=[REF(next_in_line)];late_join=override'>\>\>Join Game\<\<</a>"))
-					SEND_SOUND(next_in_line, sound('sound/blank.ogg'))
+					to_chat(next_in_line, "<span class='userdanger'>A slot has opened! You have approximately 20 seconds to join. <a href='?src=[REF(next_in_line)];late_join=override'>\>\>Join Game\<\<</a></span>")
+					SEND_SOUND(next_in_line, sound('sound/misc/notice1.ogg'))
 					next_in_line.LateChoices()
 					return
 				queued_players -= next_in_line //Client disconnected, remove he
 			queue_delay = 0 //No vacancy: restart timer
 		if(25 to INFINITY)  //No response from the next in line when a vacancy exists, remove he
-			to_chat(next_in_line, span_danger("No response received. You have been removed from the line."))
+			to_chat(next_in_line, "<span class='danger'>No response received. You have been removed from the line.</span>")
 			queued_players -= next_in_line
 			queue_delay = 0
 
 /datum/controller/subsystem/ticker/proc/check_maprotate()
 	if (!CONFIG_GET(flag/maprotation))
+		return
+	if (SSshuttle.emergency && SSshuttle.emergency.mode != SHUTTLE_ESCAPE || SSshuttle.canRecall())
 		return
 	if (maprotatechecked)
 		return
@@ -560,9 +482,24 @@ SUBSYSTEM_DEF(ticker)
 	maprotatechecked = 1
 
 	//map rotate chance defaults to 75% of the length of the round (in minutes)
-	if (!prob((world.time/600)*CONFIG_GET(number/maprotatechancedelta)))
+	if (!prob((world.time/600)*CONFIG_GET(number/maprotatechancedelta)) && CONFIG_GET(flag/tgstyle_maprotation))
 		return
-	INVOKE_ASYNC(SSmapping, TYPE_PROC_REF(/datum/controller/subsystem/mapping, maprotate))
+	if(CONFIG_GET(flag/tgstyle_maprotation))
+		INVOKE_ASYNC(SSmapping, /datum/controller/subsystem/mapping/.proc/maprotate)
+	else
+		var/vote_type = CONFIG_GET(string/map_vote_type)
+		switch(vote_type)
+			if("PLURALITY")
+				SSvote.initiate_vote("map","server", display = SHOW_RESULTS)
+			if("APPROVAL")
+				SSvote.initiate_vote("map","server", display = SHOW_RESULTS, votesystem = APPROVAL_VOTING)
+			if("IRV")
+				SSvote.initiate_vote("map","server", display = SHOW_RESULTS, votesystem = INSTANT_RUNOFF_VOTING)
+			if("SCORE")
+				SSvote.initiate_vote("map","server", display = SHOW_RESULTS, votesystem = MAJORITY_JUDGEMENT_VOTING)
+			else
+				SSvote.initiate_vote("map","server", display = SHOW_RESULTS)
+		// fallback
 
 /datum/controller/subsystem/ticker/proc/HasRoundStarted()
 	return current_state >= GAME_STATE_PLAYING
@@ -570,14 +507,35 @@ SUBSYSTEM_DEF(ticker)
 /datum/controller/subsystem/ticker/proc/IsRoundInProgress()
 	return current_state == GAME_STATE_PLAYING
 
+/proc/send_gamemode_vote() //CIT CHANGE - adds roundstart gamemode votes
+	if(SSticker.current_state == GAME_STATE_PREGAME)
+		if(SSticker.timeLeft < 900)
+			SSticker.timeLeft = 900
+		SSticker.modevoted = TRUE
+		var/dynamic = CONFIG_GET(flag/dynamic_voting)
+		if(dynamic)
+			SSvote.initiate_vote("dynamic", "server", display = NONE, votesystem = SCORE_VOTING, forced = TRUE,vote_time = 20 MINUTES)
+		else
+			SSvote.initiate_vote("roundtype", "server", display = NONE, votesystem = PLURALITY_VOTING, forced=TRUE, \
+			vote_time = (CONFIG_GET(flag/modetier_voting) ? 1 MINUTES : 20 MINUTES))
+
 /datum/controller/subsystem/ticker/Recover()
 	current_state = SSticker.current_state
 	force_ending = SSticker.force_ending
+	hide_mode = SSticker.hide_mode
+	mode = SSticker.mode
+	event_time = SSticker.event_time
+	event = SSticker.event
 
 	login_music = SSticker.login_music
+	begin_music = SSticker.begin_music
 	round_end_sound = SSticker.round_end_sound
 
 	minds = SSticker.minds
+
+	syndicate_coalition = SSticker.syndicate_coalition
+	factions = SSticker.factions
+	availablefactions = SSticker.availablefactions
 
 	delay_end = SSticker.delay_end
 
@@ -594,11 +552,12 @@ SUBSYSTEM_DEF(ticker)
 	queued_players = SSticker.queued_players
 	maprotatechecked = SSticker.maprotatechecked
 	round_start_time = SSticker.round_start_time
-	round_start_irl = SSticker.round_start_irl
 
 	queue_delay = SSticker.queue_delay
 	queued_players = SSticker.queued_players
 	maprotatechecked = SSticker.maprotatechecked
+
+	modevoted = SSticker.modevoted
 
 	switch (current_state)
 		if(GAME_STATE_SETTING_UP)
@@ -610,14 +569,14 @@ SUBSYSTEM_DEF(ticker)
 
 /datum/controller/subsystem/ticker/proc/send_news_report()
 	var/news_message
-	var/news_source = "Nanotrasen News Network"
+	var/news_source = "Oasis Publishing"
 	switch(news_report)
 		if(NUKE_SYNDICATE_BASE)
 			news_message = "In a daring raid, the heroic crew of [station_name()] detonated a nuclear device in the heart of a terrorist base."
 		if(STATION_DESTROYED_NUKE)
 			news_message = "We would like to reassure all employees that the reports of a Syndicate backed nuclear attack on [station_name()] are, in fact, a hoax. Have a secure day!"
 		if(STATION_EVACUATED)
-			news_message = "The crew of [station_name()] has been evacuated amid unconfirmed reports of enemy activity."
+			news_message = "The inhabitants of [station_name()] breathe a sigh of the relief as the week comes to an end. "
 		if(BLOB_WIN)
 			news_message = "[station_name()] was overcome by an unknown biological outbreak, killing all crew on board. Don't let it happen to you! Remember, a clean work station is a safe work station."
 		if(BLOB_NUKE)
@@ -652,9 +611,26 @@ SUBSYSTEM_DEF(ticker)
 			news_message = "The burst of energy released near [station_name()] has been confirmed as merely a test of a new weapon. However, due to an unexpected mechanical error, their communications system has been knocked offline."
 		if(SHUTTLE_HIJACK)
 			news_message = "During routine evacuation procedures, the emergency shuttle of [station_name()] had its navigation protocols corrupted and went off course, but was recovered shortly after."
+		if(GANG_VICTORY)
+			news_message = "Company officials reaffirmed that sudden deployments of special forces are not in any way connected to rumors of [station_name()] being covered in graffiti."
+
+	if(SSblackbox.first_death)
+		var/list/ded = SSblackbox.first_death
+		//fortuna addition. list of random names for the roundend news investigator
+		var/list/investigator = list("Oasis Investigators","A band of couriers","Patrolling rangers","A few mysterious strangers","The NCR","The Legion","The Brotherhood","The Den")
+		if(ded.len)
+			news_message += "[pick(investigator)] discovered the corpse of a person of interest in the area. Their name was: [ded["name"]], the [ded["role"]], who died in a nearby [ded["area"]].[ded["last_words"] ? " Their last words were: \"[ded["last_words"]]\"" : ""]"
+		else
+			news_message += " [pick(investigator)] have reported a relatively safe week so far!"
+
+		//role ping for discord
+		news_message += " \n <@&922230570791108628> "
 
 	if(news_message)
 		send2otherserver(news_source, news_message,"News_Report")
+		return news_message
+	else
+		return "We regret to inform you that shit be whack, yo. None of our reporters have any idea of what may or may not have gone on."
 
 /datum/controller/subsystem/ticker/proc/GetTimeLeft()
 	if(isnull(SSticker.timeLeft))
@@ -669,11 +645,10 @@ SUBSYSTEM_DEF(ticker)
 
 //Everyone who wanted to be an observer gets made one now
 /datum/controller/subsystem/ticker/proc/create_observers()
-	for(var/i in GLOB.new_player_list)
-		var/mob/dead/new_player/player = i
+	for(var/mob/dead/new_player/player in GLOB.player_list)
 		if(player.ready == PLAYER_READY_TO_OBSERVE && player.mind)
 			//Break chain since this has a sleep input in it
-			addtimer(CALLBACK(player, TYPE_PROC_REF(/mob/dead/new_player, make_me_an_observer)), 1)
+			addtimer(CALLBACK(player, /mob/dead/new_player.proc/make_me_an_observer), 1)
 
 /datum/controller/subsystem/ticker/proc/load_mode()
 	var/mode = trim(file2text("data/mode.txt"))
@@ -709,18 +684,17 @@ SUBSYSTEM_DEF(ticker)
 
 	var/skip_delay = check_rights()
 	if(delay_end && !skip_delay)
-		to_chat(world, span_boldannounce("A game master has delayed the round end."))
+		to_chat(world, "<span class='boldannounce'>An admin has delayed the round end.</span>")
 		return
 
-	SStriumphs.end_triumph_saving_time()
-	to_chat(world, span_boldannounce("Rebooting World in [DisplayTimeText(delay)]. [reason]"))
+	to_chat(world, "<span class='boldannounce'>Rebooting World in [DisplayTimeText(delay)]. [reason]</span>")
 
 	var/start_wait = world.time
 	UNTIL(round_end_sound_sent || (world.time - start_wait) > (delay * 2))	//don't wait forever
 	sleep(delay - (world.time - start_wait))
 
 	if(delay_end && !skip_delay)
-		to_chat(world, span_boldannounce("Reboot was cancelled by an admin."))
+		to_chat(world, "<span class='boldannounce'>Reboot was cancelled by an admin.</span>")
 		return
 	if(end_string)
 		end_state = end_string
@@ -728,20 +702,35 @@ SUBSYSTEM_DEF(ticker)
 	var/statspage = CONFIG_GET(string/roundstatsurl)
 	var/gamelogloc = CONFIG_GET(string/gamelogurl)
 	if(statspage)
-		to_chat(world, span_info("Round statistics and logs can be viewed <a href=\"[statspage][GLOB.round_id]\">at this website!</a>"))
+		to_chat(world, "<span class='info'>Round statistics and logs can be viewed <a href=\"[statspage][GLOB.round_id]\">at this website!</a></span>")
 	else if(gamelogloc)
-		to_chat(world, span_info("Round logs can be located <a href=\"[gamelogloc]\">at this website!</a>"))
+		to_chat(world, "<span class='info'>Round logs can be located <a href=\"[gamelogloc]\">at this website!</a></span>")
 
-	log_game(span_boldannounce("Rebooting World. [reason]"))
+	log_game("<span class='boldannounce'>Rebooting World. [reason]</span>")
 
-	if(end_party)
-		to_chat(world, span_boldannounce("It's over!"))
-		world.Del()
-	else
-		world.Reboot()
+	world.Reboot()
 
 /datum/controller/subsystem/ticker/Shutdown()
+	gather_newscaster() //called here so we ensure the log is created even upon admin reboot
 	save_admin_data()
 	update_everything_flag_in_db()
+	if(!round_end_sound)
+		round_end_sound = pick(\
+		'sound/roundend/fallout_dodgeball_truncated.ogg',
+		'sound/roundend/get_fucked.ogg',
+		'sound/roundend/roundend_jean_baptist.ogg',
+		'sound/roundend/roundend_nuclear_backyard.ogg',
+		'sound/roundend/roundend_patrolling.ogg',
+		'sound/roundend/roundend_real_tunnel_snake.ogg',
+		'sound/roundend/roundend_smoothskin.ogg',
+		'sound/roundend/roundend_tunnel_snakes_rule.ogg',
+		'sound/roundend/gondolabridge.ogg',
+		'sound/roundend/haveabeautifultime.ogg',
+		'sound/roundend/whereisyourpowerarmor.ogg',
+		'sound/roundend/timetodie.ogg',
+		'sound/roundend/ishouldkickyourass.ogg',
+		'sound/roundend/evilmrnv.ogg'\
+		)
 
+	SEND_SOUND(world, sound(round_end_sound))
 	text2file(login_music, "data/last_round_lobby_music.txt")

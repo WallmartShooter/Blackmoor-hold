@@ -11,9 +11,17 @@
 
 		for(var/turf/check in get_affected_turfs(central_turf,1))
 			var/area/new_area = get_area(check)
-			if(!(istype(new_area, allowed_areas)) || check.flags_1 & NO_RUINS_1)
-				valid = FALSE
+			valid = FALSE // set to false before we check
+			if(check.flags_1 & NO_RUINS_1)
 				break
+			for(var/type in allowed_areas)
+				if(istype(new_area, type)) // it's at least one of our types so it's whitelisted
+					valid = TRUE
+					break
+
+			if(!valid)
+				break
+			
 
 		if(!valid)
 			continue
@@ -26,6 +34,8 @@
 				qdel(nest)
 			for(var/mob/living/simple_animal/monster in T)
 				qdel(monster)
+			for(var/obj/structure/flora/ash/plant in T)
+				qdel(plant)
 
 		load(central_turf,centered = TRUE)
 		loaded++
@@ -49,8 +59,7 @@
 	new /obj/effect/landmark/ruin(center, src)
 	return center
 
-
-/proc/seedRuins(list/z_levels = null, budget = 0, whitelist = /area/space, list/potentialRuins)
+/proc/seedRuins(list/z_levels = null, budget = 0, whitelist = list(/area/space), list/potentialRuins)
 	if(!z_levels || !z_levels.len)
 		WARNING("No Z levels provided - Not generating ruins")
 		return
@@ -76,6 +85,7 @@
 		if(R.unpickable)
 			continue
 		ruins_availible[R] = R.placement_weight
+
 	while(budget > 0 && (ruins_availible.len || forced_ruins.len))
 		var/datum/map_template/ruin/current_pick
 		var/forced = FALSE
@@ -94,7 +104,7 @@
 				break
 		else //Otherwise just pick random one
 			current_pick = pickweight(ruins_availible)
-		
+
 		var/placement_tries = forced_turf ? 1 : PLACEMENT_TRIES //Only try once if we target specific turf
 		var/failed_to_place = TRUE
 		var/target_z = 0
@@ -167,5 +177,5 @@
 		for(var/datum/map_template/ruin/R in ruins_availible)
 			if(R.cost > budget)
 				ruins_availible -= R
-	
+
 	log_world("Ruin loader finished with [budget] left to spend.")

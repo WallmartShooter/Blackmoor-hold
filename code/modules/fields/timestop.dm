@@ -2,7 +2,7 @@
 /obj/effect/timestop
 	anchored = TRUE
 	name = "chronofield"
-	desc = ""
+	desc = "ZA WARUDO"
 	icon = 'icons/effects/160x160.dmi'
 	icon_state = "time"
 	layer = FLY_LAYER
@@ -26,17 +26,23 @@
 		freezerange = radius
 	for(var/A in immune_atoms)
 		immune[A] = TRUE
+	for(var/mob/living/L in GLOB.player_list)
+		if(locate(/obj/effect/proc_holder/spell/aoe_turf/timestop) in L.mind.spell_list) //People who can stop time are immune to its effects
+			immune[L] = TRUE
+	for(var/mob/living/simple_animal/hostile/guardian/G in GLOB.parasites)
+		if(G.summoner && locate(/obj/effect/proc_holder/spell/aoe_turf/timestop) in G.summoner.mind.spell_list) //It would only make sense that a person's stand would also be immune.
+			immune[G] = TRUE
 	if(start)
-		INVOKE_ASYNC(src, PROC_REF(timestop))
+		INVOKE_ASYNC(src, .proc/timestop) // ironic...
 
 /obj/effect/timestop/Destroy()
 	qdel(chronofield)
-	playsound(src, 'sound/blank.ogg', 75, TRUE, frequency = -1) //reverse!
+	playsound(src, 'sound/magic/timeparadox2.ogg', 75, TRUE, frequency = -1) //reverse!
 	return ..()
 
 /obj/effect/timestop/proc/timestop()
 	target = get_turf(src)
-	playsound(src, 'sound/blank.ogg', 75, TRUE, -1)
+	playsound(src, 'sound/magic/timeparadox2.ogg', 75, 1, -1)
 	chronofield = make_field(/datum/proximity_monitor/advanced/timestop, list("current_range" = freezerange, "host" = src, "immune" = immune, "check_anti_magic" = check_anti_magic, "check_holy" = check_holy))
 	QDEL_IN(src, duration)
 
@@ -76,8 +82,10 @@
 	var/frozen = TRUE
 	if(isliving(A))
 		freeze_mob(A)
-	else if(istype(A, /obj/projectile))
+	else if(istype(A, /obj/item/projectile))
 		freeze_projectile(A)
+	else if(istype(A, /obj/mecha))
+		freeze_mecha(A)
 	else if((ismachinery(A) && !istype(A, /obj/machinery/light)) || isstructure(A)) //Special exception for light fixtures since recoloring causes them to change light
 		freeze_structure(A)
 	else
@@ -92,8 +100,8 @@
 	A.move_resist = INFINITY
 	global_frozen_atoms[A] = src
 	into_the_negative_zone(A)
-	RegisterSignal(A, COMSIG_MOVABLE_PRE_MOVE, PROC_REF(unfreeze_atom))
-	RegisterSignal(A, COMSIG_ITEM_PICKUP, PROC_REF(unfreeze_atom))
+	RegisterSignal(A, COMSIG_MOVABLE_PRE_MOVE, .proc/unfreeze_atom)
+	RegisterSignal(A, COMSIG_ITEM_PICKUP, .proc/unfreeze_atom)
 
 	return TRUE
 
@@ -108,14 +116,23 @@
 		unfreeze_throwing(A)
 	if(isliving(A))
 		unfreeze_mob(A)
-	else if(istype(A, /obj/projectile))
+	else if(istype(A, /obj/item/projectile))
 		unfreeze_projectile(A)
+	else if(istype(A, /obj/mecha))
+		unfreeze_mecha(A)
+
 	UnregisterSignal(A, COMSIG_MOVABLE_PRE_MOVE)
 	UnregisterSignal(A, COMSIG_ITEM_PICKUP)
 	escape_the_negative_zone(A)
 	A.move_resist = frozen_things[A]
 	frozen_things -= A
 	global_frozen_atoms -= A
+
+/datum/proximity_monitor/advanced/timestop/proc/freeze_mecha(obj/mecha/M)
+	M.completely_disabled = TRUE
+
+/datum/proximity_monitor/advanced/timestop/proc/unfreeze_mecha(obj/mecha/M)
+	M.completely_disabled = FALSE
 
 /datum/proximity_monitor/advanced/timestop/proc/freeze_throwing(atom/movable/AM)
 	var/datum/thrownthing/T = AM.throwing
@@ -151,11 +168,10 @@
 	freeze_turf(T)
 	return ..()
 
-
-/datum/proximity_monitor/advanced/timestop/proc/freeze_projectile(obj/projectile/P)
+/datum/proximity_monitor/advanced/timestop/proc/freeze_projectile(obj/item/projectile/P)
 	P.paused = TRUE
 
-/datum/proximity_monitor/advanced/timestop/proc/unfreeze_projectile(obj/projectile/P)
+/datum/proximity_monitor/advanced/timestop/proc/unfreeze_projectile(obj/item/projectile/P)
 	P.paused = FALSE
 
 /datum/proximity_monitor/advanced/timestop/proc/freeze_mob(mob/living/L)
@@ -166,9 +182,9 @@
 	if(isanimal(L))
 		var/mob/living/simple_animal/S = L
 		S.toggle_ai(AI_OFF)
-	if(ishostile(L))
-		var/mob/living/simple_animal/hostile/H = L
-		H.LoseTarget()
+		if(ishostile(L))
+			var/mob/living/simple_animal/hostile/H = L
+			H.LoseTarget()
 
 /datum/proximity_monitor/advanced/timestop/proc/unfreeze_mob(mob/living/L)
 	L.AdjustStun(-20, 1, 1)

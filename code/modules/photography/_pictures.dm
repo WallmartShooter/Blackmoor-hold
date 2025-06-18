@@ -1,8 +1,6 @@
 /datum/picture
 	var/picture_name = "picture"
-	var/picture_desc = ""
-	var/list/mobs_seen = list()
-	var/list/dead_seen = list()
+	var/picture_desc = "This is a picture."
 	var/caption
 	var/icon/picture_image
 	var/icon/picture_icon
@@ -12,15 +10,11 @@
 	var/logpath						//If the picture has been logged this is the path.
 	var/id							//this var is NOT protected because the worst you can do with this that you couldn't do otherwise is overwrite photos, and photos aren't going to be used as attack logs/investigations anytime soon.
 
-/datum/picture/New(name, desc, mobs_spotted, dead_spotted, image, icon, size_x, size_y, bp, caption_, autogenerate_icon)
+/datum/picture/New(name, desc, image, icon, size_x, size_y, bp, caption_, autogenerate_icon)
 	if(!isnull(name))
 		picture_name = name
 	if(!isnull(desc))
 		picture_desc = desc
-	if(!isnull(mobs_spotted))
-		mobs_seen = mobs_spotted
-	if(!isnull(dead_spotted))
-		dead_seen = dead_spotted
 	if(!isnull(image))
 		picture_image = image
 	if(!isnull(icon))
@@ -79,6 +73,12 @@
 		picture_name = input["name"]
 	return src
 
+/proc/load_photo_from_disk(id, location)
+	var/datum/picture/P = load_picture_from_disk(id)
+	if(istype(P))
+		var/obj/item/photo/p = new(location, P)
+		return p
+
 /proc/load_picture_from_disk(id)
 	var/pathstring = log_path_from_picture_ID(id)
 	if(!pathstring)
@@ -111,9 +111,9 @@
 			if(data.len < 5)
 				return null
 			var/timestamp = data[2]
-			var/year = copytext(timestamp, 1, 5)
-			var/month = copytext(timestamp, 5, 7)
-			var/day = copytext(timestamp, 7, 9)
+			var/year = copytext_char(timestamp, 1, 5)
+			var/month = copytext_char(timestamp, 5, 7)
+			var/day = copytext_char(timestamp, 7, 9)
 			var/round = data[4]
 			. += "[year]/[month]/[day]/round-[round]"
 		if("O")
